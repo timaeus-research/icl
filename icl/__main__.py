@@ -2,7 +2,6 @@
 training the transformer on synthetic in-context regression task
 """
 # manage environment
-# this is unused for now?
 from dotenv import load_dotenv
 load_dotenv()
 # in case using mps:
