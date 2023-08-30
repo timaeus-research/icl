@@ -1,0 +1,3 @@
+[submodule "devinterp"]
+	path = devinterp
+	url = git@github.com:timaeus-research/devinterp.git
