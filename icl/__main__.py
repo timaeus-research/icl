@@ -18,16 +18,16 @@ import numpy as np
 import torch
 import tqdm
 import wandb
-
+from dotenv import load_dotenv
+#
 from devinterp.config import Config
 from devinterp.logging import Logger
 from devinterp.storage import CheckpointManager
-
+#
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.model import InContextRegressionTransformer
-from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
-from icl.tasks import RegressionSequenceDistribution
-
+from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+                       RegressionSequenceDistribution)
 
 class ICLConfig(Config):
     # dataset & loader
