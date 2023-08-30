@@ -9,7 +9,7 @@ Notes maybe for the specific problem in mind:
   * The optimal output for them is zero since they are drawn IID from
     standard normal.
   * There may be some point in checking them since it will regularise the
-    rest of the models.
+    rest of the model.
 * To be honest this task should probably have been modelled as an
   encoder-decoder problem if we are actually trying to solve it...
   maybe I should experiment with cross attention architectures.
@@ -17,7 +17,7 @@ Notes maybe for the specific problem in mind:
   its positional encoding that distinguishes x and y, and connects adjacent x
   to y...
 * Though I guess the point is to study decoded-only transformers without this
-  special position information, not to do linear regression... OK fair
+  special position information, not trained for linear regression... OK fair
   enough. But keep these interventions in mind if we want to elicit the
   behaviour more later.
 """
@@ -25,7 +25,7 @@ Notes maybe for the specific problem in mind:
 
 import torch
 
-from dtransformer import DTransformer
+from icl.dtransformer import DTransformer
 
 
 class InContextRegressionTransformer(torch.nn.Module):

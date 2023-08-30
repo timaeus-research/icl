@@ -12,18 +12,18 @@ from typing import Dict, List, Optional, TypedDict
 import numpy as np
 import torch
 import tqdm
-#
-from baselines import dmmse_predictor, ridge_predictor
 from dotenv import load_dotenv
-from model import InContextRegressionTransformer
-from tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
-                   RegressionSequenceDistribution)
-
 import wandb
+
 from devinterp.config import Config
 from devinterp.logging import Logger
 from devinterp.storage import CheckpointManager
-from devinterp.utils import flatten_dict
+
+from icl.baselines import dmmse_predictor, ridge_predictor
+from icl.model import InContextRegressionTransformer
+from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
+from icl.tasks import RegressionSequenceDistribution
+
 
 load_dotenv()
 

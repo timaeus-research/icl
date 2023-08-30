@@ -2,12 +2,12 @@ import torch
 import numpy as np
 import torch_testing as tt
 
-from model import to_token_sequence, from_token_sequence
+from icl.model import to_token_sequence, from_token_sequence
 
-from tasks import RegressionSequenceDistribution, SingletonTaskDistribution
-from tasks import DiscreteTaskDistribution, GaussianTaskDistribution
+from icl.tasks import RegressionSequenceDistribution, SingletonTaskDistribution
+from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
 
-from baselines import dmmse_predictor, ridge_predictor
+from icl.baselines import dmmse_predictor, ridge_predictor
 
 
 # # # TEST MODELS MODULE (incomplete)
