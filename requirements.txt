@@ -1,7 +1,5 @@
 torch
 tqdm
-pytest
-torch_testing
 wandb
 pydantic
 python-dotenv

@@ -135,6 +135,7 @@ Developer notes
 
 Some of the model and baselines implementations have unit tests:
 
+* Install additional testing dependencies `pip install pytest torch_testing`.
 * Add tests in the `tests` directory (name the script `test_*.py`).
 * Run the tests with the command `pytest`.
 
