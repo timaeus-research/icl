@@ -4,3 +4,4 @@ wandb
 pydantic
 python-dotenv
 boto3
+numpy

@@ -1,8 +1,8 @@
 name: icl-config-sweep
 method: grid
-program: experiments/icl/train.py
-project: "icl"
-entity: "devinterp"
+program: icl
+project: icl
+entity: devinterp
 parameters:
   task_size:
     value: 8
