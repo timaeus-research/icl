@@ -4,5 +4,5 @@ pytest
 torch_testing
 wandb
 pydantic
-dotenv
+python-dotenv
 boto3
