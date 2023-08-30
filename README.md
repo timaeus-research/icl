@@ -62,7 +62,7 @@ etc.):
 
 ```
 # inside icl repository
-pip install -r requirements.txt
+pip install --editable .
 ```
 
 The `devinterp` library is another dependency, but it's not yet available
