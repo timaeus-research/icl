@@ -14,29 +14,32 @@ For discussion and managing the project:
 
 * Project discussion and meetings take place on the DevInterp Discord server.
   (some prior discussion in the group chat).
-* A GitHub project tracks TODO items:
-  https://github.com/orgs/timaeus-research/projects/2/views/3
+* A GitHub project tracks TODO items
+  ([here](https://github.com/orgs/timaeus-research/projects/2/views/3))
 * There are two google docs associated to the project:
-  * Jesse is maintaining meeting notes:
-    https://docs.google.com/document/d/1yQmCNlIql18TYX--9CAgmI1kxcnVe1kpymadifK6wy4/edit
+  * Jesse is maintaining meeting notes
+    ([here](https://docs.google.com/document/d/1yQmCNlIql18TYX--9CAgmI1kxcnVe1kpymadifK6wy4/edit))
   * Dan's original note appears to have been abandoned:
-    https://docs.google.com/document/d/1S4kBVFhlQBVRrdMrhRZz_4BS5N2_ef9HA051rKM7nCE/edit
+    ([here](https://docs.google.com/document/d/1S4kBVFhlQBVRrdMrhRZz_4BS5N2_ef9HA051rKM7nCE/edit))
 
 For code and experiments:
 
 * This GitHub repository stores the experiment code, issues, etc.
-* W&B is used to track metrics from training runs:
-    https://wandb.ai/devinterp/icl
-* AWS is used to store snapshots: (unsure what to link here...)
+  (you are here)
+* W&B is used to track metrics from training runs
+  ([here](https://wandb.ai/devinterp/icl))
+* AWS is used to store snapshots:
+  (unsure where to link...)
 
 For writing up:
 
-* Regrettably we are using overleaf to draft a preprint:
-  https://www.overleaf.com/project/64ee6fc2297aa3dfc799310a
+* Regrettably we are using overleaf to draft a preprint
+  ([here](https://www.overleaf.com/project/64ee6fc2297aa3dfc799310a))
 
 Tentative target venues:
 
-* AISTATS 2024 (http://aistats.org/aistats2024/). Key dates (subject to change? there is no cfp yet):
+* AISTATS 2024 ([here](http://aistats.org/aistats2024/)).
+  Key dates (subject to change? there is no cfp yet?):
   * Abstract deadline:               6 October 2023 (Anywhere on Earth)
   * Paper submission deadline:      13 October 2023 (Anywhere on Earth)
   * Paper decision notifications:   19 January 2024
@@ -45,8 +48,8 @@ Tentative target venues:
   (no proceedings?)
 
 
-Set-up environment
-------------------
+Set-up environment for running experiments
+------------------------------------------
 
 Clone this repository locally:
 
@@ -109,6 +112,8 @@ To run experiments with W&B logging you will need your associated API keys.
 TODO: instructions
 ```
 
+
+
 Configuring and running experiments
 -----------------------------------
 
@@ -125,15 +130,17 @@ Configure and run a sweep:
 * TODO: Sweeps are defined using YAML etc.
 
 
+Developer notes
+---------------
 
-Notes
------
+Some of the model and baselines implementations have unit tests:
+
+* Add tests in the `tests` directory (name the script `test_*.py`).
+* Run the tests with the command `pytest`.
+
 
 Work in this repository initially started in the devinterp repo. There may be
 some atefacts such as commit messages referencing unrelated files and
 projects.
-
-Furthermore, for posterity, there is some discussion around metrics in this
-PR:
-
-* https://github.com/timaeus-research/devinterp/pull/2
+Furthermore, for posterity, there is some discussion around metrics in
+[this PR](https://github.com/timaeus-research/devinterp/pull/2).
