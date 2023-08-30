@@ -57,7 +57,8 @@ Clone this repository locally:
 git clone git@github.com:timaeus-research/icl.git
 ```
 
-Install standard dependencies (`torch`, `wandb`, `tqdm`, etc.):
+Install standard dependencies (`torch`, `tqdm`, wrappers for AWS and W&B,
+etc.):
 
 ```
 # inside icl repository
@@ -65,16 +66,14 @@ pip install -r requirements.txt
 ```
 
 The `devinterp` library is another dependency, but it's not yet available
-through `pip` index.
-For now, install this library from source using the command
-  `pip install --editable`
-(`--editable` means any changes to the library will not require
+through pip.
+For now, install this library from source using `pip install --editable`
+(where `--editable` means any changes to the library will not require
 reinstallation):
 
-* IF you already have the repository on your machine (e.g. you are a
-  devinterp developer), run:
+* IF you already have the repository on your machine, run:
   ```
-  pip install --editable /path/to/devinterp
+  pip install --editable /path/to/devinterp_repository
   ```
 
 * IF you do not already have the repository, step outside the icl repository
@@ -88,8 +87,6 @@ reinstallation):
   have to deal with nested git repositories and (2) you will have to deal
   with the name conflict between the repository/folder named `devinterp` and
   the pip-installed library `devinterp`.
-  If you want to do this I suggest (1) using submodules and (2) renaming the
-  repository folder.
 
 * IF you already have cloned the devinterp library and installed with
   `pip install --editable`, but now you want to update to the latest source,
@@ -100,19 +97,35 @@ reinstallation):
   The changes to the source should be reflected next time you
   `import devinterp`.
 
-To run code that reads or writes snapshots you will need your AWS API keys.
+To run code that reads or writes snapshots to AWS you will need your AWS API
+keys in a local environment variable. Follow these steps:
 
-```
-TODO.
-```
+1. Log in to your AWS account and go to the
+   [security credentials page](https://us-east-1.console.aws.amazon.com/iamv2/home#/security_credentials).
+2. Copy your AWS secret access key and AWS access key ID.
+3. Store them in a .env file in the project like so
+   ```
+   AWS_SECRET_ACCESS_KEY=...
+   AWS_ACCESS_KEY_ID=...
+   ```
+   (TODO: figure out format and filename)
+4. DO NOT check this file into git
+   (TODO: .gitignore it)
 
-To run experiments with W&B logging you will need your associated API keys.
+Sorry the instructions aren't clearer---I'm still stuck at step 1 because of
+some issue with my AWS account.
 
-```
-TODO: instructions
-```
+To run experiments with W&B logging you will need your associated API key
+stored in your `.netrc`. Follow these steps:
 
-
+1. Log in to your wandb account through the browser and copy your API
+   key from [https://wandb.ai/authorize](https://wandb.ai/authorize).
+2. Install wandb (`pip install -r requirements.txt` as above, or just
+   `pip install wandb`)
+3. Run the command `wandb login` (or `python -m wandb login`) and then
+   paste your API key from step (2) when prompted.
+4. This will create a file in your home directory called `.netrc`.
+   Keep that file safe.
 
 Configuring and running experiments
 -----------------------------------
