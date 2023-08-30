@@ -3,9 +3,11 @@ training the transformer on synthetic in-context regression task
 """
 # manage environment
 from dotenv import load_dotenv
+
 load_dotenv()
 # in case using mps:
 import os
+
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = "1" # (! before import torch)
 
 import functools
@@ -18,16 +20,17 @@ import numpy as np
 import torch
 import tqdm
 import wandb
-from dotenv import load_dotenv
 #
 from devinterp.config import Config
 from devinterp.logging import Logger
 from devinterp.storage import CheckpointManager
+
 #
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
+
 
 class ICLConfig(Config):
     # dataset & loader
@@ -154,7 +157,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
             batch_size=config.batch_size,
         )
         ys_pred = model(xs, ys)
-        loss = mse(ys_true=ys, ys_pred=ys_pred)
+        loss = mse(ys, ys_pred)
         # backward pass and gradient step
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -293,8 +296,10 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         },
         # evaluation config
         "eval_batch_size": 2048,
+        # "logging_steps": (500, 500), 
         "logging_steps": (500, 500), 
-        "checkpoint_steps": (100, 100),
+        # "checkpoint_steps": (100, 100),
+        "checkpoint_steps": None,
         # for wandb?
         "project": project,
         "entity": entity,
