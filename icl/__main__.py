@@ -5,6 +5,8 @@ training the transformer on synthetic in-context regression task
 from dotenv import load_dotenv
 from pydantic import BaseModel, model_validator
 
+from icl.utils import hash_dict
+
 load_dotenv()
 # in case using mps:
 import os
@@ -32,6 +34,7 @@ from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
+stdlogger = logging.getLogger("ICL")
 
 class ICLTaskConfig(BaseModel):
     task_size: int
@@ -80,11 +83,6 @@ class ICLConfig(LearnerConfig):
         num_tasks = data["task_config"]["num_tasks"]
         num_steps = data["num_steps"]
         
-        # Automatically fill in the project_dir field of the checkpointer
-        checkpoint_config = data.get("checkpointer_config", None)
-        if num_tasks is not None and checkpoint_config is not None:
-            checkpoint_config["project_dir"] = checkpoint_config.get("project_dir", f"icl-ntasks-{num_tasks}-model")
-
         # Num samples
         data["num_training_samples"] = num_steps * data["batch_size"]
 
@@ -96,6 +94,14 @@ class ICLConfig(LearnerConfig):
             scheduler_config["total_steps"] = scheduler_config.get("max_steps", num_steps)
             scheduler_config["div_factor"] = scheduler_config.get("div_factor", (num_steps/2 - 1))
             scheduler_config["final_div_factor"] = scheduler_config.get("final_div_factor", (num_steps/2 - 1))
+        
+        # Automatically fill in the project_dir field of the checkpointer
+        checkpoint_config = data.get("checkpointer_config", None)
+        if num_tasks is not None and checkpoint_config is not None:
+            task_config_hash = hash_dict(data["task_config"])[:6]
+            opt_config_hash = hash_dict(data["optimizer_config"])[:6]
+            scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
+            checkpoint_config["project_dir"] = checkpoint_config.get("project_dir", f"icl/ntasks-{num_tasks}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}")
 
         return data
 
@@ -178,8 +184,10 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     optimizer = config.optimizer_config.factory(model.parameters())
     scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
 
+    print(checkpointer, config.checkpointer_config.checkpoint_steps)
+
     # training loop
-    for step in tqdm.trange(config.num_steps, desc=f"Epoch 0 Batch 0/{config.num_steps} Loss: ?.??????"):
+    for step in tqdm.trange(config.num_steps, desc=f"Training..."):
         set_seed(seed + step)  # For reproducibility if we resume training
 
         # data generation and forward pass
@@ -187,7 +195,6 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
             num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
-        print(xs.device, ys.device, model.device)
         ys_pred = model(xs, ys)
         loss = mse(ys, ys_pred)
         # backward pass and gradient step
@@ -201,12 +208,12 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
             wandb.log({"batch/loss": loss.item()}, step=step)
 
         # Log to wandb & save checkpoints according to log_steps
-        if checkpointer and step in config.checkpointer_config.checkpoint_steps:  # type: ignore
-            print("saving checkpoint")
-            logger.info(f"Saving checkpoint at step {step}")
+        if step in config.checkpointer_config.checkpoint_steps:
+            stdlogger.info(f"Saving checkpoint at step {step}")
             checkpointer.save_file((0, step), state_dict(model, optimizer, scheduler))
 
-        if logger and step in config.logger_config.logging_steps:  # type: ignore
+        if step in config.logger_config.logging_steps:
+            stdlogger.info(f"Logging at step {step}")
             model.eval()
             metrics = evaluator(model)
             model.train()
@@ -274,17 +281,20 @@ class ICLEvaluator(Evaluator):
         true_model_preds = model(self.true_xs, self.true_ys)
         true_model_losses = mse(self.true_ys, true_model_preds, axis=(0,2))
         # compute and return various metrics based on above
+
+        def get_token_losses_dict(losses: torch.Tensor, label: str):
+            return {f"{label}/token/{i}": losses[i].item() for i in range(losses.shape[0])}
+        
         return {
             "pretrain/mse": pretrain_model_losses.mean().item(),
-            "pretrain/per_token": pretrain_model_losses.tolist(),
-            "pretrain/last": pretrain_model_losses[-1].item(),
             "pretrain/delta_dmmse": mse(pretrain_model_preds, self.pretrain_dmmse_preds),
             "pretrain/delta_ridge": mse(pretrain_model_preds, self.pretrain_ridge_preds),
+            **get_token_losses_dict(pretrain_model_losses, "pretrain"),
             "true/mse": true_model_losses.mean().item(),
-            "true/per_token": true_model_losses.tolist(),
-            "true/last": true_model_losses[-1].item(),
             "true/delta_dmmse": mse(true_model_preds, self.true_dmmse_preds),
             "true/delta_ridge": mse(true_model_preds, self.true_ridge_preds),
+            **get_token_losses_dict(true_model_losses, "true"),
+
         }
 
 
@@ -329,8 +339,8 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
                 "log_space": 50,
                 "linear_space": 50
             },
-            "bucket": "devinterp",
-            # "local_root": "../checkpoints",
+            "bucket_name": "devinterp",
+            # "local_root": "./checkpoints",
         },
         # for wandb?
         "logger_config": {
@@ -349,7 +359,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    # config = get_config(project="icl", entity="devinterp")
-    config = get_config()
+    config = get_config(project="icl", entity="devinterp")
+    # config = get_config()
     train(config, seed=0, is_debug=False)
 

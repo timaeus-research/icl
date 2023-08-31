@@ -1,7 +1,7 @@
 import torch
 
-from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
-from icl.tasks import RegressionSequenceDistribution
+from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+                       RegressionSequenceDistribution)
 
 
 def dmmse_predictor(xs, ys, prior, noise_variance, return_ws_hat=False):
