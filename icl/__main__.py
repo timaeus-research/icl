@@ -20,10 +20,12 @@ import numpy as np
 import torch
 import tqdm
 import wandb
+from devinterp.evals import Evaluator
 #
-from devinterp.config import Config
-from devinterp.logging import Logger
-from devinterp.storage import CheckpointManager
+from devinterp.learner import LearnerConfig
+from devinterp.ops.logging import Logger
+from devinterp.ops.storage import CheckpointManager
+from torch import nn
 
 #
 from icl.baselines import dmmse_predictor, ridge_predictor
@@ -32,7 +34,7 @@ from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 
-class ICLConfig(Config):
+class ICLConfig(LearnerConfig):
     # dataset & loader
     task_size: int
     max_examples: int
@@ -131,7 +133,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     )
 
     # initialise evaluations
-    evaluator = Evaluator(
+    evaluator = ICLEvaluator(
         pretrain_dist=pretrain_dist,
         true_dist=true_dist,
         max_examples=config.max_examples,
@@ -176,7 +178,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
 
         if step in config.logging_steps:
             model.eval()
-            metrics = evaluator.eval(model)
+            metrics = evaluator(model)
             model.train()
             logger.log(metrics, step=step)
 
@@ -186,7 +188,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     return model
 
 
-class Evaluator:
+class ICLEvaluator(Evaluator):
     """
     Stores fixed evaluation data batches, computed at the start of the
     training run, as well as baseline predictions for these batches.
@@ -230,7 +232,7 @@ class Evaluator:
 
 
     @torch.no_grad()
-    def eval(self, model):
+    def __call__(self, model: nn.Module, *args, **kwargs):
         """
         Evaluate a model against stored batches, returning a dictionary of
         various metrics.
@@ -296,13 +298,17 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         },
         # evaluation config
         "eval_batch_size": 2048,
-        # "logging_steps": (500, 500), 
-        "logging_steps": (500, 500), 
+        # "checkpointer_config": {
         # "checkpoint_steps": (100, 100),
-        "checkpoint_steps": None,
+        # "checkpoint_steps": None,
+        # },
         # for wandb?
-        "project": project,
-        "entity": entity,
+        "logger_config": {
+            "logging_steps": (500, 500),
+            # "project": project,
+            # "entity": entity,
+            "stdout": True
+        }
     }
 
     if project is not None and entity is not None:
@@ -314,7 +320,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
 
 
 if __name__ == "__main__":
-    config = get_config(project="icl", entity="devinterp")
-    # config = get_config()
+    # config = get_config(project="icl", entity="devinterp")
+    config = get_config()
     train(config, seed=0, is_debug=False)
 
