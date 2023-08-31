@@ -3,6 +3,7 @@ training the transformer on synthetic in-context regression task
 """
 # manage environment
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 # in case using mps:
@@ -20,11 +21,9 @@ import numpy as np
 import torch
 import tqdm
 import wandb
-from devinterp.evals import Evaluator
 #
+from devinterp.evals import Evaluator
 from devinterp.learner import LearnerConfig
-from devinterp.ops.logging import Logger
-from devinterp.ops.storage import CheckpointManager
 from torch import nn
 
 #
@@ -34,21 +33,46 @@ from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 
-class ICLConfig(LearnerConfig):
-    # dataset & loader
+class ICLTaskConfig(BaseModel):
     task_size: int
     max_examples: int
     num_tasks: int
     noise_variance: float
-
-    # model
     embed_size: int
     mlp_size: int
     num_heads: int
     num_layers: int
+
+    def model_factory(self):
+        return InContextRegressionTransformer(
+            task_size=self.task_size,
+            max_examples=self.max_examples,
+            embed_size=self.embed_size,
+            mlp_size=self.mlp_size,
+            num_heads=self.num_heads,
+            num_layers=self.num_layers,
+        )
     
-    # evaluation
+    def pretrain_dist_factory(self):
+        return RegressionSequenceDistribution(
+            task_distribution=DiscreteTaskDistribution(
+                num_tasks=self.num_tasks,
+                task_size=self.task_size,
+            ),
+            noise_variance=self.noise_variance,
+        )
+    
+    def true_dist_factory(self):
+        return RegressionSequenceDistribution(
+            task_distribution=GaussianTaskDistribution(
+                task_size=self.task_size,
+            ),
+            noise_variance=self.noise_variance,
+        )
+
+class ICLConfig(LearnerConfig):
     eval_batch_size: int
+    task_config: ICLTaskConfig
 
 
 def set_seed(seed: int):
@@ -101,53 +125,33 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     set_seed(seed)
 
     # initialise model
-    model = InContextRegressionTransformer(
-        task_size=config.task_size,
-        max_examples=config.max_examples,
-        embed_size=config.embed_size,
-        mlp_size=config.mlp_size,
-        num_heads=config.num_heads,
-        num_layers=config.num_layers,
-        device=config.device,
-    )
+    model = config.task_config.model_factory()
     model.to(config.device)
     model.train()
 
     # initialise 'pretraining' data source (for training on fixed task set)
-    pretrain_dist = RegressionSequenceDistribution(
-        task_distribution=DiscreteTaskDistribution(
-            num_tasks=config.num_tasks,
-            task_size=config.task_size,
-            device=config.device,
-        ),
-        noise_variance=config.noise_variance,
-    )
+    pretrain_dist = config.task_config.pretrain_dist_factory()
+    pretrain_dist.to(config.device)
 
     # initialise 'true' data source (for evaluation, including unseen tasks)
-    true_dist = RegressionSequenceDistribution(
-        task_distribution=GaussianTaskDistribution(
-            task_size=config.task_size,
-            device=config.device,
-        ),
-        noise_variance=config.noise_variance,
-    )
+    true_dist = config.task_config.true_dist_factory()
+    true_dist.to(config.device)
 
     # initialise evaluations
     evaluator = ICLEvaluator(
         pretrain_dist=pretrain_dist,
         true_dist=true_dist,
-        max_examples=config.max_examples,
+        max_examples=config.task_config.max_examples,
         eval_batch_size=config.eval_batch_size,
     )
 
     # initialise monitoring code
-    # TODO: hash the model details to create a unique identifier for the model and use this as project name below
-    checkpointer = CheckpointManager(f"icl-ntasks-{config.num_tasks}", "devinterp") # , "experiments/icl")
-    logger = Logger(config.project, config.entity, config.logging_steps)
+    checkpointer = config.checkpointer_config.factory() if config.checkpointer_config is not None else None
+    logger = config.logger_config.factory() if config.logger_config is not None else None
 
     # initialise torch optimiser
     optimizer = config.optimizer_config.factory(model.parameters())
-    scheduler = config.scheduler_config.factory(optimizer)
+    scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
 
     # training loop
     for step in tqdm.trange(config.num_steps, desc=f"Epoch 0 Batch 0/{config.num_steps} Loss: ?.??????"):
@@ -155,7 +159,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
 
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
-            num_examples=config.max_examples,
+            num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
         ys_pred = model(xs, ys)
@@ -171,12 +175,12 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
             wandb.log({"batch/loss": loss.item()}, step=step)
 
         # Log to wandb & save checkpoints according to log_steps
-        if step in config.checkpoint_steps:
+        if checkpointer and step in config.checkpointer_config.checkpoint_steps:  # type: ignore
             print("saving checkpoint")
             logger.info(f"Saving checkpoint at step {step}")
             checkpointer.save_file((0, step), state_dict(model, optimizer, scheduler))
 
-        if step in config.logging_steps:
+        if logger and step in config.logger_config.logging_steps:  # type: ignore
             model.eval()
             metrics = evaluator(model)
             model.train()
@@ -263,12 +267,13 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
     num_steps = 500_000
     batch_size = 256
     max_learning_rate = 1e-3
+    num_tasks = 64
 
     config_dict = {
         # data config
         "task_size": 8,
         "max_examples": 16,
-        "num_tasks": 64,
+        "num_tasks": num_tasks,
         "noise_variance": 0.25,
         # model config
         "embed_size": 128,
@@ -298,16 +303,24 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         },
         # evaluation config
         "eval_batch_size": 2048,
-        # "checkpointer_config": {
-        # "checkpoint_steps": (100, 100),
-        # "checkpoint_steps": None,
-        # },
+        "checkpointer_config": {
+            "checkpoint_steps": {
+                "log_space": [1, num_steps, 200],
+                "linear_space": [0, num_steps, 500],
+            },
+            "project_dir": f"icl-ntasks-{num_tasks}",
+            "bucket": "devinterp",
+            "local_root": "/tmp/devinterp",
+        },
         # for wandb?
         "logger_config": {
-            "logging_steps": (500, 500),
-            # "project": project,
-            # "entity": entity,
-            "stdout": True
+            "logging_steps": {
+                "log_space": [1, num_steps, 200],
+                "linear_space": [0, num_steps, 500],
+            },
+            "project": project,
+            "entity": entity,
+            # "stdout": True
         }
     }
 
@@ -322,5 +335,6 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
 if __name__ == "__main__":
     # config = get_config(project="icl", entity="devinterp")
     config = get_config()
-    train(config, seed=0, is_debug=False)
+    # print(config)
+    # train(config, seed=0, is_debug=False)
 

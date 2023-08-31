@@ -96,6 +96,9 @@ class RegressionSequenceDistribution:
                 batch_size=batch_size,
             )
 
+    def to(self, device: str)
+        self.task_distribution.to(device)
+
 
 class TaskDistribution:
     """
@@ -138,6 +141,22 @@ class TaskDistribution:
             the `n` tasks, each as one row of a 2d tensor.
         """
         return NotImplemented
+    
+    def to(self, device: str):
+        """
+        Move this task distribution to a different device
+
+        parameters:
+
+        * `device : str(device name)`
+            which device to move to
+        
+        returns:
+
+        * `self`
+        """
+        self.device = device
+        return self
 
 
 class DiscreteTaskDistribution(TaskDistribution):
@@ -201,6 +220,21 @@ class DiscreteTaskDistribution(TaskDistribution):
         )
         return self.tasks[task_selection]
 
+    def to(self, device: str):
+        """
+        Move this task distribution to a different device
+
+        parameters:
+
+        * `device : str(device name)`
+            which device to move to
+        
+        returns:
+
+        * `self`
+        """
+        self.tasks = self.tasks.to(device)
+        return super().to(device)
 
 class GaussianTaskDistribution(TaskDistribution):
     """
