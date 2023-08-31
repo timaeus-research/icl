@@ -96,7 +96,7 @@ class RegressionSequenceDistribution:
                 batch_size=batch_size,
             )
 
-    def to(self, device: str)
+    def to(self, device: str):
         self.task_distribution.to(device)
 
 

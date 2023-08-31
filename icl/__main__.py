@@ -3,7 +3,7 @@ training the transformer on synthetic in-context regression task
 """
 # manage environment
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 load_dotenv()
 # in case using mps:
@@ -15,7 +15,7 @@ import functools
 import logging
 import random
 import warnings
-from typing import Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 import numpy as np
 import torch
@@ -73,6 +73,31 @@ class ICLTaskConfig(BaseModel):
 class ICLConfig(LearnerConfig):
     eval_batch_size: int
     task_config: ICLTaskConfig
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_extra(cls, data: Any):
+        num_tasks = data["task_config"]["num_tasks"]
+        num_steps = data["num_steps"]
+        
+        # Automatically fill in the project_dir field of the checkpointer
+        checkpoint_config = data.get("checkpointer_config", None)
+        if num_tasks is not None and checkpoint_config is not None:
+            checkpoint_config["project_dir"] = checkpoint_config.get("project_dir", f"icl-ntasks-{num_tasks}-model")
+
+        # Num samples
+        data["num_training_samples"] = num_steps * data["batch_size"]
+
+        # LR Scheduler
+        optimizer_config = data.get("optimizer_config", None)
+        scheduler_config = data.get("scheduler_config", None)
+        if scheduler_config is not None:
+            scheduler_config["max_lr"] = scheduler_config.get("max_lr", optimizer_config.get("lr", 1e-3))
+            scheduler_config["max_steps"] = scheduler_config.get("max_steps", num_steps)
+            scheduler_config["div_factor"] = scheduler_config.get("div_factor", (num_steps/2 - 1))
+            scheduler_config["final_div_factor"] = scheduler_config.get("final_div_factor", (num_steps/2 - 1))
+
+        return data
 
 
 def set_seed(seed: int):
@@ -270,20 +295,20 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
     num_tasks = 64
 
     config_dict = {
-        # data config
-        "task_size": 8,
-        "max_examples": 16,
-        "num_tasks": num_tasks,
-        "noise_variance": 0.25,
-        # model config
-        "embed_size": 128,
-        "mlp_size": 128,
-        "num_heads": 2,
-        "num_layers": 8,
+        # model & data config
+        "task_config": {
+            "task_size": 8,
+            "max_examples": 16,
+            "num_tasks": num_tasks,
+            "noise_variance": 0.25,
+            "embed_size": 128,
+            "mlp_size": 128,
+            "num_heads": 2,
+            "num_layers": 8,
+        },
         # training config
         "num_steps": num_steps, 
         "batch_size": batch_size,
-        "num_training_samples": num_steps * batch_size,
         "optimizer_config": {
             "optimizer_type": "Adam",
             "betas": (0.9, 0.999),
@@ -291,13 +316,8 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
             "lr": max_learning_rate,   # unused (overwritten by scheduler)
         },
         "scheduler_config": {
-            # one-cycle triangle learning rate schedule with 50% warmup
             "scheduler_type": "OneCycleLR",
-            "max_lr": max_learning_rate,
-            "total_steps": num_steps,
             "anneal_strategy": 'linear',
-            "div_factor": (num_steps/2 - 1),        # start 1 step past 0
-            "final_div_factor": (num_steps/2 - 1),  # end 1 step before 0
             "pct_start": 0.5,
             "cycle_momentum": False,    # N/A but required to avoid error
         },
@@ -305,18 +325,17 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         "eval_batch_size": 2048,
         "checkpointer_config": {
             "checkpoint_steps": {
-                "log_space": [1, num_steps, 200],
-                "linear_space": [0, num_steps, 500],
+                "log_space": 50,
+                "linear_space": 50
             },
-            "project_dir": f"icl-ntasks-{num_tasks}",
             "bucket": "devinterp",
-            "local_root": "/tmp/devinterp",
+            # "local_root": "../checkpoints",
         },
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": [1, num_steps, 200],
-                "linear_space": [0, num_steps, 500],
+                "log_space": 500,
+                "linear_space": 500,
             },
             "project": project,
             "entity": entity,
@@ -324,16 +343,12 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         }
     }
 
-    if project is not None and entity is not None:
-        # use wandb
-        wandb.init(project=project, entity=entity)
-        config_dict.update(wandb.config)
-
     return ICLConfig(**config_dict)
 
 
 if __name__ == "__main__":
     # config = get_config(project="icl", entity="devinterp")
+    logging.basicConfig(level=logging.INFO)
     config = get_config()
     # print(config)
     # train(config, seed=0, is_debug=False)
