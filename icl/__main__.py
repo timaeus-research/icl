@@ -93,7 +93,7 @@ class ICLConfig(LearnerConfig):
         scheduler_config = data.get("scheduler_config", None)
         if scheduler_config is not None:
             scheduler_config["max_lr"] = scheduler_config.get("max_lr", optimizer_config.get("lr", 1e-3))
-            scheduler_config["max_steps"] = scheduler_config.get("max_steps", num_steps)
+            scheduler_config["total_steps"] = scheduler_config.get("max_steps", num_steps)
             scheduler_config["div_factor"] = scheduler_config.get("div_factor", (num_steps/2 - 1))
             scheduler_config["final_div_factor"] = scheduler_config.get("final_div_factor", (num_steps/2 - 1))
 
@@ -187,6 +187,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
             num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
+        print(xs.device, ys.device, model.device)
         ys_pred = model(xs, ys)
         loss = mse(ys, ys_pred)
         # backward pass and gradient step
@@ -347,9 +348,8 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
 
 
 if __name__ == "__main__":
-    # config = get_config(project="icl", entity="devinterp")
     logging.basicConfig(level=logging.INFO)
+    # config = get_config(project="icl", entity="devinterp")
     config = get_config()
-    # print(config)
-    # train(config, seed=0, is_debug=False)
+    train(config, seed=0, is_debug=False)
 
