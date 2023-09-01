@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 from devinterp.learner import LearnerConfig
+from devinterp.utils import nested_update
 from pydantic import BaseModel, model_validator
 
 from icl.model import InContextRegressionTransformer
@@ -80,7 +81,7 @@ class ICLConfig(LearnerConfig):
         return data
 
 
-def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> ICLConfig:
+def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kwargs) -> ICLConfig:
     # (shared parameters)
     num_steps = 500_000
     batch_size = 256
@@ -135,5 +136,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
             # "stdout": True
         }
     }
+
+    nested_update(config_dict, kwargs)
 
     return ICLConfig(**config_dict)
