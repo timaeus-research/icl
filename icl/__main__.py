@@ -22,12 +22,12 @@ from typing import Any, Dict, List, Optional, TypedDict
 import numpy as np
 import torch
 import tqdm
-import wandb
 #
 from devinterp.evals import Evaluator
 from devinterp.learner import LearnerConfig
 from torch import nn
 
+import wandb
 #
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.model import InContextRegressionTransformer
@@ -210,7 +210,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info(f"Saving checkpoint at step {step}")
-            checkpointer.save_file((0, step), state_dict(model, optimizer, scheduler))
+            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
 
         if step in config.logger_config.logging_steps:
             stdlogger.info(f"Logging at step {step}")
@@ -345,8 +345,8 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None) -> I
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": 500,
-                "linear_space": 500,
+                "log_space": 100,
+                "linear_space": 100,
             },
             "project": project,
             "entity": entity,
