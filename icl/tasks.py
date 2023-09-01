@@ -98,6 +98,7 @@ class RegressionSequenceDistribution:
 
     def to(self, device: str):
         self.task_distribution.to(device)
+        return self
 
 
 class TaskDistribution:

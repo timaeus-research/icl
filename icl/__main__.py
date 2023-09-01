@@ -5,6 +5,7 @@ training the transformer on synthetic in-context regression task
 from dotenv import load_dotenv
 
 from icl.evals import ICLEvaluator
+from icl.utils import set_seed
 
 load_dotenv()
 # in case using mps:
@@ -13,13 +14,10 @@ import os
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = "1" # (! before import torch)
 
 import logging
-import random
-import warnings
 from typing import Dict, List, TypedDict
 
 import numpy as np
 import sentry_sdk
-import torch
 import torch.nn.functional as F
 import tqdm
 
@@ -45,17 +43,6 @@ sentry_sdk.init(
     # We recommend adjusting this value in production.
     profiles_sample_rate=1.0,
 )
-
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-
-    try:
-        torch.cuda.manual_seed_all(seed) 
-    except AttributeError:
-        warnings.info("CUDA not available; failed to seed")
 
 
 class StateDict(TypedDict):
@@ -107,8 +94,6 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     # initialise torch optimiser
     optimizer = config.optimizer_config.factory(model.parameters())
     scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
-
-    print(checkpointer, config.checkpointer_config.checkpoint_steps)
 
     # training loop
     for step in tqdm.trange(config.num_steps, desc=f"Training..."):

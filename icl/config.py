@@ -138,5 +138,5 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     }
 
     nested_update(config_dict, kwargs)
-
+    print(config_dict["task_config"])
     return ICLConfig(**config_dict)
