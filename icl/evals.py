@@ -1,13 +1,12 @@
-from icl.baselines import dmmse_predictor, ridge_predictor
-from icl.tasks import RegressionSequenceDistribution
-
+import functools
 
 import torch
 from devinterp.evals import Evaluator
 from torch import nn
 
-
-import functools
+from icl.baselines import dmmse_predictor, ridge_predictor
+from icl.tasks import RegressionSequenceDistribution
+from icl.utils import set_seed
 
 
 def mse(y1, y2, axis=None):
@@ -38,7 +37,11 @@ class ICLEvaluator(Evaluator):
         true_dist: RegressionSequenceDistribution,
         max_examples: int,
         eval_batch_size: int,
+        seed: int = 0
     ):
+        if seed is not None:
+            set_seed(seed)
+ 
         # fixed evaluation batches (computed once at start of training run)
         self.pretrain_xs, self.pretrain_ys = pretrain_dist.get_batch(
             num_examples=max_examples,

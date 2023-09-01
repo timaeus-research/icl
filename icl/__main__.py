@@ -50,6 +50,7 @@ class StateDict(TypedDict):
     optimizer: Dict
     scheduler: Dict
 
+
 def state_dict(model, optimizer, scheduler) -> StateDict:
     return {
         "model": model.state_dict(),
@@ -67,17 +68,14 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     set_seed(seed)
 
     # initialise model
-    model = config.task_config.model_factory()
-    model.to(config.device)
+    model = config.task_config.model_factory().to(config.device)
     model.train()
 
     # initialise 'pretraining' data source (for training on fixed task set)
-    pretrain_dist = config.task_config.pretrain_dist_factory()
-    pretrain_dist.to(config.device)
+    pretrain_dist = config.task_config.pretrain_dist_factory().to(config.device)
 
     # initialise 'true' data source (for evaluation, including unseen tasks)
-    true_dist = config.task_config.true_dist_factory()
-    true_dist.to(config.device)
+    true_dist = config.task_config.true_dist_factory().to(config.device)
 
     # initialise evaluations
     evaluator = ICLEvaluator(
@@ -85,6 +83,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
         true_dist=true_dist,
         max_examples=config.task_config.max_examples,
         eval_batch_size=config.eval_batch_size,
+        seed=config.task_config.true_seed
     )
 
     # initialise monitoring code
@@ -97,7 +96,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
 
     # training loop
     for step in tqdm.trange(config.num_steps, desc=f"Training..."):
-        set_seed(seed + step)  # For reproducibility if we resume training
+        set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
 
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(

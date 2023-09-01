@@ -7,20 +7,27 @@ from pydantic import BaseModel, model_validator
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
-from icl.utils import hash_dict
+from icl.utils import hash_dict, set_seed
 
 
 class ICLTaskConfig(BaseModel):
-    task_size: int
-    max_examples: int
+    task_size: int = 8
+    max_examples: int = 16
     num_tasks: int
-    noise_variance: float
-    embed_size: int
-    mlp_size: int
-    num_heads: int
-    num_layers: int
+    noise_variance: float = 0.25
+    embed_size: int = 128 
+    mlp_size: int = 128
+    num_heads: int = 2
+    num_layers: int = 8
+    model_seed: int = 0
+    pretrain_seed: int = 0
+    true_seed: int = 0
+    sampling_seed: int = 0
 
     def model_factory(self):
+        if self.model_seed is not None:
+            set_seed(self.model_seed)
+
         return InContextRegressionTransformer(
             task_size=self.task_size,
             max_examples=self.max_examples,
@@ -31,6 +38,9 @@ class ICLTaskConfig(BaseModel):
         )
 
     def pretrain_dist_factory(self):
+        if self.pretrain_seed is not None:
+            set_seed(self.pretrain_seed)
+
         return RegressionSequenceDistribution(
             task_distribution=DiscreteTaskDistribution(
                 num_tasks=self.num_tasks,
@@ -40,6 +50,7 @@ class ICLTaskConfig(BaseModel):
         )
 
     def true_dist_factory(self):
+        # No need to set the seed here (that comes at when sampling)
         return RegressionSequenceDistribution(
             task_distribution=GaussianTaskDistribution(
                 task_size=self.task_size,
@@ -91,14 +102,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     config_dict = {
         # model & data config
         "task_config": {
-            "task_size": 8,
-            "max_examples": 16,
             "num_tasks": num_tasks,
-            "noise_variance": 0.25,
-            "embed_size": 128,
-            "mlp_size": 128,
-            "num_heads": 2,
-            "num_layers": 8,
         },
         # training config
         "num_steps": num_steps,
@@ -138,5 +142,4 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     }
 
     nested_update(config_dict, kwargs)
-    print(config_dict["task_config"])
     return ICLConfig(**config_dict)
