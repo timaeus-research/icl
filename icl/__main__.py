@@ -20,6 +20,7 @@ import warnings
 from typing import Any, Dict, List, Optional, TypedDict
 
 import numpy as np
+import sentry_sdk
 import torch
 import tqdm
 #
@@ -35,6 +36,18 @@ from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 stdlogger = logging.getLogger("ICL")
+
+sentry_sdk.init(
+    dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    # We recommend adjusting this value in production.
+    traces_sample_rate=1.0,
+    # Set profiles_sample_rate to 1.0 to profile 100%
+    # of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=1.0,
+)
 
 class ICLTaskConfig(BaseModel):
     task_size: int
