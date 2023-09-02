@@ -19,9 +19,9 @@ class ICLTaskConfig(BaseModel):
     mlp_size: int = 128
     num_heads: int = 2
     num_layers: int = 8
-    model_seed: int = 0
-    pretrain_seed: int = 0
-    true_seed: int = 0
+    model_seed: int = -1
+    pretrain_seed: int = -2
+    true_seed: int = -3
     sampling_seed: int = 0
 
     def model_factory(self):

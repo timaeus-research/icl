@@ -95,7 +95,7 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
     scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
 
     # training loop
-    for step in tqdm.trange(config.num_steps, desc=f"Training..."):
+    for step in tqdm.trange(config.num_steps, desc="Training..."):
         set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
 
         # data generation and forward pass
@@ -117,11 +117,11 @@ def train(config: ICLConfig, seed: int = 0, is_debug: bool = False) -> InContext
 
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
-            stdlogger.info(f"Saving checkpoint at step {step}")
+            stdlogger.info("Saving checkpoint at step %s", step)
             checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
 
         if step in config.logger_config.logging_steps:
-            stdlogger.info(f"Logging at step {step}")
+            stdlogger.info("Logging at step %s", step)
             model.eval()
             metrics = evaluator(model)
             model.train()
