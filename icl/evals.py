@@ -5,7 +5,8 @@ from devinterp.evals import Evaluator
 from torch import nn
 
 from icl.baselines import dmmse_predictor, ridge_predictor
-from icl.tasks import RegressionSequenceDistribution
+from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+                       RegressionSequenceDistribution)
 from icl.utils import set_seed
 
 
@@ -33,8 +34,8 @@ class ICLEvaluator(Evaluator):
     """
     def __init__(
         self,
-        pretrain_dist: RegressionSequenceDistribution,
-        true_dist: RegressionSequenceDistribution,
+        pretrain_dist: RegressionSequenceDistribution[DiscreteTaskDistribution],
+        true_dist: RegressionSequenceDistribution[GaussianTaskDistribution],
         max_examples: int,
         eval_batch_size: int,
         seed: int = 0

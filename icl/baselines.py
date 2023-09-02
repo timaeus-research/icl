@@ -4,7 +4,7 @@ from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 
-def dmmse_predictor(xs, ys, prior, noise_variance, return_ws_hat=False):
+def dmmse_predictor(xs, ys, prior: DiscreteTaskDistribution, noise_variance: float, return_ws_hat=False):
     """
     Return the Bayes-optimal predictions for each prefix of the data set
     `xs`, `ys` given discrete prior `prior` over tasks and known error model
@@ -37,28 +37,38 @@ def dmmse_predictor(xs, ys, prior, noise_variance, return_ws_hat=False):
     Note: implements paper formula (7).
     """
     B, K, D = xs.shape
-    M, D_   = prior.tasks.shape
+    M, D_   = prior.num_tasks, prior.task_size
     if D != D_:
         raise ValueError(f"dimension mismatch: data {D} != prior {D_}")
     device = xs.device
-    device_ = prior.tasks.device
-    if device_ != device:
+    device_ = prior.device
+
+    if device_ != device and not (str(device_).startswith(str(device)) or str(device).startswith(str(device_))):
         raise ValueError(f"devices: task {device_} != data {device}")
 
-    # compute w_hat for each k
-    # TODO: micro-optimisation: k=0 -> mean task, skip softmax?
-    loss = torch.empty(B, K, M, device=device)
-    for k in range(K): # unclear how to (or whether to) vectorise
-        Xk = xs[:, :k, :]                   # B K D, slice  -> B k D
-        yk = ys[:, :k, :]                   # B K 1, slice  -> B k 1
-        # compute loss for each task in the prior
-        yh = Xk @ prior.tasks.T             # B k D @ . D M -> B k M
-        L  = (yk - yh).square()             # B k 1 - B k M -> B k M
-        loss[:, k, :] = L.sum(axis=-2)      # B k M, reduce -> B M
-    # average task with Boltzmann posterior at temperature 2sigma^2
-    score  = -loss / (2*noise_variance) # B K M / . . .     -> B K M
-    probs  = score.softmax(axis=-1)     # B K M, normalise  -> B K M
-    ws_hat = probs @ prior.tasks        # B K M @ . M D     -> B K D
+    ws_hat = torch.zeros(B, K, D, device=device)
+
+    # loop over minibatches of tasks (we can't fit them all in memory for large M)
+    batch_size = 2048
+    for m1 in range(0, M, batch_size):
+        m2 = min(m1 + batch_size, M)
+        tasks = torch.stack([prior.sample_task(m) for m in range(m1, m2)])
+
+        # compute w_hat for each k
+        # TODO: micro-optimisation: k=0 -> mean task, skip softmax?
+        loss = torch.empty(B, K, M, device=device)
+        for k in range(K): # unclear how to (or whether to) vectorise
+            Xk = xs[:, :k, :]                   # B K D, slice  -> B k D
+            yk = ys[:, :k, :]                   # B K 1, slice  -> B k 1
+            # compute loss for each task in the prior
+            yh = Xk @ tasks.T             # B k D @ . Dm -> B k m
+            L  = (yk - yh).square()             # B k 1 - B k m -> B k m
+            loss[:, k, :] = L.sum(axis=-2)      # B k m, reduce -> B m
+        # average task with Boltzmann posterior at temperature 2sigma^2
+        score  = -loss / (2*noise_variance) # B K m / . . .     -> B K m
+        probs  = score.softmax(axis=-1)     # B K m, normalise  -> B K m
+
+        ws_hat += probs @ tasks        # B K m @ . m D     -> B K D
     
     # compute y_hat for each k
     ys_pred = (
