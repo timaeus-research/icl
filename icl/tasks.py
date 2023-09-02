@@ -193,13 +193,20 @@ class DiscreteTaskDistribution(TaskDistribution):
     def __init__(self, task_size: int, num_tasks: int, device='cpu'):
         super().__init__(task_size=task_size, device=device)
         self.num_tasks = num_tasks
-        self.tasks = torch.normal(
+        self.generator = torch.Generator(device=self.device)
+
+    def sample_task(self, idx: int):
+        """
+        Sample the task with id `idx` from the task distribution.
+        """
+        self.generator.manual_seed(idx)
+        return torch.normal(
             mean=0.,
             std=1.,
-            size=(self.num_tasks, self.task_size),
+            size=(self.task_size,),
+            generator=self.generator,
             device=self.device,
         )
-
 
     def sample_tasks(self, n: int):
         """
@@ -222,7 +229,13 @@ class DiscreteTaskDistribution(TaskDistribution):
             size=(n,),
             device=self.device,
         )
-        return self.tasks[task_selection]
+        # TODO: See if there are better (e.g., parallel) ways of doing this. 
+        # TODO: Compare against just generating the dataset ahead of time and reading from disk.
+        return torch.stack([
+            self.sample_task(int(i))
+            for i in task_selection
+        ])
+
 
 
     def to(self, device: str):
