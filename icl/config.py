@@ -142,4 +142,4 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     }
 
     nested_update(config_dict, kwargs)
-    return ICLConfig(**config_dict)
+    return ICLConfig.from_wandb(**config_dict)
