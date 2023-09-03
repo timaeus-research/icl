@@ -155,7 +155,7 @@ def get_last_checkpoint(config: ICLConfig):
     }
 
 
-def train_continue(run_id: str, is_debug: bool = False) -> InContextRegressionTransformer:
+def resume_run(run_id: str, is_debug: bool = False) -> InContextRegressionTransformer:
     """
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
@@ -237,4 +237,35 @@ def train_continue(run_id: str, is_debug: bool = False) -> InContextRegressionTr
 
     return model
 
+
+def clean_sweep(sweep: 'Sweep'):
+    """Get rid of any runs that never even got started."""
+
+    # Delete the runs (on wandb) that are finished/crashed and have _step == None
+    def _clean_sweep():
+        for r in sweep.runs:
+            if r.summary.get("_step", None) is None:
+                r.delete()
+                yield r
+
+    return list(r for r in _clean_sweep())        
+    
+
+def get_runs_to_continue(sweep: 'Sweep', num_steps: int):
+    """Return all runs that have not yet reached the specified number of steps."""
+    runs =  sorted([r for r in sweep.runs], key=lambda r: r.summary.get("_step", 0))
+
+    return [r for r in runs if r.summary.get("_step", 0) < num_steps]
+
+
+def resume_sweep(sweep_id: str, is_debug: bool = False):
+    api = wandb.Api()
+    sweep = api.sweep(sweep_id)
+
+    clean_sweep(sweep)
+    num_steps = sweep.config.get("num_steps", 500_000)
+    runs = get_runs_to_continue(sweep, num_steps)
+
+    for run in runs:
+        resume_run(run.id, is_debug=is_debug)
 
