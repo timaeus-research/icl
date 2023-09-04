@@ -2,6 +2,7 @@
 training the transformer on synthetic in-context regression task
 """
 import torch
+import typer
 # manage environment
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ import os
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = "1" # (! before import torch)
 
 import logging
-from typing import Dict, List, Optional, TypedDict
+from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
 
 import numpy as np
 import sentry_sdk
@@ -268,4 +269,32 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
 
     for run in runs:
         resume_run(run.id, is_debug=is_debug)
+
+
+def main(resume: Annotated[Tuple[Literal["sweep", "run"], str], typer.Option()], is_debug: Annotated[bool, typer.Option(default=False)]):
+    if resume is None:
+        config = get_config(project="icl", entity="devinterp")
+        train(config, is_debug=is_debug)
+    else:
+        target, id_ = resume
+        if target == "run":
+            resume_run(id_, is_debug=is_debug)
+        elif target == "sweep":
+            resume_sweep(id_, is_debug=is_debug)
+        else:
+            typer.echo("Invalid resume command. Specify either 'run' or 'sweep' followed by the ID.")
+
+if __name__ == "__main__":
+    sentry_sdk.init(
+        dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production.
+        traces_sample_rate=1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100%
+        # of sampled transactions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=1.0,
+    )
+    typer.run(main)
 
