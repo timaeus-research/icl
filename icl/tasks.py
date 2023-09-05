@@ -77,7 +77,8 @@ class RegressionSequenceDistribution:
         ys = xs @ ws.view(B, D, 1) + errors # B K D @ B D . + B K 1 -> B K 1
 
         return xs, ys
-    
+
+
     def loop_batches(self, num_examples: int, batch_size: int):
         """
         Iterate over batches of synthetic data (token sequences) for
@@ -95,6 +96,7 @@ class RegressionSequenceDistribution:
                 num_examples=num_examples,
                 batch_size=batch_size,
             )
+
 
     def to(self, device: str):
         self.task_distribution.to(device)
@@ -126,6 +128,7 @@ class TaskDistribution:
         self.task_size = task_size
         self.device = device
 
+
     def sample_tasks(self, n: int):
         """
         produce a sample of `n` tasks from the concrete task distribution
@@ -141,7 +144,8 @@ class TaskDistribution:
             the `n` tasks, each as one row of a 2d tensor.
         """
         return NotImplemented
-    
+
+
     def to(self, device: str):
         """
         Move this task distribution to a different device
@@ -220,6 +224,7 @@ class DiscreteTaskDistribution(TaskDistribution):
         )
         return self.tasks[task_selection]
 
+
     def to(self, device: str):
         """
         Move this task distribution to a different device
@@ -235,6 +240,7 @@ class DiscreteTaskDistribution(TaskDistribution):
         """
         self.tasks = self.tasks.to(device)
         return super().to(device)
+
 
 class GaussianTaskDistribution(TaskDistribution):
     """
@@ -328,3 +334,18 @@ class SingletonTaskDistribution(TaskDistribution):
         return self.task.expand(n, -1)
 
 
+    def to(self, device: str):
+        """
+        Move this task distribution to a different device
+
+        parameters:
+
+        * `device : str(device name)`
+            which device to move to
+        
+        returns:
+
+        * `self`
+        """
+        self.task = self.task.to(device)
+        return super().to(device)
