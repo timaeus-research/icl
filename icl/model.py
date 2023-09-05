@@ -74,6 +74,10 @@ class InContextRegressionTransformer(torch.nn.Module):
         ys_pred = from_predicted_token_sequence(toks_pred)
         return ys_pred
 
+    def to(self, *args, **kwargs):
+        self.device = args[0]
+        return super().to(*args, **kwargs)
+
 
 # # # Task encoding / decoding helper functions
 
