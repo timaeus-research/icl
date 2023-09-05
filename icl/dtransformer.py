@@ -122,10 +122,10 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
             nn.ReLU(),
             nn.Linear(mlp_size, embed_size, device=device),
         )
-        self.layer_norms = [
+        self.layer_norms = nn.ModuleList([
             nn.LayerNorm(normalized_shape=embed_size, device=device)
             for _ in ('before-attention', 'before-compute')
-        ]
+        ])
 
 
     def forward(self, x):
