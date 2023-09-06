@@ -23,6 +23,7 @@ class RegressionSequenceDistribution:
     * `noise_variance : float >= 0`
         variance for gaussian error added to regression outputs.
     """
+
     def __init__(self, task_distribution: 'TaskDistribution', noise_variance=0.25, device='cpu'):
         self.task_distribution = task_distribution
         self.noise_variance = noise_variance
@@ -196,7 +197,7 @@ class DiscreteTaskDistribution(TaskDistribution):
         self.tasks = torch.normal(
             mean=0.,
             std=1.,
-            size=(self.num_tasks, self.task_size),
+            size=(self.num_tasks, self.task_size,),
             device=self.device,
         )
 
@@ -223,6 +224,7 @@ class DiscreteTaskDistribution(TaskDistribution):
             device=self.device,
         )
         return self.tasks[task_selection]
+
 
 
     def to(self, device: str):

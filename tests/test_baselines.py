@@ -79,6 +79,52 @@ def test_dmmse_predictor_python_loops():
             tt.assert_allclose(wk_hat_expected, wk_hat_actual, atol=1e-5)
 
 
+def test_dmmse_predictor_against_computation_without_minibatching():
+    B, K, D, M, V = 2048, 16, 8, 128, .25
+    T = DiscreteTaskDistribution(
+        task_size=D,
+        num_tasks=M,
+    )
+    xs, ys = RegressionSequenceDistribution(
+        task_distribution=T,
+        noise_variance=V,
+    ).get_batch(
+        num_examples=K,
+        batch_size=B,
+    )
+    ws = T.tasks
+    
+    # do the unbatched method
+    # compute w_hat for each k
+    loss = torch.empty(B, K, M)
+    for k in range(K): # unclear how to (or whether to) vectorise
+        Xk = xs[:, :k, :]                   # B K D, slice  -> B k D
+        yk = ys[:, :k, :]                   # B K 1, slice  -> B k 1
+        # compute loss for each task in the prior
+        yh = Xk @ ws.T                      # B k D @ . D M -> B k M
+        L  = (yk - yh).square()             # B k 1 - B k M -> B k M
+        loss[:, k, :] = L.sum(axis=-2)      # B k M, reduce -> B M
+    # average task with Boltzmann posterior at temperature 2sigma^2
+    score  = -loss / (2*V)              # B K M / . . .     -> B K M
+    probs  = score.softmax(axis=-1)     # B K M, normalise  -> B K M
+    ws_hat = probs @ ws                 # B K M @ . M D     -> B K D
+
+    # do the implemented method, forcing a lot of batching
+    _, ws_hat_actual = dmmse_predictor(
+        xs,
+        ys,
+        prior=T,
+        noise_variance=V,
+        return_ws_hat=True,
+        _max_bytes=2**20, # 1 MiB
+        # fits 4 bytes * 16 ctx * 128 tasks * 128 batch size
+        # so this should force minibatching our B=2048 into 16 batches
+    )
+    
+    # compare
+    tt.assert_allclose(ws_hat, ws_hat_actual)
+
+
 def test_ridge_predictor_first_is_zero():
     B, K, D, V = 256, 1, 4, .25
     T = GaussianTaskDistribution(task_size=D)
