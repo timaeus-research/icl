@@ -31,6 +31,7 @@ class RegressionSequenceDistribution(Generic[T]):
     task_distribution: T
 
     def __init__(self, task_distribution: T, noise_variance=0.25, device='cpu'):
+
         self.task_distribution = task_distribution
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
@@ -232,7 +233,6 @@ class DiscreteTaskDistribution(TaskDistribution):
         )
         return self.tasks[task_selection]
 
-
     def to(self, device: str):
         """
         Move this task distribution to a different device
@@ -342,3 +342,18 @@ class SingletonTaskDistribution(TaskDistribution):
         return self.task.expand(n, -1)
 
 
+    def to(self, device: str):
+        """
+        Move this task distribution to a different device
+
+        parameters:
+
+        * `device : str(device name)`
+            which device to move to
+        
+        returns:
+
+        * `self`
+        """
+        self.task = self.task.to(device)
+        return super().to(device)

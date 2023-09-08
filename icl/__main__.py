@@ -4,6 +4,9 @@ training the transformer on synthetic in-context regression task
 import torch
 # manage environment
 from dotenv import load_dotenv
+from pydantic import BaseModel, model_validator
+
+from icl.utils import hash_dict
 
 from icl.evals import ICLEvaluator
 from icl.utils import set_seed
