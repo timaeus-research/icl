@@ -23,5 +23,13 @@ parameters:
         value: 2
       num_layers:
         value: 8
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: 1
+      true_seed:
+        value: 2
+      sampling_seed:
+        value: 3
   eval_batch_size:
     value: 2048
