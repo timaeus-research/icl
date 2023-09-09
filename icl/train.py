@@ -1,33 +1,28 @@
 """
 training the transformer on synthetic in-context regression task
 """
-import torch
-import typer
 # manage environment
-from dotenv import load_dotenv
-
-from icl.evals import ICLEvaluator
-from icl.utils import set_seed
-
-load_dotenv()
-# in case using mps:
-import os
-
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = "1" # (! before import torch)
 
 import logging
 from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
 
+import dotenv
 import numpy as np
 import sentry_sdk
+import torch
 import torch.nn.functional as F
 import tqdm
-#
-from devinterp.optim.schedulers import LRScheduler
-
+import typer
 import wandb
+
 from icl.config import ICLConfig, get_config
+from icl.evals import ICLEvaluator
 from icl.model import InContextRegressionTransformer
+from icl.utils import set_seed
+
+
+dotenv.load_dotenv()
+
 
 stdlogger = logging.getLogger("ICL")
 
