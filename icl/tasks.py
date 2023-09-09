@@ -1,7 +1,12 @@
+from typing import Generic, TypeVar
+
 import torch
 
 
-class RegressionSequenceDistribution:
+T = TypeVar('T', 'GaussianTaskDistribution', 'DiscreteTaskDistribution', 'SingletonTaskDistribution')
+
+
+class RegressionSequenceDistribution(Generic[T]):
     """
     Represents a synthetic in-context regression data set, where each token
     sequence is an i.i.d. sample of inputs and outputs of the form:
@@ -23,8 +28,10 @@ class RegressionSequenceDistribution:
     * `noise_variance : float >= 0`
         variance for gaussian error added to regression outputs.
     """
+    task_distribution: T
 
-    def __init__(self, task_distribution: 'TaskDistribution', noise_variance=0.25, device='cpu'):
+    def __init__(self, task_distribution: T, noise_variance=0.25, device='cpu'):
+
         self.task_distribution = task_distribution
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
@@ -101,6 +108,7 @@ class RegressionSequenceDistribution:
 
     def to(self, device: str):
         self.task_distribution.to(device)
+        return self
 
 
 class TaskDistribution:
@@ -224,8 +232,6 @@ class DiscreteTaskDistribution(TaskDistribution):
             device=self.device,
         )
         return self.tasks[task_selection]
-
-
 
     def to(self, device: str):
         """
