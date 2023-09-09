@@ -1,36 +1,15 @@
 """
 training the transformer on synthetic in-context regression task
 """
-import torch
-# manage environment
+import logging
+
 from dotenv import load_dotenv
-from pydantic import BaseModel, model_validator
+import sentry_sdk
 
-from icl.utils import hash_dict
-
-from icl.evals import ICLEvaluator
-from icl.utils import set_seed
+from icl.config import get_config
+from icl.train import train
 
 load_dotenv()
-# in case using mps:
-import os
-
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = "1" # (! before import torch)
-
-import logging
-from typing import Dict, List, Optional, TypedDict
-
-import numpy as np
-import sentry_sdk
-import torch.nn.functional as F
-import tqdm
-#
-from devinterp.optim.schedulers import LRScheduler
-
-import wandb
-from icl.config import ICLConfig, get_config
-from icl.model import InContextRegressionTransformer
-from icl.train import train
 
 
 if __name__ == "__main__":
@@ -47,7 +26,7 @@ if __name__ == "__main__":
     )
 
     logging.basicConfig(level=logging.INFO)
-    config = get_config(project="icl", entity="devinterp")
-    # config = get_config()
+    # config = get_config(project="icl", entity="devinterp")
+    config = get_config()
     train(config, is_debug=False)
 
