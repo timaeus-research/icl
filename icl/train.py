@@ -156,15 +156,13 @@ def get_last_checkpoint(config: ICLConfig):
     }
 
 
-def resume_run(run_id: str, is_debug: bool = False) -> InContextRegressionTransformer:
+def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
     """
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
 
-    api = wandb.Api()
-    run = api.run(f"devinterp/icl/{run_id}")
     config = get_run_config(run)
     last_log_step = run.summary.get("_step")
 
@@ -174,6 +172,8 @@ def resume_run(run_id: str, is_debug: bool = False) -> InContextRegressionTransf
     optimizer = last_checkpoint["optimizer"]
     scheduler = last_checkpoint["scheduler"]
     last_checkpoint_step = scheduler.last_epoch
+
+    logging.info("Resuming run %s at step %s. Last logged at %s", run.id, last_checkpoint_step, last_log_step)
 
     model.to(config.device).train()
 
@@ -268,21 +268,23 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
     runs = get_runs_to_continue(sweep, num_steps)
 
     for run in runs:
-        resume_run(run.id, is_debug=is_debug)
+        print(run)
+        resume_run(run, is_debug=is_debug)
 
 
-def main(resume: Annotated[Tuple[Literal["sweep", "run"], str], typer.Option()], is_debug: Annotated[bool, typer.Option(default=False)]):
+def main(resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]):
+    is_debug = False
+
     if resume is None:
         config = get_config(project="icl", entity="devinterp")
         train(config, is_debug=is_debug)
     else:
-        target, id_ = resume
-        if target == "run":
-            resume_run(id_, is_debug=is_debug)
-        elif target == "sweep":
-            resume_sweep(id_, is_debug=is_debug)
+        if "run" in resume:
+            resume_run(resume, is_debug=is_debug)
+        elif "sweep" in resume:
+            resume_sweep(resume, is_debug=is_debug)
         else:
-            typer.echo("Invalid resume command. Specify either 'run' or 'sweep' followed by the ID.")
+            typer.echo("Invalid resume command.")
 
 if __name__ == "__main__":
     sentry_sdk.init(
