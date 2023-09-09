@@ -13,5 +13,5 @@ setup(
     description="Singular Learning Theory for In-Context Learning",
     long_description=open("README.md").read(),
     install_requires=read_requirements(),
-    extras_require={"dev": ["pytest", "mypy", "pytest-cov"]},
+    extras_require={"dev": ["pytest", "torch_testing"]},
 )
