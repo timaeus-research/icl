@@ -195,6 +195,7 @@ We have the following options for getting Python 3.11 on the VM:
 4. Changing our code to work with Python 3.8.
    * Seems not worthwhile.
 
+So here are the instructions for doing the virtual environment:
 
 <!--
 1. Upgrade Ubuntu.
@@ -297,21 +298,34 @@ our private GitHub repositories and so that we can create commits and so on.
    git config --global user.name "your name"
    git config --global pull.rebase false
    ```
+   For example:
+   ```
+   git config --global user.email "m@far.in.net"
+   git config --global user.name "Matthew Farrugia-Roberts"
+   git config --global pull.rebase false
+   ```
 
 Optional: Set up my personal user account with some favourite apps.
 
-5. Install neovim. `sudo apt install neovim`.
+5. Install personal favourite tools such as neovim and zsh
+   ```
+   sudo apt install neovim zsh
+   ```
 
-6. Install and change the default shell to zsh.
+6. Change the default shell to zsh:
    
-   * Configure a user password for the vm (I suggest `evil`, as in, Google's
-     original motto): `sudo passwd matt`.
-   * Install `zsh`: `sudo apt install zsh`.
-   * Change default shell: `chsh` (to `/bin/zsh`).
+   * Configure a user password for the VM:
+     ```
+     sudo passwd matt
+     ```
+     (I suggest `evil`, as in Google's original motto...)
+   * Change default shell:
+     ```
+     chsh -s /bin/zsh
+     ```
+     (This requires entering the same password from the previous step.)
 
-   Zsh will activate next time you SSH in.
-
-7. Configure zsh with some basics (put this in `.zshrc`):
+7. Configure zsh (e.g., put this in `.zshrc`):
    ```
    PS1='%(?.%F{green}%n@tpu1 :).%F{red}%n@tpu1 :( %?)%f %. $ '
 
@@ -329,7 +343,8 @@ Optional: Set up my personal user account with some favourite apps.
    source ~/venv/bin/activate
    ```
    The config will activate next time you log in or immediately if you run
-   `source ~/.zshrc`.
+   `source ~/.zshrc`. The last line causes the virtual environment from
+   earlier step to activate upon login.
 
 
 Part 4: Installing our python code and dependencies
@@ -338,43 +353,38 @@ Part 4: Installing our python code and dependencies
 With the OS environment and supporting tools configured, the next step is to
 install our python code and all of its dependencies. 
 
-1. Clone the icl and devinterp repositories to get the experiment code.
-   
-   * `git clone git@github.com:timaeus-research/icl.git`
-   * `git clone git@github.com:timaeus-research/devinterp.git`
+1. Clone the icl and devinterp repositories to get the experiment code:
+
+   ```
+   git clone git@github.com:timaeus-research/icl.git
+   git clone git@github.com:timaeus-research/devinterp.git
+   ```
 
 2. Install the public python dependencies for the icl project.
    
-   * Change into icl repo:
-     ```
-     cd ~/icl
-     ```
-   * Install dependencies:
-     ```
-     pip3 install -r requirements.txt
-     ```
-   * Optional: Install dev dependencies:
-     ```
-     pip3 install pytest torch_testing
-     ```
+   ```
+   cd ~/icl
+   pip install -r requirements.txt
+   # Optional: Install dev dependencies:
+   pip install pytest torch_testing
+   ```
 
 3. Locally install the `devinterp` library and its dependencies:
    
-   * Change into devinterp repo:
-     ```
-     cd ~/devinterp
-     ```
-   * ICL repo is actually currently depending on the `add/slt-1` branch, so
-     it's important to check out that branch:
-     ```
-     git checkout -t origin/add/slt-1
-     ```
-     (This information may become outdated soon.)
-   * Install dependencies and install package as a locally editable library
-     with:
-     ```
-     pip install --editable .
-     ```
+   ```
+   pip install --editable ~/devinterp
+   ```
+   
+   Note: The icl repo is actually currently depending on the `add/slt-1` branch
+   of devinterp library, so it's currently necessary to check out that branch:
+
+   ```
+   git checkout -t origin/add/slt-1
+   ```
+
+   In general, `pip install --editable` will make it so that we don't have to
+   reinstall after changing branches like this (unless new dependencies are
+   added, then these should be installed).
 
 4. TODO: install XLA.
 
