@@ -4,6 +4,8 @@ from devinterp.learner import LearnerConfig
 from devinterp.utils import nested_update
 from pydantic import BaseModel, model_validator
 
+import torch_xla.core.xla_model as xm
+
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
@@ -98,6 +100,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     batch_size = 256
     max_learning_rate = 1e-3
     num_tasks = 64
+    xla_device = xm.xla_device()
 
     config_dict = {
         # model & data config
@@ -122,23 +125,23 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
         # evaluation config
         "eval_batch_size": 2048,
         "checkpointer_config": {
-            "checkpoint_steps": {
-                "log_space": 50,
-                "linear_space": 50
-            },
-            "bucket_name": "devinterp",
+            # "checkpoint_steps": {
+            #     "log_space": 50,
+            #     "linear_space": 50,
+            # },
+            # "bucket_name": "devinterp",
             # "local_root": "./checkpoints",
         },
-        # for wandb?
         "logger_config": {
-            "logging_steps": {
-                "log_space": 100,
-                "linear_space": 100,
-            },
+            # "logging_steps": {
+            #     "log_space": 100,
+            #     "linear_space": 100,
+            # },
             "project": project,
             "entity": entity,
-            # "stdout": True
-        }
+            # "stdout": True,
+        },
+        "device": xla_device,
     }
 
     nested_update(config_dict, kwargs)

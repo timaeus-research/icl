@@ -13,6 +13,9 @@ load_dotenv()
 
 
 if __name__ == "__main__":
+    import torch_xla.debug.profiler as xp
+    server = xp.start_server(9012)
+
     sentry_sdk.init(
         dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
         # Set traces_sample_rate to 1.0 to capture 100%

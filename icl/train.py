@@ -4,7 +4,8 @@ training the transformer on synthetic in-context regression task
 # manage environment
 
 import logging
-from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
+# from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
 import dotenv
 import numpy as np
@@ -14,6 +15,9 @@ import torch.nn.functional as F
 import tqdm
 import typer
 import wandb
+
+import torch_xla.core.xla_model as xm
+import torch_xla.debug.metrics as met
 
 from icl.config import ICLConfig, get_config
 from icl.evals import ICLEvaluator
@@ -78,9 +82,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     num_steps = config.num_steps
 
-    # Let's only train until 50% checkpoint. 
-    checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
-    num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
+    # # Let's only train until 50% checkpoint. 
+    # checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
+    # num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
 
     recent_losses = torch.zeros(100, device=config.device)
 
@@ -100,6 +104,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         loss.backward()
         optimizer.step()
         scheduler.step()
+        xm.mark_step()
+
+        tqdm.tqdm.write(met.metrics_report())
 
         recent_losses[step % 100] = loss
 
@@ -210,6 +217,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         loss.backward()
         optimizer.step()
         scheduler.step()
+        xm.mark_step()
 
         recent_losses[step % 100] = loss
 
@@ -267,31 +275,31 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
         resume_run(run, is_debug=is_debug)
 
 
-def main(resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]):
-    is_debug = False
-
-    if resume is None:
-        config = get_config(project="icl", entity="devinterp")
-        train(config, is_debug=is_debug)
-    else:
-        if "run" in resume:
-            resume_run(resume, is_debug=is_debug)
-        elif "sweep" in resume:
-            resume_sweep(resume, is_debug=is_debug)
-        else:
-            typer.echo("Invalid resume command.")
-
-if __name__ == "__main__":
-    sentry_sdk.init(
-        dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        traces_sample_rate=1.0,
-        # Set profiles_sample_rate to 1.0 to profile 100%
-        # of sampled transactions.
-        # We recommend adjusting this value in production.
-        profiles_sample_rate=1.0,
-    )
-    typer.run(main)
-
+# def main(resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]):
+#     is_debug = False
+# 
+#     if resume is None:
+#         config = get_config(project="icl", entity="devinterp")
+#         train(config, is_debug=is_debug)
+#     else:
+#         if "run" in resume:
+#             resume_run(resume, is_debug=is_debug)
+#         elif "sweep" in resume:
+#             resume_sweep(resume, is_debug=is_debug)
+#         else:
+#             typer.echo("Invalid resume command.")
+# 
+# if __name__ == "__main__":
+#     sentry_sdk.init(
+#         dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
+#         # Set traces_sample_rate to 1.0 to capture 100%
+#         # of transactions for performance monitoring.
+#         # We recommend adjusting this value in production.
+#         traces_sample_rate=1.0,
+#         # Set profiles_sample_rate to 1.0 to profile 100%
+#         # of sampled transactions.
+#         # We recommend adjusting this value in production.
+#         profiles_sample_rate=1.0,
+#     )
+#     typer.run(main)
+# 
