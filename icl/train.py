@@ -57,16 +57,20 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
 
+    print("[train] initialising model.")
     # initialise model
     model = config.task_config.model_factory().to(config.device)
     model.train()
 
+    print("[train] initialising pretraining data.")
     # initialise 'pretraining' data source (for training on fixed task set)
     pretrain_dist = config.task_config.pretrain_dist_factory().to(config.device)
 
+    print("[train] initialising true data.")
     # initialise 'true' data source (for evaluation, including unseen tasks)
     true_dist = config.task_config.true_dist_factory().to(config.device)
 
+    print("[train] initialising evaluator.")
     # initialise evaluations
     evaluator = ICLEvaluator(
         pretrain_dist=pretrain_dist,
@@ -76,6 +80,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         seed=config.task_config.true_seed
     )
 
+    print("[train] initialising checkpointer.")
     # initialise monitoring code
     checkpointer = config.checkpointer_config.factory() if config.checkpointer_config is not None else None
     logger = config.logger_config.factory() if config.logger_config is not None else None
@@ -90,6 +95,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     # training loop
     for step in tqdm.trange(num_steps, desc="Training..."):
+        tqdm.tqdm.write(f"[train] training loop step {step}")
         set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
 
         # data generation and forward pass
@@ -106,7 +112,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         scheduler.step()
         xm.mark_step()
 
-        if step % 100 == 0:
+        if step % 10 == 0:
             tqdm.tqdm.write("writing metrics...")
             tqdm.tqdm.write(met.metrics_report())
 

@@ -103,9 +103,9 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     max_learning_rate = 1e-3
     num_tasks = 64
 
-    print("getting XLA device...")
+    print("[config] getting XLA device...")
     xla_device = xm.xla_device()
-    print("device created")
+    print("[config] device created.", flush=True)
 
     config_dict = {
         # model & data config
