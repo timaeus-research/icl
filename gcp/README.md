@@ -15,11 +15,38 @@ experiments for the ICL project on the attached TPUs.
 
 Contents:
 
-* Part 1: Creating a project with TPU Access
-* Part 2: Creating and connecting to a TPU Virtual Machine
-* Part 3: Configuring the VM environment
-* TODO: more.
-
+* [Part 1: Creating a Google Cloud Platform project with TPU allocation](#part-1-creating-a-google-cloud-platform-project-with-tpu-allocation)
+  * [Part 1.1: Apply for a TPU allocation](#part-11-apply-for-a-tpu-allocation)
+  * [Part 1.2: Set up Google Cloud Platform project for the TPUs](#part-12-set-up-google-cloud-platform-project-for-the-tpus)
+  * [Part 1.3: Configure SSH access](#part-13-configure-ssh-access)
+  * [Part 1.4: Link the project to your TPU allocation](#part-14-link-the-project-to-your-tpu-allocation)
+  * [Part 1.5: Extend your access?](#part-15-extend-your-access)
+* [Part 2: Creating and connecting to a TPU Virtual Machine](#part-2-creating-and-connecting-to-a-tpu-virtual-machine)
+  * [Part 2.1: Creating a TPU VM](#part-21-creating-a-tpu-vm)
+  * [Part 2.2: Delete your TPUs when you are done with them!](#part-22-delete-your-tpus-when-you-are-done-with-them)
+  * [Part 2.3: Establish SSH connection to the TPU VM](#part-23-establish-ssh-connection-to-the-tpu-vm)
+* [Part 3: Configuring the VM environment](#part-3-configuring-the-vm-environment)
+  * [Part 3.1: Navigate a version conflict!](#part-31-navigate-a-version-conflict)
+  * [Part 3.2: Authorize VM for GitHub](#part-32-authorize-vm-for-github)
+  * [Part 3.3: Configure git itself](#part-33-configure-git-itself)
+  * [Part 3.4: Optional: Set up personal tools](#part-34-optional-set-up-personal-tools)
+* [Part 4: Installing our python code and dependencies](#part-4-installing-our-python-code-and-dependencies)
+  * [Part 4.1: Install the devinterp library](#part-41-install-the-devinterp-library)
+  * [Part 4.2 Install the icl project](#part-42-install-the-icl-project)
+  * [Part 4.3: Authorizing W&B for logging metrics and managing sweeps](#part-43-authorizing-wb-for-logging-metrics-and-managing-sweeps)
+  * [Part 4.4: Setting up AWS for checkpointing model weights](#part-44-setting-up-aws-for-checkpointing-model-weights)
+  * [Part 4.5: Installing Pytorch/XLA](#part-45-installing-pytorchxla)
+* [Part 5: Running the experiments](#part-5-running-the-experiments)
+* [Appendix A: Upgrading Python](#appendix-a-upgrading-python)
+  * [Option A.1: Upgrade to Ubuntu 22.04 LTS](#option-a1-upgrade-to-ubuntu-2204-lts)
+  * [Option A.2: Install additional Python and make it system Python](#option-a2-install-additional-python-and-make-it-system-python)
+  * [Option A.3: Install additional Pythons and use a virtual environment](#option-a3-install-additional-pythons-and-use-a-virtual-environment)
+  * [Note A.4: Pytorch/XLA Nightly for Python 3.10](#note-a4-pytorchxla-nightly-for-python-310)
+* [Appendix B: Stuff to do](#appendix-b-stuff-to-do)
+  * [Shared TPU VMs](#shared-tpu-vms)
+  * [Mosh](#mosh)
+  * [Jupyter hub?](#jupyter-hub)
+  * [Sharing files across TPU VMs](#sharing-files-across-tpu-vms)
 
 Other resources
 
