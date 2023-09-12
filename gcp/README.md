@@ -35,9 +35,9 @@ TPUs is not that mature. To me it seems like it works OK but is not as simple
 as `device='tpu'`. I would like to learn JAX sooner rather than later,
 but for this project, we are using torch, so here we go.
 
-[^trc]:
-  Apparently the TPU Research Cloud people are very awesome and generous with
-  their time, I mean only to besmirch their broader corporation.
+[^trc]: Apparently the TPU Research Cloud people are very awesome and
+  generous with their time, I mean only to besmirch their broader
+  corporation.
 
 Part 1: Creating a Google Cloud Platform project with TPU allocation
 --------------------------------------------------------------------
@@ -272,8 +272,6 @@ We have root access to this VM... Yum!
 
 ### Part 3.1: Navigate a version conflict!
 
-*(no actions required---just for your information)*
-
 The provision of Python 3.8 presents a conflict:
 
 * Our code (incl. the devinterp library), developed in the era of Python
@@ -293,9 +291,18 @@ Going forward, we will have to clean up our libraries so that they don't
 depend on Python >3.8. Until then, we will have to make a bit of a mess as we
 hack out the non-essential dependencies.
 
+For now, all you need to do is the following:
+
+1. Save yourself a lot of headaches accidentlly running Python 2.7:
+
+   ```
+   sudo apt install python-is-python3
+   ```
+
 In case we did want to install a newer version of Python on the VM,
 instructions are in the appendix.
-  
+
+
 ### Part 3.2: Authorize VM for GitHub
 
 We need to configure the VM so that we are authorised to clone our private
@@ -370,6 +377,7 @@ TPU VM, but I don't have instructions for that here.
 
 1. Install personal favourite tools such as neovim and zsh
    ```
+   suro apt update  # <- may be required, doesn't hurt
    sudo apt install neovim zsh
    ```
 
@@ -405,12 +413,10 @@ TPU VM, but I don't have instructions for that here.
    The config will activate next time you log in or immediately if you run
    `source ~/.zshrc`.
 
-[^evil]:
-  This password shouldn't need to be that secure, since we are authenticating
-  to the VM using keys rather than passwords, and the contents are not that
-  sensitive.
-  So I suggest making the password `evil`, as a playful throwback to Google's
-  old motto.
+[^evil]: This password shouldn't need to be that secure, since we are
+  authenticating to the VM using keys rather than passwords, and the
+  contents are not that sensitive. So I suggest making the password `evil`,
+  as a playful throwback to Google's old motto.
 
 Part 4: Installing our python code and dependencies
 ---------------------------------------------------
@@ -418,108 +424,169 @@ Part 4: Installing our python code and dependencies
 With the OS environment and supporting tools configured, the next step is to
 install our python code and all of its dependencies. 
 
+### Part 4.1: Install the devinterp library
+
+1. Clone the devinterp repository. Probably do this from home directory.
+
+   ```
+   git clone git@github.com:timaeus-research/devinterp.git
+   cd ~/devinterp
+   ```
+
+   Note: this step relies on the github keys being configured from back in
+   part 3.2. If you get a permission error, revisit that step.
+  
+2. The icl repo is actually currently depends on the `add/slt-1` branch of
+   devinterp library, so it's currently necessary to check out that branch:
+
+   ```
+   git checkout -t origin/add/slt-1
+   ```
+
+Before installing dependencies, fix some conflicts due to old Python version:
+
+3. On Python 3.8 I resolved the conflicts by changing `requirements.txt`
+   listed dependencies as follows:
+   ```
+   - ipython==8.14.0
+   + ipython==8.12.2
+   - numpy==1.25.1
+   + numpy==1.24.4
+   ```
+   Hopefully these dependencies will be resolved in the repo soon and this
+   step won't be necessary.
+
+4. TODO: there are some further errors, to be resolved later:
+    ```
+    ERROR: launchpadlib 1.10.13 requires testresources, which is not installed.
+    ERROR: virtualenv 20.14.1 has requirement platformdirs<3,>=2, but you'll have platformdirs 3.8.1 which is incompatible.
+    ERROR: google-api-core 1.34.0 has requirement protobuf!=3.20.0,!=3.20.1,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<4.0.0dev,>=3.19.5, but you'll have protobuf 4.23.4 which is incompatible.
+    ERROR: google-auth-httplib2 0.1.0 has requirement httplib2>=0.15.0, but you'll have httplib2 0.14.0 which is incompatible.
+    ERROR: importlib-resources 6.0.1 has requirement zipp>=3.1.0; python_version < "3.10", but you'll have zipp 1.0.0 which is incompatible.
+    ```
+    (going ahead now and hoping for the best).
+
+Now we can attempt the install:
+
+5. Locally install the `devinterp` library and its dependencies (from inside
+   the repository root directory):
+   ```
+   pip install --editable .
+   ```
+
+Note that doing `pip install --editable` will make it so that we don't have to
+reinstall after changing branches or pulling updates
+(unless new dependencies are added, then these should be installed).
+
+
+### Part 4.2 Install the icl project
+
+Now for the icl project code, and its dependencies (other than devinterp).
+
 1. Clone the icl and devinterp repositories to get the experiment code:
 
    ```
    git clone git@github.com:timaeus-research/icl.git
-   git clone git@github.com:timaeus-research/devinterp.git
+   cd ~/icl
    ```
 
    Note: this step relies on the github keys being configured from back in
-   part 3. If you get a permission error, revisit that step.
+   part 3.2. If you get a permission error, revisit that step.
 
-2. Install the public python dependencies for the icl project.
+2. In order to work on Python 3.8 and with TPU support please switch to the
+   branch `tpu/p38-xla`:
+
+   ```
+   git checkout -t origin/tpu/p38-xla
+   ```
+
+3. Now install the public python dependencies for the icl project.
    
    ```
-   cd ~/icl
    pip install -r requirements.txt
-   # Optional: Install dev dependencies:
+   ```
+
+4. There are also some conflicts due to old Python version:
+
+   ```
+   pip install urllib3==1.26.16 typing-extensions==4.7.1
+   ```
+   
+   There is still an error:
+   ```
+   ERROR: google-api-core 1.34.0 has requirement protobuf!=3.20.0,!=3.20.1,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<4.0.0dev,>=3.19.5, but you'll have protobuf 4.23.4 which is incompatible.
+   ```
+   but hopefully it doesn't cause an issue...
+
+5. Optional: Install dev dependencies (so you can run tests etc.):
+   ```
    pip install pytest torch_testing
    ```
 
-   There are some conflicts due to old Python version. TODO: Document or
-   resolve in requirements.txt.
+### Part 4.3: Authorizing W&B for logging metrics and managing sweeps
 
-   <!--
-   On Python 3.8 I resolved the conflicts as follows:
-   ```
-   pip install urllib3==1.26.11 typing-extensions==4.7.1
-   ```
+To run experiments with W&B logging you will need your associated API key
+stored in your `.netrc`. Follow these steps:
 
-   And comment out the entry points in train script and the import of
-   `Annotation` or whatever (requires 3.9).
+1. In a browser, log in to your wandb account through the browser and copy
+   your API key from [https://wandb.ai/authorize](https://wandb.ai/authorize).
+2. Run the following command on the TPU VM:
    ```
+   wandb login
+   ```
+3. Paste the key from step (1) into the prompt from step (2).
 
-   ```
-   -->
+This will create a file in your home directory called `.netrc`. Keep that
+file safe.
 
-3. Locally install the `devinterp` library and its dependencies:
-   
-   ```
-   pip install --editable ~/devinterp
-   ```
+### Part 4.4: Setting up AWS for checkpointing model weights
 
-   There are some conflicts due to old Python version. TODO: Document or
-   resolve in requirements.txt.
-   <!--
-   On Python 3.8 I resolved the conflicts by dropping some dependencies in
-   the requirements file as follows:
-   ```
-   ipython==8.14.0 -> 8.13.1
-   numpy==1.25.1 -> 1.24.4
-   ```
+TODO: Document.
 
-   Then there were more errors:
-   ```
-   ERROR: launchpadlib 1.10.13 requires testresources, which is not installed.
-   ERROR: virtualenv 20.14.1 has requirement platformdirs<3,>=2, but you'll have platformdirs 3.8.1 which is incompatible.
-   ERROR: google-api-core 1.34.0 has requirement protobuf!=3.20.0,!=3.20.1,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<4.0.0dev,>=3.19.5, but you'll have protobuf 4.23.4 which is incompatible.
-   ERROR: google-auth-httplib2 0.1.0 has requirement httplib2>=0.15.0, but you'll have httplib2 0.14.0 which is incompatible.
-   ERROR: importlib-resources 6.0.1 has requirement zipp>=3.1.0; python_version < "3.10", but you'll have zipp 1.0.0 which is incompatible.
-   ```
-   -->
-    
-   Note: The icl repo is actually currently depending on the `add/slt-1` branch
-   of devinterp library, so it's currently necessary to check out that branch:
+### Part 4.5: Installing Pytorch/XLA
 
+This is not necessary if you opted for the VM image `tpu-vm-pt-2.0` back in
+part 2.1.
+
+If you didn't do that, you can install Pytorch/XLA now as follows:
+
+1. Install Pytorch/XLA library:
    ```
-   cd ~/devinterp
-   git checkout -t origin/add/slt-1
+   pip install https://storage.googleapis.com/tpu-pytorch/wheels/tpuvm/torch_xla-2.0-cp38-cp38-linux_x86_64.whl
    ```
 
-   In general, `pip install --editable` will make it so that we don't have to
-   reinstall after changing branches like this (unless new dependencies are
-   added, then these should be installed).
-
-TODO: Document installing Pytorch/XLA. Not required if using system Python
-where it was part of the image already.
-
-<!--
-
-   Note on base also requires numpy and pyyaml.
-
-   Note this error:
-
+2. I found I had to install additionally the following (but this should be
+   covered by dependencies of devinterp and icl):
    ```
-   ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
-  devinterp 0.0.0 requires protobuf==4.23.4, but you have protobuf 3.20.3 which is incompatible.
-  ```
+   pip install numpy PyYaml
+   ```
 
 Congratulations! This TPU VM is now ready to run experiments!
--->
 
 
 Part 5: Running the experiments
 -------------------------------
 
 It's as simple as configuring an experiment (or a sweep) as usual and then
-running `python -m icl` from the icl repository, I think:
+running `python -m icl` from the icl repository, I think?
 
-* Configure wandb (see README)
-* Configure AWS (see README)
-* Run `python -m icl`?
+And you also have to detach the process so that you can hang up the shell
+SSH connection without shutting down the process.
 
-And should probably detach it so that it's possible to log out etc.
+So something like this (for zsh) should do the trick:
+
+```
+python -m icl &!
+```
+
+Or it is possible to do it without zsh like so:
+
+```
+python -m icl &
+disown %1
+```
+
+But I haven't tested that.
 
 Appendix A: Upgrading Python
 ----------------------------
@@ -634,6 +701,16 @@ More information here: https://github.com/pytorch/xla
 
 Appendix B: Stuff to do
 -----------------------
+
+### Shared TPU VMs
+
+I should be able to give others in the lab SSH access to TPU VMs, even root
+access. This would require:
+
+1. Getting theit public key for their account and adding it to my google
+   cloud metadata.
+2. Sending them the list of TPU IP addresses / SSH config I created.
+3. Adding their username to the sudoers group or whatever on each VM.
 
 ### Mosh
 
