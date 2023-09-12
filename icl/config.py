@@ -4,7 +4,9 @@ from devinterp.learner import LearnerConfig
 from devinterp.utils import nested_update
 from pydantic import BaseModel, model_validator
 
+print("[config] importing xla...")
 import torch_xla.core.xla_model as xm
+print("[config] imported.")
 
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
@@ -100,7 +102,10 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     batch_size = 256
     max_learning_rate = 1e-3
     num_tasks = 64
+
+    print("getting XLA device...")
     xla_device = xm.xla_device()
+    print("device created")
 
     config_dict = {
         # model & data config
