@@ -178,26 +178,39 @@ science credibility tokens.[^1]
 Part 3: Configuring the VM environment
 --------------------------------------
 
-By default, the VM runs Ubuntu 20.04 LTS with Python 3.8, git, pytorch, and
-XLA (TPU compiler) installed. This is OK, except for Python 3.8, which is
-missing some features used by the devinterp library and our code.
+The VM runs Ubuntu 20.04 LTS with Python 3.8, git, pytorch, and XLA (TPU
+compiler) installed. This presents a conflict:
 
-We have the following options for getting Python 3.11 on the VM:
+* Our code (incl. the devinterp library), developed on Python 3.11, depends
+  on some features that are missing in Python 3.8, so we can't run our code
+  without installing a newer Python or changing our code.
+* Pytorch/XLA's main release only runs on Python 3.8, so we can't use it for
+  TPUs if we move to Python 3.11.
 
-1. Upgrade Ubuntu from 20.04 LTS to 22.04 LTS, which will get us Python 3.10.
-   * I got this working first, but it was overkill, and only got us to 3.10.
-2. Install Python 3.11 via third-party deadsnakes package repository and
-   change it to system Python.
-   * But it's probably a bad idea to change system Python.
-3. Install Python 3.11 via third-party deadsnakes package repisitory and
-   activate it using a virtual environment.
-   * This is the right way to do it, instructions below.
-4. Changing our code to work with Python 3.8.
-   * Seems not worthwhile.
-
-So here are the instructions for doing the virtual environment:
+There is a nightly release of Pytorch/XLA that supposedly runs on Python 3.10
+(which should be high enough for our code), but I couldn't get it to run. So
+the plan will be to go forward with Python 3.8 and hack our code and
+requirements to match.
 
 <!--
+A compromise that should allow us to run our code on the TPUs is to use the
+nightly XLA build for Python 3.10, Python 3.10 being just new enough for our
+code too. Let's try that! What are our options for running Python 3.10 on the
+VM?
+
+1. Upgrade Ubuntu from 20.04 LTS to 22.04 LTS, which will get us Python 3.10.
+   * I got this working first, but the update was long-ish and overall it
+     seemed like overkill.
+2. Install Python 3.10 via the 'deadsnakes' package repository and switch
+   the system Python to 3.10.
+   * But it's probably a bad idea to change system Python.
+3. Install Python 3.10 via the 'deadsnakes' package repisitory and enable
+   it using a virtual environment.
+   * This seems like the *right* way to do it, and was the second thing I
+     tried.
+
+Here are the instructions for bumping Ubuntu release to 22.04 LTS
+
 1. Upgrade Ubuntu.
    * Run these commands to sync up Ubuntu 20.04 (follow the prompts saying
      'yes' as required).
@@ -216,40 +229,41 @@ So here are the instructions for doing the virtual environment:
      another minute.
 
    This brings system python up to Python 3.10 which should be enough.
-   At this point just do yourself a favour and install one final package,
-   an alias for python3:
+
+2. At this point just do yourself a favour and install another package,
+   to create an alias for python3 and all related binaries:
    ```
    sudo apt install python-is-python3
    ```
--->
 
-1. Install Python 3.11 from 'deadsnakes' package repository.
+So here are the instructions for setting up the virtual environment:
+
+1. Install Python 3.10 from 'deadsnakes' package repository.
    * Add the package repository:
      ```
      sudo add-apt-repository ppa:deadsnakes/ppa
      ```
-   * Install Python 3.11 and supporting tools:
+   * Install Python 3.10 and supporting tools:
      ```
-     sudo apt install python3.11 python3.11-dev python3.11-venv python3.11-distutils
-     ```
-
-2. Set up a virtual environment with Pyhton 3.11
-   * Create virtual environment (in home directory).
-     ```
-     virtualenv venv -p python3.11
-     ```
-   * activate the venv
-     ```
-     source venv/bin/activate
-     ```
-   * update pip inside the venv
-     ```
-     pip install --upgrade pip
+     sudo apt install python3.10 python3.10-dev python3.10-venv python3.10-distutils
      ```
 
-   It becomes necessary to activate this environment every time we log in,
-   or, as in step 7 below, we could add that to the shell config (since we're
-   only using this VM for work within this venv).
+2. Set up a virtual environment with Python 3.10. We can just do so in the
+   home directory since this VM is going to be used only for running
+   experiments with Python 3.10 anyway:
+   ```
+   virtualenv venv-python3.10 -p python3.10
+   source venv-python3.10/bin/activate
+   pip install --upgrade pip
+   ```
+   These commands create the virtual environment, activate it, and then
+   upgrade pip inside the virtual environment (because by default it's a
+   little dated).
+   
+   It is necessary to activate this environment every time we log in. To
+   avoid doing this manually, in step 7 below, we add the activation command
+   to the shell startup file.
+-->
 
 We'll also need to configure git on our VM so that we are authorised to clone
 our private GitHub repositories and so that we can create commits and so on.
@@ -305,7 +319,7 @@ our private GitHub repositories and so that we can create commits and so on.
    git config --global pull.rebase false
    ```
 
-Optional: Set up my personal user account with some favourite apps.
+Optional: Set up your personal user account with some familiar tools.
 
 5. Install personal favourite tools such as neovim and zsh
    ```
@@ -339,12 +353,17 @@ Optional: Set up my personal user account with some favourite apps.
 
    alias gs='git status'
    alias vim=nvim
-
-   source ~/venv/bin/activate
    ```
    The config will activate next time you log in or immediately if you run
-   `source ~/.zshrc`. The last line causes the virtual environment from
-   earlier step to activate upon login.
+   `source ~/.zshrc`.
+
+   <!--
+   This last line causes the virtual environment from earlier step to
+   activate upon login:
+   ```
+   source ~/venv-python3.10/bin/activate
+   ```
+   -->
 
 
 Part 4: Installing our python code and dependencies
@@ -360,6 +379,9 @@ install our python code and all of its dependencies.
    git clone git@github.com:timaeus-research/devinterp.git
    ```
 
+   Note: this step relies on the github keys being configured from back in
+   part 3. If you get a permission error, revisit that step.
+
 2. Install the public python dependencies for the icl project.
    
    ```
@@ -369,16 +391,53 @@ install our python code and all of its dependencies.
    pip install pytest torch_testing
    ```
 
+   There are some conflicts due to old Python version. TODO: Document or
+   resolve in requirements.txt.
+
+   <!--
+   On Python 3.8 I resolved the conflicts as follows:
+   ```
+   pip install urllib3==1.26.11 typing-extensions==4.7.1
+   ```
+
+   And comment out the entry points in train script and the import of
+   `Annotation` or whatever (requires 3.9).
+   ```
+
+   ```
+   -->
+
 3. Locally install the `devinterp` library and its dependencies:
    
    ```
    pip install --editable ~/devinterp
    ```
-   
+
+   There are some conflicts due to old Python version. TODO: Document or
+   resolve in requirements.txt.
+   <!--
+   On Python 3.8 I resolved the conflicts by dropping some dependencies in
+   the requirements file as follows:
+   ```
+   ipython==8.14.0 -> 8.13.0
+   numpy==1.25.1 -> 1.24.4
+   ```
+
+   Then there were more errors:
+   ```
+   ERROR: launchpadlib 1.10.13 requires testresources, which is not installed.
+   ERROR: virtualenv 20.14.1 has requirement platformdirs<3,>=2, but you'll have platformdirs 3.8.1 which is incompatible.
+   ERROR: google-api-core 1.34.0 has requirement protobuf!=3.20.0,!=3.20.1,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<4.0.0dev,>=3.19.5, but you'll have protobuf 4.23.4 which is incompatible.
+   ERROR: google-auth-httplib2 0.1.0 has requirement httplib2>=0.15.0, but you'll have httplib2 0.14.0 which is incompatible.
+   ERROR: importlib-resources 6.0.1 has requirement zipp>=3.1.0; python_version < "3.10", but you'll have zipp 1.0.0 which is incompatible.
+   ```
+   -->
+    
    Note: The icl repo is actually currently depending on the `add/slt-1` branch
    of devinterp library, so it's currently necessary to check out that branch:
 
    ```
+   cd ~/devinterp
    git checkout -t origin/add/slt-1
    ```
 
@@ -386,16 +445,36 @@ install our python code and all of its dependencies.
    reinstall after changing branches like this (unless new dependencies are
    added, then these should be installed).
 
-4. TODO: install XLA.
+TODO: Document installing Pytorch/XLA. Not required if using system Python
+where it was part of the image already.
+
+<!--
+4. TODO: install Pytorch/XLA nightly build.
+
+   ```
+   pip install https://storage.googleapis.com/pytorch-xla-releases/wheels/tpuvm/torch_xla-nightly-cp310-cp310-linux_x86_64.whl
+   ```
+
+   Note this error:
+
+   ```
+   ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+  devinterp 0.0.0 requires protobuf==4.23.4, but you have protobuf 3.20.3 which is incompatible.
+  ```
 
 Congratulations! This TPU VM is now ready to run experiments!
+-->
 
 
 Part 5: Running the experiments
 -------------------------------
 
 It's as simple as configuring an experiment (or a sweep) as usual and then
-running `python -m icl` from the icl repository, I think.
+running `python -m icl` from the icl repository, I think:
+
+* Configure wandb (see README)
+* Configure AWS (see README)
+* Run `python -m icl`?
 
 And should probably detach it so that it's possible to log out etc.
 
