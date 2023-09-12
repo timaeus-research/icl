@@ -72,6 +72,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     print("[train] initialising evaluator.")
     # initialise evaluations
+    xm.mark_step()
     evaluator = ICLEvaluator(
         pretrain_dist=pretrain_dist,
         true_dist=true_dist,
@@ -79,6 +80,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         eval_batch_size=config.eval_batch_size,
         seed=config.task_config.true_seed
     )
+    xm.mark_step()
 
     print("[train] initialising checkpointer.")
     # initialise monitoring code
@@ -94,10 +96,12 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     recent_losses = torch.zeros(100, device=config.device)
 
     # training loop
+    print("[train] starting training loop...")
+    print("[train] note: the first two iterations are slow while XLA compiles things")
     for step in tqdm.trange(num_steps, desc="Training..."):
-        tqdm.tqdm.write(f"[train] training loop step {step}")
         set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
 
+        xm.mark_step()
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
             num_examples=config.task_config.max_examples,
@@ -111,10 +115,6 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         optimizer.step()
         scheduler.step()
         xm.mark_step()
-
-        if step % 10 == 0:
-            tqdm.tqdm.write("writing metrics...")
-            tqdm.tqdm.write(met.metrics_report())
 
         recent_losses[step % 100] = loss
 

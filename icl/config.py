@@ -101,7 +101,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
     num_steps = 500_000
     batch_size = 256
     max_learning_rate = 1e-3
-    num_tasks = 64
+    num_tasks = 1024
 
     print("[config] getting XLA device...")
     xla_device = xm.xla_device()
@@ -130,18 +130,18 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
         # evaluation config
         "eval_batch_size": 2048,
         "checkpointer_config": {
-            # "checkpoint_steps": {
-            #     "log_space": 50,
-            #     "linear_space": 50,
-            # },
-            # "bucket_name": "devinterp",
+            "checkpoint_steps": {
+                "log_space": 50,
+                "linear_space": 50,
+            },
+            "bucket_name": "devinterp",
             # "local_root": "./checkpoints",
         },
         "logger_config": {
-            # "logging_steps": {
-            #     "log_space": 100,
-            #     "linear_space": 100,
-            # },
+            "logging_steps": {
+                "log_space": 100,
+                "linear_space": 100,
+            },
             "project": project,
             "entity": entity,
             # "stdout": True,
