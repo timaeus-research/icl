@@ -729,6 +729,18 @@ More information here: https://github.com/pytorch/xla
 Appendix B: Stuff to do
 -----------------------
 
+### Less prompts
+
+Various commands above run in interactive mode. It might be worth finding and
+replacing with the batch mode versions (e.g. `apt install -y`).
+
+### Set-up scripts
+
+The TPU program allows configuring a startup script somehow (maybe through a
+gcloud command). This could potentially be used to fully automate the
+TPU VM configuration. It would require careful scripting and testing to get
+that right.
+
 ### Shared TPU VMs
 
 I should be able to give others in the lab SSH access to TPU VMs, even root
