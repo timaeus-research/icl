@@ -11,16 +11,18 @@ from icl.utils import hash_dict, set_seed
 
 
 class ICLTaskConfig(BaseModel):
-    task_size: int = 8
-    max_examples: int = 16
-    num_tasks: int
-    noise_variance: float = 0.25
-    embed_size: int = 128 
-    mlp_size: int = 128
-    num_heads: int = 2
-    num_layers: int = 8
-    model_seed: int = 0
-    pretrain_seed: int = 1
+    # paper notation in comments
+
+    task_size: int = 8 # D, dimensions of linear regression task
+    max_examples: int = 16 # K, in-context examples (thus max_context = 2*K)
+    num_tasks: int     # M, task-diversity of pre-train dist
+    noise_variance: float = 0.25 # sigma^2 i.e. y = wx + N(0, sigma^2)
+    embed_size: int = 128 # d_e = d_mid (in Phuong notation)
+    mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
+    num_heads: int = 2 # attention heads per layer 
+    num_layers: int = 8 # each layer has one attention head and one MLP 
+    model_seed: int = 0 
+    pretrain_seed: int = 1 
     true_seed: int = 2
     sampling_seed: int = 3
 
