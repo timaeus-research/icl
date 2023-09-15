@@ -1,3 +1,5 @@
+#%%
+
 from icl.model import InContextRegressionTransformer
 
 init_transformer = InContextRegressionTransformer(task_size=8,
@@ -9,10 +11,7 @@ init_transformer = InContextRegressionTransformer(task_size=8,
                                                   )
 
 
+# %%
 
-
-
-
-
-
-
+transformer_state = init_transformer.state_dict()
+# %%
