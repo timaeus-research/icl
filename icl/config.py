@@ -21,7 +21,7 @@ class ICLTaskConfig(BaseModel):
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
     num_heads: int = 2 # attention heads per layer 
     num_layers: int = 8 # each layer has one attention head and one MLP 
-    model_seed: int = 0 
+    model_seed: int = 0 # random seed 
     pretrain_seed: int = 1 
     true_seed: int = 2
     sampling_seed: int = 3
