@@ -37,30 +37,27 @@ Contents:
   * [Part 4.4: Setting up AWS for checkpointing model weights](#part-44-setting-up-aws-for-checkpointing-model-weights)
   * [Part 4.5: Installing Pytorch/XLA](#part-45-installing-pytorchxla)
 * [Part 5: Running the experiments](#part-5-running-the-experiments)
+  * [Part 5.1: Conduct a single training run](#part-51-conduct-a-single-training-run)
+  * [Part 5.2: Running a sweep](#part-52-running-a-sweep)
+  * [Part 5.3: Monitoring a running experiment or sweep](#part-53-monitoring-a-running-experiment-or-sweep)
+  * [Part 5.4: Terminating a running experiment or sweep](#part-54-terminating-a-running-experiment-or-sweep)
 * [Appendix A: Upgrading Python](#appendix-a-upgrading-python)
   * [Option A.1: Upgrade to Ubuntu 22.04 LTS](#option-a1-upgrade-to-ubuntu-2204-lts)
   * [Option A.2: Install additional Python and make it system Python](#option-a2-install-additional-python-and-make-it-system-python)
   * [Option A.3: Install additional Pythons and use a virtual environment](#option-a3-install-additional-pythons-and-use-a-virtual-environment)
   * [Note A.4: Pytorch/XLA Nightly for Python 3.10](#note-a4-pytorchxla-nightly-for-python-310)
 * [Appendix B: Stuff to do](#appendix-b-stuff-to-do)
+  * [Less prompts](#less-prompts)
+  * [Set-up scripts](#set-up-scripts)
   * [Shared TPU VMs](#shared-tpu-vms)
   * [Mosh](#mosh)
   * [Jupyter hub?](#jupyter-hub)
   * [Sharing files across TPU VMs](#sharing-files-across-tpu-vms)
-
-Other resources
-
-* Another tutorial (JAX, but helpful general info) is here:
-  https://github.com/ayaka14732/tpu-starter
-* There is also a `#tpu-research-cloud` channel in the Google Developers
-  Discord---join here: https://discord.com/invite/ca5gdvNF5n
-* Some more info about the TRC program is here (fun read):
-  https://github.com/google/jax/issues/2108#issuecomment-866238579
-
-The reason most tutorials use JAX is because apparently torch support for
-TPUs is not that mature. To me it seems like it works OK but is not as simple
-as `device='tpu'`. I would like to learn JAX sooner rather than later,
-but for this project, we are using torch, so here we go.
+* [Appendix C: Other resources](#appendix-c-other-resources)
+  * [Other in-depth tutorials](#other-in-depth-tutorials)
+  * [On TPU research cloud](#on-tpu-research-cloud)
+  * [On running PyTorch code with Pytorch/XLA specifically](#on-running-pytorch-code-with-pytorchxla-specifically)
+  * [Need help?](#need-help)
 
 [^trc]: Apparently the TPU Research Cloud people are very awesome and
   generous with their time, I mean only to besmirch their broader
@@ -568,7 +565,8 @@ file safe.
 
 ### Part 4.4: Setting up AWS for checkpointing model weights
 
-TODO: Document.
+TODO: Document. You need the right keys in a `.env` file in the root of the
+`icl` repository.
 
 ### Part 4.5: Installing Pytorch/XLA
 
@@ -582,11 +580,8 @@ If you didn't do that, you can install Pytorch/XLA now as follows:
    pip install https://storage.googleapis.com/tpu-pytorch/wheels/tpuvm/torch_xla-2.0-cp38-cp38-linux_x86_64.whl
    ```
 
-2. I found I had to install additionally the following (but this should be
-   covered by dependencies of devinterp and icl):
-   ```
-   pip install numpy PyYaml
-   ```
+I found I had to install additionally the following (but this should be
+covered by dependencies of devinterp and icl): `pip install numpy PyYaml`
 
 Congratulations! This TPU VM is now ready to run experiments!
 
@@ -594,26 +589,233 @@ Congratulations! This TPU VM is now ready to run experiments!
 Part 5: Running the experiments
 -------------------------------
 
-It's as simple as configuring an experiment (or a sweep) as usual and then
-running `python -m icl` from the icl repository, I think?
+This depends on whether you want to run a single experiment on a single TPU
+or a grid sweep of many training runs across multiple TPUs.
 
-And you also have to detach the process so that you can hang up the shell
-SSH connection without shutting down the process.
+### Part 5.1: Conduct a single training run
 
-So something like this (for zsh) should do the trick:
+If you haven't already, from your local machine, SSH into the TPU VM and
+navigate to the in the root of the icl repository: `cd ~/icl`.
 
-```
-python -m icl &!
-```
+First, configure the run:
 
-Or it is possible to do it without zsh like so:
+1. In `icl/config.py`, in the `get_config` function, set the model and task
+   parameters, optimiser, and so on to the desired values for the run.
+2. Configure AWS checkpointing:
+   * Assuming you have followed the steps from part 4.4.
+   * In `icl/config.py`, in the `get_config` function, configure the
+     checkpointing steps.
+   * Enable (or disable) AWS checkpointing by adding (removing) the bucket
+     name in the same function.
 
-```
-python -m icl &
-disown %1
-```
+   Note: limited local checkpointing is also possible (the VMs have ~100GB of
+   storage). Simply configure a local path for where to save the checkpoints.
+3. Configure W&B logging:
+   * Assuming you have followed the steps from part 4.3.
+   * In `icl/config.py`, in the `get_config` function, configure the logging
+     steps.
+   * Enable (or disable) W&B logging by including (or not) the project and
+     entity parameters in the call to `get_config` in `icl/__main__.py`.
 
-But I haven't tested that.
+   Note: local logging (to stdout) is also available, configure this in the
+   `get_config` function.
+
+Now you are ready to launch the run:
+
+4. In the root of the `icl` repo, run the following command:
+   ```
+   nohup python -m icl & disown
+   ```
+   The effect of the combination of `nohup`, `&`, and `disown` is to run the
+   experiment in the background and detach it from the terminal's input and
+   output streams.
+
+At this point you can log out of SSH (or run other commands in the terminal)
+and wait for the experiment to complete.
+
+If you want to monitor or terminate the experiment, see part 5.3 or part 5.4
+below.
+
+### Part 5.2: Running a sweep
+
+If you want to run many experiments (e.g. for varying hyperparameter values),
+you could repeat the steps in part 5.1 once for each run, across multiple TPU
+VMs, and then monitor the runs on each VM and spawn new runs as they finish.
+You could keep track of the run logs on W&B and group them together using
+tags or a 'group' or something. All of this is tedious and error-prone. A
+much better way to manage such a hyperparameter 'sweep' is to use W&B's
+built-in sweeps feature. At a high level, this involves the following:
+
+* On your local machine (or a TPU VM, doesn't matter) or on the W&B website,
+  configure a new sweep (specify which hyperparameters to vary) and launch a
+  'sweep controller' on the W&B cloud.
+* On each TPU VM, start a 'sweep agent' as a background process, and log out.
+* Each 'sweep agent' will contact the 'sweep controller' to request
+  hyperparameter settings and then run experiments, logging the results to
+  W&B, and conveniently grouping all of these runs under a single 'sweep'
+  within the web interface.
+
+Detailed instructions are as follows. To start the sweep controller (you can
+do this from your local machine or a TPU VM, just start with the ICL
+repository as your working directory).
+
+1.  In the ICL repository in the `sweeps` folder, create a YAML file laying
+    out the configuration for the sweep.
+    * Start the YAML file with the following settings:
+      ```
+      entity:  "devinterp"
+      project: "icl"
+      name:    "<name your sweep>"
+      command: ["python", "-m", "icl"]
+      method:  "grid"
+      parameters:
+        <fill this in>
+      ```
+    * Fill in the parameters you want to set and the ones you want to sweep
+      over.
+      * Full details on the format plus examples are
+         [here](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration#parameters)
+        in the W&B docs.
+      * You can also use the examples in the `sweeps/` directory in the ICL
+        repository as templates.
+    * If you want to do something more sophisticated, read the W&B
+      documentation on sweep config
+       [here](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration).
+    * Name the YAML file something distinctive, we will use its name in the
+      next step to spawn the sweep.
+
+2.  In the root of the ICL repository, run the following command:
+    ```
+    python -m wandb sweep sweeps/<name of your config file>.yaml
+    ```
+
+3.  The program will print out a sweep ID, probably of the form
+      `devinterp/icl/<some random letters>`.
+    Note this ID for step 5, below.
+
+It is also possible to configure and launch a sweep directly on the W&B
+website, which might be easier for a first-timer but I haven't done it, so
+haven't got instructions for you.
+
+To start a sweep agent (repeat these steps for each TPU VM):
+
+4. SSH into the TPU VM and navigate to the root of the ICL repository.
+
+5. Run the following command:
+   ```
+   nohup python -m wandb agent <your sweep ID from step 3> & disown
+   ```
+   The command `python -m wandb agent <sweep ID>` spanws the agent. The
+   effect of the combination of `nohup`, `&`, and `disown` is to run the
+   agent in the background and detach it from the terminal's input and
+   output streams.
+
+At this point you can log out of SSH (or run other commands in the terminal)
+and move on to the next TPU VM to spawn the next agent.
+
+TODO: Is it possible to launch this with a single ssh command from the local
+terminal?
+<!--
+> Note: It should be possible to combine steps 4 and 5 and launch an agent on
+> a VM with a single command from the local terminal (i.e. without actually
+> launching an interactive SSH session). I will try the following (from local
+> machine to tpu configured as `tpu1` from part 2.3):
+>
+> ```
+> ssh tpu1 'cd ~/icl ; nohup python -m wandb agent <sweep ID> & disown'
+> ```
+-->
+
+If you want to monitor or terminate the agent, see part 5.3 or part 5.4 below.
+   
+
+### Part 5.3: Monitoring a running experiment or sweep
+
+Once an experiment (or sweep agent) is running, you can monitor training run
+progress (and sweep progress) on the W&B website.
+
+If you want to monitor the output of the process on the TPU VM (which is more
+detailed, for example it reports the training step) then you can do so by
+monitoring the file `nohup.out` that captures standard output and error
+messages from the process run with `nohup`.
+
+1. SSH back into the VM and navigate to the root of the ICL repository
+   (or maybe you just ran the `nohup` command and are still in SSH in the
+   repository root, great).
+
+2. Run the command:
+   ```
+   tail -f ~/icl/nohup.out
+   ```
+   Explanation: The command `tail` prints the last few lines of a file. The
+   flag `-f` puts `tail` in 'follow' mode, where it will print new lines as
+   they are added, allowing you to monitor the output of the process in
+   real time.
+
+3. When you are finished, close the SSH session or quit `tail` by pressing
+   `^C` (note: don't worry, this will terminate `tail`, the `nohup` process
+   will continue to run).
+
+Alternatively, if you run the experiment without `nohup`, `&`, or `disown`,
+then you can monitor in the terminal directly because the output will come to
+the terminal.
+The only thing is, this way, if you close the SSH session then the experiment
+(or agent) will be terminated.
+
+
+### Part 5.4: Terminating a running experiment or sweep
+
+The easiest way to kill an experiment (or sweep) is probably through the W&B
+website. The W&B cloud will send a signal to the Python logging process (or
+agent) and it will bring down the whole process on the VM side.
+
+However, it is also possible (and more direct / more robust(?) / saves you using
+a webapp) to kill processes over SSH.
+To do so, since the process is not attached to a terminal, you need to
+identify the process ID and send the process a 'quit' signal with the `kill`
+command.
+
+1. SSH into the VM.
+
+2. Run the following command on the VM:
+   ```
+   ps -x
+   ```
+   Explanation: `ps` lists processes running on the VM, and the `-x` flag
+   asks it to list even those process that are not attached to the current
+   SSH session (like the one we are looking for, that is not attached to any
+   terminal).
+
+3. In the output of the `ps -x` command, identify the line that corresponds
+   to the experiment (or agent).
+   * For a single experiment, the 'command' will be something like
+      `nohup python -m icl`.
+   * For a sweep agent, the command will be something like
+      `nohup python -m wandb agent`.
+     Note that there will also probably be a command of the form `python -m
+     icl` in this case but the latter is a run that was spawned by the agent,
+     and killing it will not kill the agent.
+   * The commands may not appear as above, but rather with some paths
+     expanded e.g. they might have `/usr/bin/python3` instead of `python` or
+     something.
+
+4. From the identified line, note the process ID, which will be the first
+   number on the line.
+
+5. Send a termination signal to the process using the `kill` command:
+   ```
+   kill <pid>
+   ```
+   where `<pid>` is the process ID from step (4).
+
+6. List processes again with `ps -x` to verify that the process terminated.
+   Note that wandb processes might take a few seconds to clean up and
+   terminate, which is to be expected.
+
+7. If the process doesn't seem to respond and you really want to kill it, you
+   can
+    [raise the interrupt priority all the way to the top](https://www.youtube.com/watch?v=Fow7iUaKrq4).
+
 
 Appendix A: Upgrading Python
 ----------------------------
@@ -746,14 +948,14 @@ that right.
 I should be able to give others in the lab SSH access to TPU VMs, even root
 access. This would require:
 
-1. Getting theit public key for their account and adding it to my google
+1. Getting their public key for their account and adding it to my google
    cloud metadata.
 2. Sending them the list of TPU IP addresses / SSH config I created.
 3. Adding their username to the sudoers group or whatever on each VM.
 
 ### Mosh
 
-Potentially worth installing `mosh` as a less laggy ssh client/server.
+Potentially worth installing `mosh` as an even less laggy ssh client/server.
 
 ### Jupyter hub?
 
@@ -766,4 +968,61 @@ From ayaka's guide:
 
 > TPU VM instances in the same zone are connected with internal IPs, so you
 > can [create a shared file system using NFS](https://tecadmin.net/how-to-install-and-configure-an-nfs-server-on-ubuntu-20-04/).
+
+
+Appendix C: Other resources
+---------------------------
+
+There is not that much introductory material on using torch and TPUs/XLA, as
+far as I can tell. Apparently torch support for TPUs is not that mature, so
+people don't prefer using Torch when using TPUs. To me it seems like it
+works OK, but could be simpler (compare to `device='cuda'` which basically
+just works, at least if you don't want lazy evaluation with optimising
+compilation).
+
+Actually, most tutorials use JAX (or TensorFlow). It seems JAX was developed
+hand-in-hand with XLA (and by Google DeepMind, with TansorFlow obviously
+being from Google) so this would make sense. I would like to learn JAX sooner
+rather than later, and we do use it in the group (e.g. for RLCT estimation
+as far as I am aware), but we also started using Torch following Karpathy,
+so, oh well.
+
+
+### Other in-depth tutorials
+
+Another tutorial (using JAX, but with lots of helpful general info):
+
+* https://github.com/ayaka14732/tpu-starter
+
+### On TPU research cloud
+
+Website:
+
+* https://sites.research.google/trc/about/
+
+Some more info about the TRC program is here (fun read):
+
+* https://github.com/google/jax/issues/2108#issuecomment-866238579
+
+### On running PyTorch code with Pytorch/XLA specifically
+
+Documentation:
+
+* https://pytorch.org/xla/master/#saving-and-loading-xla-tensors
+
+There are some tutorials elsewhere but they seem to be subsets of the
+examples and information here (and possibly with errors or out of date).
+
+Tutorials from Google:
+
+* https://cloud.google.com/tpu/docs/run-calculation-pytorch
+
+### Need help?
+
+People in the group, contact me and I may be able to help.
+
+There is also a `#tpu-research-cloud` channel in the Google Developers
+Discord.
+
+* invite link: https://discord.com/invite/ca5gdvNF5n
 
