@@ -1,5 +1,4 @@
-How to train on TPUs for free
-=============================
+# How to train on TPUs for free
 
 TPU (Tensor Processing Unit) is a specialised computer chip for deep learning
 training that can run faster than GPUs in some cases
@@ -60,11 +59,10 @@ Contents:
   * [Need help?](#need-help)
 
 [^trc]: Apparently the TPU Research Cloud people are very awesome and
-  generous with their time, I mean only to besmirch their broader
-  corporation.
+    generous with their time, I mean only to besmirch their broader
+    corporation.
 
-Part 1: Creating a Google Cloud Platform project with TPU allocation
---------------------------------------------------------------------
+## Part 1: Creating a Google Cloud Platform project with TPU allocation
 
 We take advantage of the offer from Google Research Cloud to give researchers
 30 days free access to some TPU VMs.
@@ -180,8 +178,7 @@ I have heard that they are typically very kind and very willing to offer such
 extended access on request.
 
 
-Part 2: Creating and connecting to a TPU Virtual Machine
---------------------------------------------------------
+## Part 2: Creating and connecting to a TPU Virtual Machine
 
 This section contains the steps to create a single TPU Virtual Machine (which
 hosts a single TPU). If you want to run your experiments on multiple TPUs, as
@@ -283,8 +280,7 @@ the TPU VM from a native terminal with a command like `ssh <tpu-name>`
     I met you).
 
 
-Part 3: Configuring the VM environment
---------------------------------------
+## Part 3: Configuring the VM environment
 
 The VM runs Ubuntu 20.04 LTS with some default packages installed such as
 Python (version 3.8), git, pytorch, and pytorch/XLA (the TPU operation
@@ -442,8 +438,7 @@ TPU VM, but I don't have instructions for that here.
   contents are not that sensitive. So I suggest making the password `evil`,
   as a playful throwback to Google's old motto.
 
-Part 4: Installing our python code and dependencies
----------------------------------------------------
+## Part 4: Installing our python code and dependencies
 
 With the OS environment and supporting tools configured, the next step is to
 install our python code and all of its dependencies. 
@@ -586,8 +581,7 @@ covered by dependencies of devinterp and icl): `pip install numpy PyYaml`
 Congratulations! This TPU VM is now ready to run experiments!
 
 
-Part 5: Running the experiments
--------------------------------
+## Part 5: Running the experiments
 
 This depends on whether you want to run a single experiment on a single TPU
 or a grid sweep of many training runs across multiple TPUs.
@@ -817,8 +811,7 @@ command.
     [raise the interrupt priority all the way to the top](https://www.youtube.com/watch?v=Fow7iUaKrq4).
 
 
-Appendix A: Upgrading Python
-----------------------------
+## Appendix A: Upgrading Python
 
 If you want Python >3.8 on the TPU VM, three broad options come to mind:
 
@@ -928,8 +921,7 @@ pip install https://storage.googleapis.com/pytorch-xla-releases/wheels/tpuvm/tor
 
 More information here: https://github.com/pytorch/xla
 
-Appendix B: Stuff to do
------------------------
+## Appendix B: Stuff to do
 
 ### Less prompts
 
@@ -970,8 +962,7 @@ From ayaka's guide:
 > can [create a shared file system using NFS](https://tecadmin.net/how-to-install-and-configure-an-nfs-server-on-ubuntu-20-04/).
 
 
-Appendix C: Other resources
----------------------------
+## Appendix C: Other resources
 
 There is not that much introductory material on using torch and TPUs/XLA, as
 far as I can tell. Apparently torch support for TPUs is not that mature, so
