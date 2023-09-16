@@ -58,21 +58,23 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         import torch_xla.core.xla_model as xm
         # import torch_xla.debug.metrics as met
         stdlogger.info("configuring default XLA device...")
-        config.device = xm.xla_device()
+        device = xm.xla_device()
         stdlogger.info("xla ready!")
+    else:
+        device = config.device
 
     # model initialisation
     stdlogger.info("initialising model")
-    model = config.task_config.model_factory().to(config.device)
+    model = config.task_config.model_factory().to(device)
     model.train()
 
     # initialise 'pretraining' data source (for training on fixed task set)
     stdlogger.info("initialising data (pretrain)")
-    pretrain_dist = config.task_config.pretrain_dist_factory().to(config.device)
+    pretrain_dist = config.task_config.pretrain_dist_factory().to(device)
 
     # initialise 'true' data source (for evaluation, including unseen tasks)
     stdlogger.info("initialising data (true)")
-    true_dist = config.task_config.true_dist_factory().to(config.device)
+    true_dist = config.task_config.true_dist_factory().to(device)
 
     # initialise evaluations
     stdlogger.info("initialising evaluator")
@@ -97,7 +99,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
 
     # TODO: this is unused and may be slowing down XLA... use it or lose it
-    # recent_losses = torch.zeros(100, device=config.device)
+    # recent_losses = torch.zeros(100, device=device)
 
     # training loop
     stdlogger.info("starting training loop")
