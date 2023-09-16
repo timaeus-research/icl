@@ -1,15 +1,15 @@
 """
 training the transformer on synthetic in-context regression task
 """
+
+import dotenv; dotenv.load_dotenv() # environment before all imports
+
 import logging
 
-from dotenv import load_dotenv
 import sentry_sdk
 
 from icl.config import get_config
 from icl.train import train
-
-load_dotenv()
 
 
 if __name__ == "__main__":
