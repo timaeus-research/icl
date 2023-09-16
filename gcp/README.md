@@ -38,8 +38,9 @@ Contents:
 * [Part 5: Running the experiments](#part-5-running-the-experiments)
   * [Part 5.1: Conduct a single training run](#part-51-conduct-a-single-training-run)
   * [Part 5.2: Running a sweep](#part-52-running-a-sweep)
-  * [Part 5.3: Monitoring a running experiment or sweep](#part-53-monitoring-a-running-experiment-or-sweep)
-  * [Part 5.4: Terminating a running experiment or sweep](#part-54-terminating-a-running-experiment-or-sweep)
+  * [Part 5.3: Parallelise across TPU cores](#part-53-parallelise-across-tpu-cores)
+  * [Part 5.4: Monitoring a running experiment or sweep](#part-54-monitoring-a-running-experiment-or-sweep)
+  * [Part 5.5: Terminating a running experiment or sweep](#part-55-terminating-a-running-experiment-or-sweep)
 * [Appendix A: Upgrading Python](#appendix-a-upgrading-python)
   * [Option A.1: Upgrade to Ubuntu 22.04 LTS](#option-a1-upgrade-to-ubuntu-2204-lts)
   * [Option A.2: Install additional Python and make it system Python](#option-a2-install-additional-python-and-make-it-system-python)
@@ -720,10 +721,83 @@ terminal?
 > ```
 -->
 
-If you want to monitor or terminate the agent, see part 5.3 or part 5.4 below.
-   
+If you want to monitor or terminate the agent, see part 5.4 or part 5.5
+below.
 
-### Part 5.3: Monitoring a running experiment or sweep
+
+### Part 5.3: Parallelise across TPU cores
+
+Each TPU v2-8 or v3-8 has four, two-core chips, also called 'devices'. A
+straight-forward way to speed up many experiments (aside from using more VMs)
+is to run four processes on each TPU VM, with each process using a single
+'device'.
+
+Note: It is also possible to speed up a single experiment using multiple
+devices, but this requires some changes to the code (to get the devices
+working together in sync) and is not covered in this tutorial. An example is
+in [the Pytorch/XLA documentation](https://pytorch.org/xla/master/).
+   
+The device that an experiment runs on is controlled by some environment
+variables. The basic idea is to run an experiment command (such as `nohup
+python -m icl & disown` from part 5.1) with these environment variables
+configured so that the command will run on the right device, and then repeat
+this four times with different environment variables to get one run going on
+each of the four devices.
+
+The steps are very simple, but involve running a very complex sequence of
+commands, so I will lay out the steps and then break down the commands
+afterwards:
+
+1. SSH into the VM and change into the root of the ICL repository.
+2. Run the following set of four commands:
+   ```
+   TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1 TPU_PROCESS_BOUNDS=1,1,1 TPU_MESH_CONTROLLER_ADDRESS=localhost:8476 TPU_MESH_CONTROLLER_PORT=8476 TPU_VISIBLE_DEVICES=0 PJRT_DEVICE=TPU nohup <command> > nohup0.out & disown
+   TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1 TPU_PROCESS_BOUNDS=1,1,1 TPU_MESH_CONTROLLER_ADDRESS=localhost:8477 TPU_MESH_CONTROLLER_PORT=8477 TPU_VISIBLE_DEVICES=1 PJRT_DEVICE=TPU nohup <command> > nohup1.out & disown 
+   TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1 TPU_PROCESS_BOUNDS=1,1,1 TPU_MESH_CONTROLLER_ADDRESS=localhost:8478 TPU_MESH_CONTROLLER_PORT=8478 TPU_VISIBLE_DEVICES=2 PJRT_DEVICE=TPU nohup <command> > nohup2.out & disown
+   TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1 TPU_PROCESS_BOUNDS=1,1,1 TPU_MESH_CONTROLLER_ADDRESS=localhost:8479 TPU_MESH_CONTROLLER_PORT=8479 TPU_VISIBLE_DEVICES=3 PJRT_DEVICE=TPU nohup <command> > nohup3.out & disown
+    ```
+    where `<command>` is replaced with a training command, such as `python -m icl` or `python -m wandb agent <sweep id>`.
+    * Tip: in practice, since you will be running this across multiple VMs, I
+      recommend opening a text editor and editing your `<command>` into the
+      above 4-line command and then copy-pasting it into each SSH session.
+
+At this point you can log out of SSH (or run other commands in the terminal)
+and move on to the next TPU VM to spawn the next set of 4 processes. The runs
+will continue in the background. See parts 5.4 and 5.5 below for information
+about monitoring and terminating the processes.
+
+Now, let's break down that complex 4-line command.
+
+* There is one line per TPU device. The command has the abstract form:
+  ```
+  <pick one of four devices> nohup <your command> > <logfile> & disown
+  ```
+* To pick a device, like I said, we need to configure some environment
+  variables. The ones to use are as follows (h/t [skye](https://gist.github.com/skye/f82ba45d2445bb19d53545538754f9a3)):
+  ```
+  # set the TPU into a mode where the four devices don't communicate
+  TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1
+  TPU_PROCESS_BOUNDS=1,1,1
+  # set an arbitrary distinct port for the controller for each run
+  TPU_MESH_CONTROLLER_ADDRESS=localhost:<port>
+  TPU_MESH_CONTROLLER_PORT=<port>
+  # set the device number, 0 or 1 or 2 or 3
+  TPU_VISIBLE_DEVICES=<device number>
+  ```
+* The combination of `nohup`, `&` (background), and `disown`, like in parts
+  5.1 and 5.2, sends the process to the background and makes it so that when
+  you log out of the SSH session, the process will keep running.
+* `> nohup0.out`, `> nohup1.out`, `> nohup2.out`, and `> nohup3.out` make it
+  so the the four processes standard output goes to four separate files (the
+  default behaviour is for `nohup` processes to log to a single file
+  `nohup.out`).
+* Of course, at the heard of all of this, you put your command, which is the
+  actual thing that goes to run in the background. It can be a single
+  experiment or a wandb agent (as per parts 5.1 and 5.2).
+
+
+
+### Part 5.4: Monitoring a running experiment or sweep
 
 Once an experiment (or sweep agent) is running, you can monitor training run
 progress (and sweep progress) on the W&B website.
@@ -746,6 +820,9 @@ messages from the process run with `nohup`.
    they are added, allowing you to monitor the output of the process in
    real time.
 
+   * Note: if you followed part 5.3, then there is one output file per
+     device, namely `~/icl/nohup0.out` through `~/icl/nohup3.out`.
+
 3. When you are finished, close the SSH session or quit `tail` by pressing
    `^C` (note: don't worry, this will terminate `tail`, the `nohup` process
    will continue to run).
@@ -757,7 +834,7 @@ The only thing is, this way, if you close the SSH session then the experiment
 (or agent) will be terminated.
 
 
-### Part 5.4: Terminating a running experiment or sweep
+### Part 5.5: Terminating a running experiment or sweep
 
 The easiest way to kill an experiment (or sweep) is probably through the W&B
 website. The W&B cloud will send a signal to the Python logging process (or
@@ -999,7 +1076,7 @@ Some more info about the TRC program is here (fun read):
 
 Documentation:
 
-* https://pytorch.org/xla/master/#saving-and-loading-xla-tensors
+* https://pytorch.org/xla/master/
 
 There are some tutorials elsewhere but they seem to be subsets of the
 examples and information here (and possibly with errors or out of date).
