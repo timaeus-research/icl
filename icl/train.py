@@ -13,13 +13,12 @@ import torch
 import torch.nn.functional as F
 import tqdm
 import typer
-import wandb
 
+import wandb
 from icl.config import ICLConfig, get_config
 from icl.evals import ICLEvaluator
 from icl.model import InContextRegressionTransformer
-from icl.utils import set_seed
-
+from icl.utils import set_seed, temp_to
 
 dotenv.load_dotenv()
 
@@ -219,7 +218,10 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
-            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
+            checkpoint = state_dict(model, optimizer, scheduler)
+
+            with temp_to(checkpoint, "cpu"):
+                checkpointer.save_file(step, checkpoint)
 
         if step in config.logger_config.logging_steps and step > last_log_step:
             stdlogger.info("Logging at step %s", step)
