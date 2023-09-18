@@ -12,6 +12,7 @@ from pathlib import Path
 from pprint import pp
 from typing import Any, Callable, List, Optional, Union
 
+import torch_xla
 import boto3
 import torch
 import tqdm
@@ -32,7 +33,6 @@ def get_all_file_keys(client, bucket: str, prefix: str, max_keys: Optional[int] 
 
     # Initialize variables for pagination
     next_token = ''
-
     pbar = tqdm.tqdm(desc="Listing files", unit="files")
 
     while True:
@@ -62,24 +62,23 @@ def _migrate(
     prefix: str,
     device: str,
     max_keys: Optional[int] = None,
+    resume: Optional[int] = None
 ):
     """Change the device of the checkpoints."""
-    file_keys = get_all_file_keys(client, bucket, prefix, max_keys=max_keys)
-    
-    for file_key in tqdm.tqdm(file_keys, desc="Migrating files", unit="files"):
+    file_keys = sorted(get_all_file_keys(client, bucket, prefix, max_keys=max_keys))
+
+    start_idx = resume or 0
+    for i, file_key in enumerate(tqdm.tqdm(file_keys[start_idx:], desc="Migrating files", unit="files", initial=start_idx, total=len(file_keys))):
         # Download the file
         obj = client.get_object(Bucket=bucket, Key=file_key)
         body = obj['Body'].read()
         stream = io.BytesIO(body)
-        checkpoint = torch.load(stream)
-        pp(checkpoint)  # TODO: Remove
+        checkpoint = torch.load(stream, map_location=torch.device("cpu"))
         checkpoint = to(checkpoint, device)
-        pp(checkpoint)  # TODO: Remove
-        
-        return # TODO: Remove
-        
+        stream = io.BytesIO()
+        torch.save(checkpoint, stream)
         # Upload the checkpoint
-        client.put_object(Bucket=bucket, Key=file_key, Body=io.BytesIO(body))
+        client.put_object(Bucket=bucket, Key=file_key, Body=stream.getvalue())
 
 
 @app.command()
@@ -88,10 +87,11 @@ def migrate(
     prefix: str = typer.Argument("/", help="Prefix"),
     to: str = typer.Option("cpu", help="Target device"),
     max_keys: Optional[int] = typer.Option(None, help="Maximum number of keys to migrate"),
+    resume: Optional[int]= typer.Option(None, help="Index of the file to resume migrating from.")
 ):
     """Change the device of the checkpoints."""
     client = boto3.client('s3')
-    _migrate(client, bucket, prefix, to, max_keys=max_keys)
+    _migrate(client, bucket, prefix, to, max_keys=max_keys, resume=resume)
 
 
 if __name__ == "__main__":
