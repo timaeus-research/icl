@@ -86,7 +86,12 @@ class ICLConfig(LearnerConfig):
         # Automatically fill in the project_dir field of the checkpointer
         checkpoint_config = data.get("checkpointer_config", None)
         if num_tasks is not None and checkpoint_config is not None:
-            task_config_hash = hash_dict(data["task_config"])[:6]
+            task_config_dict = data["task_config"]
+            # del task_config_dict["model_seed"]
+            # del task_config_dict["pretrain_seed"]
+            # del task_config_dict["true_seed"]
+            # del task_config_dict["sampling_seed"]
+            task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
             checkpoint_config["project_dir"] = checkpoint_config.get("project_dir", f"icl/ntasks-{num_tasks}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}")
