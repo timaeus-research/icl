@@ -1,7 +1,7 @@
 import functools
 
 import torch
-from devinterp.evals import Evaluator
+from devinterp.evals import ModelEvaluator
 from torch import nn
 
 from icl.baselines import dmmse_predictor, ridge_predictor
@@ -27,7 +27,7 @@ def mse(y1, y2, axis=None):
     return (y1 - y2).square().mean(axis=axis)
 
 
-class ICLEvaluator(Evaluator):
+class ICLEvaluator(ModelEvaluator):
     """
     Stores fixed evaluation data batches, computed at the start of the
     training run, as well as baseline predictions for these batches.
@@ -75,7 +75,7 @@ class ICLEvaluator(Evaluator):
 
 
     @torch.no_grad()
-    def __call__(self, model: nn.Module, *args, **kwargs):
+    def __call__(self, model: nn.Module):
         """
         Evaluate a model against stored batches, returning a dictionary of
         various metrics.
