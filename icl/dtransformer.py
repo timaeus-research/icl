@@ -163,7 +163,6 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         # precompute attention normalisation factor
         self.attention_scale = self.head_size ** 0.5
 
-
     def forward(self, x):
         # unpack dimensions
         B, T, C = x.size()  # batch size, num_tokens, embed_size
