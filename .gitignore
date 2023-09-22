@@ -164,4 +164,12 @@ cython_debug/
 
 **/wandb/**
 
+<<<<<<< HEAD
 **/.DS_Store
+=======
+**/.DS_Store
+
+**/tmp/**
+
+**/.vscode/**
+>>>>>>> rlcts

@@ -65,7 +65,7 @@ class ICLConfig(LearnerConfig):
     eval_batch_size: int
     task_config: ICLTaskConfig
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def validate_extra(cls, data: Any):
         num_tasks = data["task_config"]["num_tasks"]
@@ -78,23 +78,41 @@ class ICLConfig(LearnerConfig):
         optimizer_config = data.get("optimizer_config", None)
         scheduler_config = data.get("scheduler_config", None)
         if scheduler_config is not None:
-            scheduler_config["max_lr"] = scheduler_config.get("max_lr", optimizer_config.get("lr", 1e-3))
-            scheduler_config["total_steps"] = scheduler_config.get("max_steps", num_steps)
-            scheduler_config["div_factor"] = scheduler_config.get("div_factor", (num_steps/2 - 1))
-            scheduler_config["final_div_factor"] = scheduler_config.get("final_div_factor", (num_steps/2 - 1))
+            scheduler_config["max_lr"] = scheduler_config.get(
+                "max_lr", optimizer_config.get("lr", 1e-3)
+            )
+            scheduler_config["total_steps"] = scheduler_config.get(
+                "max_steps", num_steps
+            )
+            scheduler_config["div_factor"] = scheduler_config.get(
+                "div_factor", (num_steps / 2 - 1)
+            )
+            scheduler_config["final_div_factor"] = scheduler_config.get(
+                "final_div_factor", (num_steps / 2 - 1)
+            )
 
         # Automatically fill in the project_dir field of the checkpointer
         checkpoint_config = data.get("checkpointer_config", None)
         if num_tasks is not None and checkpoint_config is not None:
-            task_config_hash = hash_dict(data["task_config"])[:6]
+            task_config_dict = data["task_config"]
+            task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
-            checkpoint_config["project_dir"] = checkpoint_config.get("project_dir", f"icl/ntasks-{num_tasks}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}")
+            run_name = f"ntasks-{num_tasks}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}"
+            checkpoint_config["project_dir"] = checkpoint_config.get(
+                "project_dir", f"icl/{run_name}"
+            )
+            data["run_name"] = run_name
+
+            if "extra" in data:
+                data["run_name"] += f"-{data.pop('extra')}"
 
         return data
 
 
-def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kwargs) -> ICLConfig:
+def get_config(
+    project: Optional[str] = None, entity: Optional[str] = None, **kwargs
+) -> ICLConfig:
     # (shared parameters)
     num_steps = 500_000
     batch_size = 256
@@ -113,21 +131,18 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
             "optimizer_type": "Adam",
             "betas": (0.9, 0.999),
             "weight_decay": 0.0,
-            "lr": max_learning_rate,   # unused (overwritten by scheduler)
+            "lr": max_learning_rate,  # unused (overwritten by scheduler)
         },
         "scheduler_config": {
             "scheduler_type": "OneCycleLR",
-            "anneal_strategy": 'linear',
+            "anneal_strategy": "linear",
             "pct_start": 0.5,
-            "cycle_momentum": False,    # N/A but required to avoid error
+            "cycle_momentum": False,  # N/A but required to avoid error
         },
         # evaluation config
         "eval_batch_size": 2048,
         "checkpointer_config": {
-            "checkpoint_steps": {
-                "log_space": 50,
-                "linear_space": 50
-            },
+            "checkpoint_steps": {"log_space": 50, "linear_space": 50},
             "bucket_name": "devinterp",
             # "local_root": "./checkpoints",
         },
@@ -140,7 +155,7 @@ def get_config(project: Optional[str] = None, entity: Optional[str] = None, **kw
             "project": project,
             "entity": entity,
             # "stdout": True
-        }
+        },
     }
 
     nested_update(config_dict, kwargs)
