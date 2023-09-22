@@ -357,3 +357,6 @@ class SingletonTaskDistribution(TaskDistribution):
         """
         self.task = self.task.to(device)
         return super().to(device)
+
+
+

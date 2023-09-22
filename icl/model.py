@@ -53,8 +53,15 @@ class InContextRegressionTransformer(torch.nn.Module):
         self.max_examples = max_examples
         self.device = device
 
+        # TODO: Where else is this information stored on a given run? Is it bad juju for it 
+        # to hang around with the transformer all the time? 
+        self.embed_size = embed_size
+        self.mlp_size = mlp_size
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+
     
-    def forward(self, xs, ys):
+    def forward(self, xs, ys, mechinterp=False):
         # input validation
         B, K, D = xs.shape
         assert K <= self.max_examples, \
@@ -68,11 +75,21 @@ class InContextRegressionTransformer(torch.nn.Module):
 
         # encode examples as token sequence
         toks = to_token_sequence(xs, ys)
-        # run dtransformer to predict next tokens
-        toks_pred = self.token_sequence_transformer(toks)
-        # decode y predictions from next-token-prediction
-        ys_pred = from_predicted_token_sequence(toks_pred)
-        return ys_pred
+
+        if not mechinterp:
+            # run dtransformer to predict next tokens
+            toks_pred = self.token_sequence_transformer(toks, mechinterp)
+            # decode y predictions from next-token-prediction
+            ys_pred = from_predicted_token_sequence(toks_pred)
+            return ys_pred
+        else: 
+            # run dtransformer to predict next tokens, get attention tensors
+            toks_pred, attention_tensors = self.token_sequence_transformer(toks, mechinterp)
+            # decode y predictions from next-token-prediction
+            ys_pred = from_predicted_token_sequence(toks_pred)
+
+            return ys_pred, attention_tensors
+        
 
     def to(self, *args, **kwargs):
         self.device = args[0]
