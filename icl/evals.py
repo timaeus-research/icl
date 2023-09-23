@@ -1,7 +1,7 @@
 import functools
 
 import torch
-from devinterp.evals import ModelEvaluator
+from devinfra.evals import ModelEvaluator
 from torch import nn
 
 from icl.baselines import dmmse_predictor, ridge_predictor
