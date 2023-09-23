@@ -3,7 +3,6 @@ import torch
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
-
 _DEFAULT_MAX_BYTES = 2**28 # 256 MiB
 # chosen to fit comfortably in matt's GTX 1050 VRAM...
 # fits, e.g., (B=2048 batch * K=16 context * M=2048 tasks)=2**26 float32s
