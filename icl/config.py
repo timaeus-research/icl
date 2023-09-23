@@ -1,9 +1,12 @@
 from typing import Any, Optional
 
-from devinterp.learner import LearnerConfig
-from devinterp.utils import nested_update
+from devinfra.io import CheckpointerConfig, MetricLoggingConfig
+from devinfra.monitoring import expand
+from devinfra.optim import OptimizerConfig, SchedulerConfig
+from devinfra.utils.iterables import nested_update
 from pydantic import BaseModel, model_validator
 
+import wandb
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
@@ -62,8 +65,70 @@ class ICLTaskConfig(BaseModel):
 
 
 class ICLConfig(LearnerConfig):
+    # Dataset & loader
+    num_training_samples: int
+    batch_size: int = 128
+    run_name: Optional[str] = None
+
+    # Training loop
+    # num_epochs: int = None
+    num_steps: int = 100_000
+    logger_config: Optional[MetricLoggingConfig] = None
+    checkpointer_config: Optional[CheckpointerConfig] = None
+
+    # Optimizer
+    optimizer_config: OptimizerConfig = Field(default_factory=OptimizerConfig)
+    scheduler_config: Optional[SchedulerConfig] = None
+
+    # Misc
+    device: str = Field(default_factory=get_default_device)
+    criterion: CriterionLiteral = "cross_entropy"
+
     eval_batch_size: int
     task_config: ICLTaskConfig
+
+    class Config:
+        frozen = True
+
+    # Properties
+
+    @property
+    def num_steps_per_epoch(self):
+        """Number of steps per epoch."""
+        return self.num_training_samples // self.batch_size
+
+    @property
+    def num_epochs(self):
+        """Number of epochs."""
+        return math.ceil(self.num_steps / self.num_steps_per_epoch)
+
+    @property
+    def is_wandb_enabled(self):
+        """Whether wandb is enabled."""
+        return self.logger_config and self.logger_config.is_wandb_enabled
+
+    # Validators
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_config(cls, data: Any):
+        num_steps = data["num_steps"]
+
+        checkpoint_config = data.get("checkpointer_config", None)
+        logger_config = data.get("logger_config", None)
+
+        # Automatically expand `checkpoint_steps` for checkpointer and `logging_steps` for logger
+        # "log_space": 10 -> "log_space": [1, num_steps, 10]
+        checkpoint_steps = checkpoint_config.get("checkpoint_steps", None)
+        if isinstance(checkpoint_steps, dict):
+            expand_steps_config_(checkpoint_steps, num_steps)
+
+        # Logger
+        logger_steps = logger_config.get("logging_steps", None)
+        if isinstance(logger_steps, dict):
+            expand_steps_config_(logger_steps, num_steps)
+
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -158,5 +223,23 @@ def get_config(
         },
     }
 
-    nested_update(config_dict, kwargs)
-    return ICLConfig.from_wandb(**config_dict)
+    nested_update(config_dict, kwargs)        
+    logger_config = config_dict["logger_config"]
+
+    # Sync with wandb (side-effects!)
+    if logger_config["project"] is not None and logger_config["entity"] is not None:
+        if "run_name" in config_dict:
+            run_name = config_dict.pop("run_name")
+            wandb.init(
+                project=logger_config["project"],
+                entity=logger_config["entity"],
+                name=run_name,
+            )
+        else:
+            wandb.init(
+                project=logger_config["project"], entity=logger_config["entity"]
+            )
+
+        nested_update(config_dict, wandb.config)
+        
+    return ICLConfig(**config_dict)
