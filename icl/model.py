@@ -61,7 +61,7 @@ class InContextRegressionTransformer(torch.nn.Module):
         self.num_layers = num_layers
 
     
-    def forward(self, xs, ys, mechinterp=False):
+    def forward(self, xs, ys):
         # input validation
         B, K, D = xs.shape
         assert K <= self.max_examples, \
@@ -76,21 +76,12 @@ class InContextRegressionTransformer(torch.nn.Module):
         # encode examples as token sequence
         toks = to_token_sequence(xs, ys)
 
-        if not mechinterp:
-            # run dtransformer to predict next tokens
-            toks_pred = self.token_sequence_transformer(toks, mechinterp)
-            # decode y predictions from next-token-prediction
-            ys_pred = from_predicted_token_sequence(toks_pred)
-            return ys_pred
-        else: 
-            # run dtransformer to predict next tokens, get attention tensors
-            toks_pred, attention_tensors = self.token_sequence_transformer(toks, mechinterp)
-            # decode y predictions from next-token-prediction
-            ys_pred = from_predicted_token_sequence(toks_pred)
-
-            return ys_pred, attention_tensors
-        
-
+        # run dtransformer to predict next tokens
+        toks_pred = self.token_sequence_transformer(toks)
+        # decode y predictions from next-token-prediction
+        ys_pred = from_predicted_token_sequence(toks_pred)
+        return ys_pred
+    
     def to(self, *args, **kwargs):
         self.device = args[0]
         return super().to(*args, **kwargs)

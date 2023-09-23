@@ -1,14 +1,14 @@
 import hashlib
 import json
+import os
 import random
 import warnings
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, TypeVar, Union
 
 import numpy as np
-import torch
-import os
 import pandas as pd
+import torch
 from devinterp.utils import flatten_dict
 
 
@@ -176,3 +176,24 @@ def find_obj(objs: List[T], **filters: Any) -> T:
         T: Matched object or dictionary, or None if not found.
     """
     return next(filter_objs(objs, **filters))
+
+
+def find_unique_obj(objs: List[T], **filters: Any) -> T:
+    """
+    Find and return a single object based on filters. Requires that only one object matches.
+
+    Parameters:
+        objs (List[T]): List of dictionaries or objects.
+        filters (Any): Nested key-value pairs to filter the list.
+
+    Returns:
+        T: Matched object or dictionary, or None if not found.
+    """
+    objs = list(filter_objs(objs, **filters))
+
+    if len(objs) == 0:
+        raise ValueError("No matches found")
+    elif len(objs) > 1:
+        raise ValueError("Multiple matches found")
+    
+    return objs[0]
