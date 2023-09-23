@@ -41,39 +41,22 @@ class ActivationProbe:
         self.activation = None
         self.model = model
         self.location = location.split('.')
-        self.layer_path = []
-        self.channel = None
-        self.y = None
-        self.x = None
-
-        # Split the location into layer path and neuron indices
-        state_dict_keys = list(model.state_dict().keys())
-        for part in self.location:
-            self.layer_path.append(part)
-            path = '.'.join(self.layer_path)
-            
-            if any(key.startswith(path) for key in state_dict_keys):
-                continue
-            else:
-                self.layer_path.pop()
-                self.channel, *yx = map(int, self.location[len(self.layer_path):])
-                if yx:
-                    self.y = yx[0]
-                    if len(yx) > 1:
-                        self.x = yx[1]
-                break
 
         # Get the target layer
         self.layer = model
-        for part in self.layer_path[:-1]:
+        for part in self.location:
             self.layer = getattr(self.layer, part)
 
     def hook_fn(self, module, input, output):
         self.activation = output
 
     def register_hook(self):
-        handle = self.layer.register_forward_hook(self.hook_fn)
-        return handle
+        self.handle = self.layer.register_forward_hook(self.hook_fn)
+        return self.handle
+
+    def unregister_hook(self):
+        self.handle.remove()
+    
     
     @contextmanager
     def watch(self):
