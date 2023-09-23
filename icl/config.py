@@ -6,14 +6,14 @@ from devinfra.io import CheckpointerConfig, MetricLoggingConfig
 from devinfra.monitoring import expand_steps_config_
 from devinfra.optim import OptimizerConfig, SchedulerConfig
 from devinfra.utils.device import get_default_device
-from devinfra.utils.iterables import nested_update
+from devinfra.utils.iterables import hash_dict, nested_update
+from devinfra.utils.seed import set_seed
 from pydantic import BaseModel, Field, model_validator
 
 import wandb
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
-from icl.utils import hash_dict, set_seed
 
 
 class ICLTaskConfig(BaseModel):
@@ -67,7 +67,7 @@ class ICLTaskConfig(BaseModel):
         )
 
 
-class ICLConfig(LearnerConfig):
+class ICLConfig(BaseModel):
     # Dataset & loader
     num_training_samples: int
     batch_size: int = 128
