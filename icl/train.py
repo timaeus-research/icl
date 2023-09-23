@@ -24,10 +24,9 @@ import numpy as np
 import sentry_sdk
 import torch.nn.functional as F
 import tqdm
-from devinterp.ops.logging import MetricLogger
-#
-from devinterp.ops.storage import BaseStorageProvider
-from devinterp.optim.schedulers import LRScheduler
+from devinfra.io.logging import MetricLogger
+from devinfra.io.storage import BaseStorageProvider
+from devinfra.optim.schedulers import LRScheduler
 
 import wandb
 from icl.config import ICLConfig, get_config

@@ -10,9 +10,8 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
+from devinfra.evals import Criterion
 from devinterp.optim.sgld import SGLD
-from devinterp.slt.observables import MicroscopicObservable
-from devinterp.utils import Criterion
 from torch import nn
 from torch.multiprocessing import Pool, cpu_count
 from torch.nn import functional as F
@@ -32,7 +31,6 @@ def sample_single_chain(
     chain: int = 0,
     seed: Optional[int] = None,
     pbar: bool = False,
-    observor: Optional[MicroscopicObservable] = None,
     device: Union[str, torch.device] = "cpu",
 ):
     # Initialize new model and optimizer for this chain

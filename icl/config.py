@@ -1,10 +1,13 @@
+import math
 from typing import Any, Optional
 
+from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
-from devinfra.monitoring import expand
+from devinfra.monitoring import expand_steps_config_
 from devinfra.optim import OptimizerConfig, SchedulerConfig
+from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import nested_update
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 import wandb
 from icl.model import InContextRegressionTransformer
