@@ -8,10 +8,7 @@ import sentry_sdk
 import torch
 import typer
 import yaml
-from devinterp.evals import RepeatEvaluator
-from devinterp.optim.schedulers import LRScheduler
-from devinterp.utils import flatten_dict
-from dotenv import load_dotenv
+from devinfra.evals import RepeatEvaluator
 from pydantic import BaseModel
 from torch import nn
 from torch.nn import functional as F
