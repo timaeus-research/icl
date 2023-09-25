@@ -90,3 +90,11 @@ class AttentionProbe():
                    .mean()
                    .reset_index())
         return df_mean
+    
+    def prefix_matching_score(self, induction_task):
+        """
+        Get average prefix matching score on an Induction batch defined in mechinterp_tasks.InductionHeadsTask.
+
+        Parameters:
+        * 
+        """

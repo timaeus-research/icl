@@ -10,47 +10,73 @@ class InductionHeadsTask():
 
     * `task_distribution : TaskDistribution`
         A task distribution used to construct induction head batch.
-        If measuring performance on T_pretrain then task_distribution should be equal to 
-        DiscreteTaskDistribution that was used to train the transformer. 
-    * `num_tasks : int > 0`
-        number of tasks in the discrete set.
-    * `device='cpu' : str(device name)`
-        which device to initialise tasks on
+        If measuring performance on T_pretrain then task_distribution should be equal to the 
+        DiscreteTaskDistribution object that was used to train the transformer. 
 
-    Fields:
-
-    * `task_size : int > 0`
-        number of dimensions for the tasks.
-    * `num_tasks : int > 0`
-        number of tasks in the discrete set.
-    * `tasks : tensor(self.num_tasks, self.task_size, device=self.device)`
-        the tasks, each as one row of a 2d tensor.
-    * `device='cpu' : str(device name)`
-        which device to initialise tasks on
     """
     def __init__(self, task_distribution):
+        
         self.regression_dist = RegressionSequenceDistribution(
                                 task_distribution,
                                 noise_variance=0.25**2,
                                 )
+        self.tasks = task_distribution.tasks # size M D
         
-    def get_batch(self, kind, batch_size, num_examples):
-        # kind = 'duplicate' or 'fuzzy' 
+    def get_batch(self, kind, batch_size, num_examples, fuzzy_std=0.01, device='cpu'):
+        """
+        Creates Induction batch from a drawn batch (B K-1 D) from instantiated regression distribution. 
+        For each batch element of size (K-1 D) we create a new batch element of size (K D) of the (transposed) form 
+        X_1 X_2 ... X_{K-1} X_1
+        Y_1 Y_2 ... Y_{K-1} Y_1
+
+        The returned batch therefore has size B*(K-1) K D where the first (K-1) batch elements are of the form
+        X_1 X_2 ... X_{K-1} X_1
+        X_1 X_2 ... X_{K-1} X_2
+        X_1 X_2 ... X_{K-1} X_3
+        ...
+        X_1 X_2 ... X_{K-1} X_{K-1}
+        and ditto for the Y's. This sequence is this repeated on each batch element of the original batch.
+
+        If kind == 'duplicate' then the X's and Y's are duplicated exactly.
+        If kind == 'fuzzy' then the X's are duplicated with Gaussian noise added to each element (X* = X + N(0,fuzzy_std)), 
+        and the Y's are reproduced with the original w vectors (Y* = X* w + noise). 
+
+
+        Parameters:
+
+        * `kind : string`
+            either 'duplicate' or 'fuzzy' as above. 
+        * `batch_size : int`
+        * `num_examples : int`
+        * `fuzzy_std : float`
+            standard deviation of Gaussian noise added to X's if kind == 'fuzzy'.
+
+        Returns:
+
+        * `final_xs : tensor(B*(K-1) K D)`
+            batch of `B*(K-1)` sequences of `K` input vectors of `D` dims, as described above.
+        * `final_ys : tensor(B*(K-1) K 1)`
+            batch of `B*(K-1)` sequences of `K` output scalars, as described above.
+        """
+
+        if kind != 'duplicate' and kind != 'fuzzy': raise ValueError(f"Invalid value for 'kind': {kind}. Expected 'duplicate' or 'fuzzy'.")
+
+        B, K, D = batch_size, num_examples, self.regression_dist.task_size
+        regression_noise_variance = self.regression_dist.noise_variance
+
         # num_examples = K i.e. 16 i.e. max context length of transformer (/2), NOT K-1 as in IH setup below
-        Km1 = num_examples-1
-        xs, ys = self.regression_dist.get_batch(num_examples = Km1, 
-                                               batch_size=batch_size,
-                                               ) 
-        
-        B, K, D = batch_size, num_examples, xs.size()[2]
+        Km1 = K-1
+
+        ws = self.regression_dist.get_ws(self, B, D) # -> B D 1
+        xs = self.regression_dist.get_xs(B, K, D, device=device) # -> B K D
+        errors = self.regression_dist.get_errors(B, K, device=device) # -> B K 1
+        ys = self.regression_dist.get_ys(xs, ws, errors) # -> B K 1
+
         # Repeat context sequence Km1 times along batch dimension 
         xs_rep = xs.repeat_interleave(repeats=Km1, dim=0) # B K-1 D -> B*(K-1) K-1 D
         ys_rep = ys.repeat_interleave(repeats=Km1, dim=0) # B K-1 1 -> B*(K-1) K-1 D
-        # * `xs : tensor(batch_size, num_examples, task_size, device=device)`
-        #    batch of sequences of input vectors.
-        # * `ys : tensor(batch_size, num_examples, 1, device=device)`
-        #    batch of corresponding sequences of input vectors.
-        
+        ws_rep = ws.repeat_interleave(repeats=Km1, dim=0) # B D   1 -> B*(K-1) D   1
+
         ys_index_tensor = (torch
                         .arange(Km1)       # Sequence [0,...,K-1] shape K-1
                         .repeat(B)         # Repeat B times along dim=0 e.g. [0,1,2] -> [0,1,2,0,1,2]
@@ -59,23 +85,22 @@ class InductionHeadsTask():
                         ) 
         xs_index_tensor = ys_index_tensor.expand(-1, -1, D) # Repeat D times, B*(K-1) 1 1 -> B*(K-1) 1 D
                         
-        
         xs_copied = torch.gather(xs_rep, 1, xs_index_tensor) # Get X_1 X_2 etc. on right tensor axes, size B*(K-1) 1 D 
-        ys_copied = torch.gather(ys_rep, 1, ys_index_tensor) # Get Y_1 Y_2 etc. on right tensor axex
+        ys_copied = torch.gather(ys_rep, 1, ys_index_tensor) # Get Y_1 Y_2 etc. on right tensor axes, size B*(K-1) 1 1
         
-        final_xs = torch.cat((xs_rep, xs_copied), dim=1) # Size B*(K-1) K D
-        final_ys = torch.cat((ys_rep, ys_copied), dim=1) # Size B*(K-1) K 1
+        if kind=='duplicate':
+           xs_new, ys_new = xs_copied, ys_copied
+        elif kind=='fuzzy':
+            xs_new = xs_copied + fuzzy_std*torch.randn_like(xs_copied) # B*(K-1) 1 D
+            errors = torch.normal(
+                mean=0.,
+                std=regression_noise_variance**0.5,
+                size=(B*(K-1), 1, 1,),
+            )
+            ys_new = xs_new @ ws_rep + errors # B*(K-1) 1 D @ B*(K-1) D 1 + B*(K-1) 1 1 -> B*(K-1) 1 1
+            
+        final_xs = torch.cat((xs_rep, xs_new), dim=1) # Size B*(K-1) K D
+        final_ys = torch.cat((ys_rep, ys_new), dim=1) # Size B*(K-1) K 1
 
-        # Use mechinterp to flag to return associated weight matrix for each task (batch element) in distribution in order to do fuzzy estimation
+        return final_xs, final_ys
 
-
-
-    pretrain_dist = RegressionSequenceDistribution(
-                    task_distribution=DiscreteTaskDistribution(
-                        num_tasks=2,
-                        task_size=8,
-                    ),
-                    noise_variance = 0.25**2,
-                )
-
-    

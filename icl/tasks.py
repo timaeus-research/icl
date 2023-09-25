@@ -36,6 +36,51 @@ class RegressionSequenceDistribution(Generic[T]):
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
 
+    def get_ws(self, B: int, D: int):
+        """
+        Get the true parameter vectors `w` underlying a batch of sequences
+        of synthetic data (token sequences) for in-context regression.
+
+        Parameters:
+
+        * `batch_size : int >= 0`
+            number of sequences to generate for this batch.
+        
+        Returns:
+
+        * `ws : tensor(batch_size, task_size, device=device)`
+            batch of sequences of true parameter vectors.
+        """
+
+        # sample a batch of random tasks
+        ws = self.task_distribution.sample_tasks(B).view(B, D, 1) # B D -> B D 1
+        return ws
+    
+    def get_xs(self, B: int, K: int, D: int, device='cpu'):
+        # sample i.i.d. inputs 
+        xs = torch.normal(
+            mean=0.,
+            std=1.,
+            size=(B, K, D,),
+            device=device,
+        )
+        return xs
+    
+    def get_errors(self, B: int, K: int, device='cpu'):
+        # sample Gaussian errors
+        errors = torch.normal(
+            mean=0.,
+            std=self.std,
+            size=(B, K, 1,),
+            device=device,
+        )
+        return errors 
+    
+    def get_ys(self, xs, ws, errors):
+        # sample i.i.d. outputs
+        ys = xs @ ws + errors
+        return ys
+
 
     def get_batch(self, num_examples: int, batch_size: int):
         """
@@ -66,23 +111,10 @@ class RegressionSequenceDistribution(Generic[T]):
         device = self.task_distribution.device
 
         # sample a batch of random tasks
-        ws = self.task_distribution.sample_tasks(B) # -> B D
-
-        # sample i.i.d. inputs and outputs for each task according to the
-        # regression model
-        xs = torch.normal(
-            mean=0.,
-            std=1.,
-            size=(B, K, D,),
-            device=device,
-        )
-        errors = torch.normal(
-            mean=0.,
-            std=self.std,
-            size=(B, K, 1,),
-            device=device,
-        )
-        ys = xs @ ws.view(B, D, 1) + errors # B K D @ B D . + B K 1 -> B K 1
+        ws = self.get_ws(self, B, D) # -> B D 1
+        xs = self.get_xs(B, K, D, device=device) # -> B K D
+        errors = self.get_errors(B, K, device=device) # -> B K 1
+        ys = self.get_ys(xs, ws, errors) # -> B K 1
 
         return xs, ys
 
