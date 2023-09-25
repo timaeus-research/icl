@@ -111,7 +111,7 @@ class RegressionSequenceDistribution(Generic[T]):
         device = self.task_distribution.device
 
         # sample a batch of random tasks
-        ws = self.get_ws(self, B, D) # -> B D 1
+        ws = self.get_ws(B, D) # -> B D 1
         xs = self.get_xs(B, K, D, device=device) # -> B K D
         errors = self.get_errors(B, K, device=device) # -> B K 1
         ys = self.get_ys(xs, ws, errors) # -> B K 1

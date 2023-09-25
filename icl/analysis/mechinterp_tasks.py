@@ -22,7 +22,7 @@ class InductionHeadsTask():
                                 )
         self.tasks = task_distribution.tasks # size M D
         
-    def get_batch(self, kind, batch_size, num_examples, fuzzy_std=0.01, device='cpu'):
+    def get_batch(self, batch_size, num_examples, kind='duplicate', fuzzy_std=0.01, device='cpu'):
         """
         Creates Induction batch from a drawn batch (B K-1 D) from instantiated regression distribution. 
         For each batch element of size (K-1 D) we create a new batch element of size (K D) of the (transposed) form 
@@ -48,6 +48,7 @@ class InductionHeadsTask():
             either 'duplicate' or 'fuzzy' as above. 
         * `batch_size : int`
         * `num_examples : int`
+            K, the max number of examples in the transformer's context.
         * `fuzzy_std : float`
             standard deviation of Gaussian noise added to X's if kind == 'fuzzy'.
 
@@ -61,15 +62,16 @@ class InductionHeadsTask():
 
         if kind != 'duplicate' and kind != 'fuzzy': raise ValueError(f"Invalid value for 'kind': {kind}. Expected 'duplicate' or 'fuzzy'.")
 
-        B, K, D = batch_size, num_examples, self.regression_dist.task_size
+        B, K, D = batch_size, num_examples, self.regression_dist.task_distribution.task_size 
         regression_noise_variance = self.regression_dist.noise_variance
 
         # num_examples = K i.e. 16 i.e. max context length of transformer (/2), NOT K-1 as in IH setup below
+
         Km1 = K-1
 
-        ws = self.regression_dist.get_ws(self, B, D) # -> B D 1
-        xs = self.regression_dist.get_xs(B, K, D, device=device) # -> B K D
-        errors = self.regression_dist.get_errors(B, K, device=device) # -> B K 1
+        ws = self.regression_dist.get_ws(B, D) # -> B D 1
+        xs = self.regression_dist.get_xs(B, Km1, D, device=device) #    -> B K-1 D
+        errors = self.regression_dist.get_errors(B, Km1, device=device) # -> B K-1 1
         ys = self.regression_dist.get_ys(xs, ws, errors) # -> B K 1
 
         # Repeat context sequence Km1 times along batch dimension 
