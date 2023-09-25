@@ -139,7 +139,6 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         return x
             
 
-
 class MultiHeadedCausalSelfAttention(nn.Module):
     def __init__(
         self,

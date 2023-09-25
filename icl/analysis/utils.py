@@ -1,9 +1,9 @@
 
 from devinfra.integrations.wandb import generate_config_dicts_from_path
+from devinfra.utils.iterables import find_obj, find_unique_obj
 
 from icl.config import get_config
 from icl.train import Run
-from icl.utils import find_obj, find_unique_obj
 
 
 def get_run(sweep: str, **filters):
