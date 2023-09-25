@@ -96,5 +96,6 @@ class AttentionProbe():
         Get average prefix matching score on an Induction batch defined in mechinterp_tasks.InductionHeadsTask.
 
         Parameters:
-        * 
+            * 
         """
+        TODO: # this function, if we want it...

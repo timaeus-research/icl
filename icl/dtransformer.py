@@ -121,11 +121,18 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
             num_heads=num_heads,
             device=device,
         )
-        self.compute = nn.Sequential(
-            nn.Linear(embed_size, mlp_size, device=device),
-            nn.ReLU(),
-            nn.Linear(mlp_size, embed_size, device=device),
-        )
+        # TODO: Implement this as a flag (new parameter) instead
+        if mlp_size==0:
+            # The MLP is (we think) implicitly acting as the output matrix W_O which is otherwise missing. 
+            # Therefore instead of the identity, this should be a linear layer with no bias.
+            self.compute = nn.Linear(embed_size, embed_size, device=device)
+        else: 
+            self.compute = nn.Sequential(
+                nn.Linear(embed_size, mlp_size, device=device),
+                nn.ReLU(),
+                nn.Linear(mlp_size, embed_size, device=device),
+            )
+
         self.layer_norms = nn.ModuleList([
             nn.LayerNorm(normalized_shape=embed_size, device=device)
             for _ in ('before-attention', 'before-compute')

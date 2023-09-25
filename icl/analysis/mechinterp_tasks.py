@@ -1,5 +1,5 @@
 from icl.tasks import RegressionSequenceDistribution
-from icl.tasks import RegressionSequenceDistribution, DiscreteTaskDistribution
+from icl.tasks import RegressionSequenceDistribution, DiscreteTaskDistribution, SingletonTaskDistribution
 import torch
 
 class InductionHeadsTask():
@@ -106,3 +106,50 @@ class InductionHeadsTask():
 
         return final_xs, final_ys
 
+class RegressionTask():
+    """
+    Create batches of examples drawn from a chosen (or randomised) regression task w in task_distribution. 
+    
+    Constructor parameters:
+
+    * `task_distribution : TaskDistribution`
+        A task distribution. If measuring performance on T_pretrain then task_distribution should be equal to the 
+        DiscreteTaskDistribution object that was used to train the transformer. 
+    """
+
+    def __init__(self, task_distribution):
+        self.tasks = task_distribution.tasks # size M D
+
+    def get_batch(self, batch_size, num_examples, randomise_task=False, rand_task_idx=0, device='cpu'):
+        """
+        Get a batch on a fixed regression task w, or a randomly sampled regression task w.
+
+        Parameters:
+            * `batch_size : int`
+            * `num_examples : int`
+            * `randomise_task : boolean`
+                If true, random task will be picked from task distribution. 
+                If false, task will be picked from task distribution at index rand_task_idx.
+            * `rand_task_idx : int`
+            * `device : string`
+
+        Returns: 
+            * `xs : tensor(B K D)`
+            * `ys : tensor(B K 1)`
+        """
+        if rand_task_idx >= self.tasks.size()[0]:
+            raise ValueError(f"rand_task_idx {rand_task_idx} is out of bounds for tasks with size {self.tasks.size()[0]}")
+
+
+        # if randomise_task then randomly sample a task from the task distribution, otherwise use task index specified by rand_task
+        if randomise_task:
+            # sample a random row from self.tasks tensor of size M D
+            rand_task_idx = torch.randint(low=0, high=self.tasks.size()[0], size=(1,)).item()
+        rand_task = self.tasks[rand_task_idx] # size D, a single regression weight w
+
+        singleton_task_dist = RegressionSequenceDistribution(
+                                SingletonTaskDistribution(rand_task),
+                                noise_variance=0.25**2,
+                                )
+        xs, ys = singleton_task_dist.get_batch(num_examples=num_examples, batch_size=batch_size)
+        return xs, ys
