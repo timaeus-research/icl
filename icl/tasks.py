@@ -1,4 +1,5 @@
 from typing import Generic, TypeVar
+from itertools import combinations
 
 import torch
 
@@ -207,9 +208,21 @@ class TaskDistribution:
 class DiscreteTaskDistribution(TaskDistribution):
     """
     Represent a fixed finite number of regression tasks `num_tasks` each of
-    dimensionality `task_size`
-    (the tasks are selected i.i.d. from a `task_size`-dimensional standard
-    normal when this instance is constructed).
+    dimensionality `task_size`. 
+
+    When method=='normal', the tasks are sampledi.i.d. from a `task_size`-dimensional 
+    standard normal when this instance is constructed. 
+
+    When method=='basis_vector_combinations', the tasks are generated according to the following rule:
+    Define a discrete task distribution using basis vectors {e_1, ..., e_D} in R^D. 
+    If M=1 then T={0} (control)
+    If M=2 then T={0, e_1}
+    If M=D+1 then T={0, e_1, e_2, ..., e_D}
+    For M>D+1 the basis vectors are successively added together as different combinations. 
+    e.g. M=D+3 then T={0, e_1, e_2, ..., e_D, e_1+e_2, e_1+e_3}. 
+    e.g. M=1+D+nCr(D,2)+1 then T={0,e_1,e_2, ..., e_D, e_1+e_2, e_1+e_3, ..., e_{D-1}+e_D, e_1+e_2+e_3}.
+    With this construction we (currently) require M <= 1+D+nCr(D,2)+nCr(D,3)+...+nCr(D,D) = 2^D (e.g. M<=256 if D=8). 
+    
 
     Constructor parameters:
 
@@ -219,6 +232,11 @@ class DiscreteTaskDistribution(TaskDistribution):
         number of tasks in the discrete set.
     * `device='cpu' : str(device name)`
         which device to initialise tasks on
+    * `task_init_method : str`
+        method for initialising tasks. Options are 'normal' or 'basis_vector_combinations'.
+    * `method_params : dict`
+        parameters for initialising tasks. For 'normal' method, method_params is empty. 
+        Dor 'basis_vector_combinations' method, normal is a dictionary with keys 'scale_factor' and 'include_zero'.
 
     Fields:
 
@@ -226,21 +244,79 @@ class DiscreteTaskDistribution(TaskDistribution):
         number of dimensions for the tasks.
     * `num_tasks : int > 0`
         number of tasks in the discrete set.
+    * `method_params : dict`
+        parameters for initialising tasks. For 'normal' method, method_params is empty.
     * `tasks : tensor(self.num_tasks, self.task_size, device=self.device)`
         the tasks, each as one row of a 2d tensor.
     * `device='cpu' : str(device name)`
         which device to initialise tasks on
     """
-    def __init__(self, task_size: int, num_tasks: int, device='cpu'):
+    def __init__(self, task_size: int, num_tasks: int, task_init_method='normal',
+                 method_params={'scale_factor':1, 'include_zero':True}, 
+                 device='cpu'):
+        # task_init_method = 'normal' or 'basis_vector_combinations'
+        # method_params = None or dict() e.g. {'scale_factor':1, 'include_zero':True} for 'basis_vector_combinations'
+        # basis_scale_factor=1, basis_include_zero=True
         super().__init__(task_size=task_size, device=device)
-        self.num_tasks = num_tasks
-        self.tasks = torch.normal(
-            mean=0.,
-            std=1.,
-            size=(self.num_tasks, self.task_size,),
-            device=self.device,
-        )
 
+        self.num_tasks = num_tasks
+        self.task_size = task_size
+        self.method_params = method_params
+
+        if task_init_method == 'normal':
+            # could optionally include mean, stdev data in method_params here
+            self.tasks = torch.normal(
+                mean=0.,
+                std=1.,
+                size=(self.num_tasks, self.task_size,),
+                device=self.device,
+            )
+        elif task_init_method == 'basis_vector_combinations':
+            self.tasks = self.generate_basis_vector_tasks()
+
+    def generate_basis_vector_tasks(self):
+        # Creates a M D sized tensor of tasks according to the rule outlined in class docstring. 
+
+        M, D = self.num_tasks, self.task_size
+        if M > 2**D:
+            raise ValueError(f"num_tasks {M} must be less than or equal to 2^task_size {2**D} at the present time.")
+
+        scale_factor, include_zero = self.method_params['scale_factor'], self.method_params['include_zero']
+        
+        # Create the identity matrix of size D x D, the basis vectors
+        identity = torch.eye(D)
+        # Initialize the tensor T with the zero vector if include_zero is True, otherwise as an empty tensor
+        T = torch.zeros(1, D) if include_zero else torch.empty(0, D)
+        
+        # Add basis vectors
+        if M > 1:
+            basis_to_take = min(M-1, D)
+            T = torch.cat((T, identity[:basis_to_take]))
+            
+        # Add combinations of basis vectors
+        combination_count = M - D - 1
+        if combination_count > 0:
+            current_combination_length = 2
+            while combination_count > 0:
+                for comb in combinations(range(D), current_combination_length):
+                    # comb = (0,1) for current_combination_length=2, (0,1,2) for current_combination_length=3 etc.
+                    # produces e.g. e_1 + e_2 = [1,1,0,...,0]
+                    combined_vector = torch.sum(identity[list(comb)], axis=0, keepdim=True)
+
+                    # appends to T
+                    T = torch.cat((T, combined_vector))
+
+                    # if all excess combinations (beyond M-D-1) have been filled
+                    combination_count -= 1
+                    if combination_count == 0:
+                        break
+                current_combination_length += 1
+
+        # scale_factor gives the option of scaling the task regression weights (in case noise_var=0.25^2 is too great). 
+        # scale_factor defaults to 1.
+        scaled_T = scale_factor*T
+        
+        return scaled_T.to(self.device)
 
     def sample_tasks(self, n: int):
         """
@@ -280,7 +356,7 @@ class DiscreteTaskDistribution(TaskDistribution):
         """
         self.tasks = self.tasks.to(device)
         return super().to(device)
-
+    
 
 class GaussianTaskDistribution(TaskDistribution):
     """
