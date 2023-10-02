@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from devinterp.learner import LearnerConfig
 from devinterp.utils import nested_update
@@ -20,11 +20,13 @@ class ICLTaskConfig(BaseModel):
     embed_size: int = 128 # d_e = d_mid (in Phuong notation)
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
     num_heads: int = 2 # attention heads per layer 
-    num_layers: int = 8 # each layer has one attention head and one MLP 
+    num_layers: int = 8 # each layer has one attention block (with many heads) and one MLP 
     model_seed: int = 0 # random seed 
     pretrain_seed: int = 1 
     true_seed: int = 2
     sampling_seed: int = 3
+    task_init_method: str = "normal" # either "normal" or "basis_vector_combinations"
+    method_params: Dict[str, Any] = {} # parameters for the task_init_method 
 
     def model_factory(self):
         if self.model_seed is not None:
@@ -47,6 +49,8 @@ class ICLTaskConfig(BaseModel):
             task_distribution=DiscreteTaskDistribution(
                 num_tasks=self.num_tasks,
                 task_size=self.task_size,
+                task_init_method=self.task_init_method,
+                method_params=self.method_params,
             ),
             noise_variance=self.noise_variance,
         )

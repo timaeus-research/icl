@@ -252,16 +252,19 @@ class DiscreteTaskDistribution(TaskDistribution):
         which device to initialise tasks on
     """
     def __init__(self, task_size: int, num_tasks: int, task_init_method='normal',
-                 method_params={'scale_factor':1, 'include_zero':True}, 
-                 device='cpu'):
+                 method_params=dict(), device='cpu'):
         # task_init_method = 'normal' or 'basis_vector_combinations'
-        # method_params = None or dict() e.g. {'scale_factor':1, 'include_zero':True} for 'basis_vector_combinations'
+        # method_params = dict() e.g. {'scale_factor':1, 'include_zero':True} for 'basis_vector_combinations'
         # basis_scale_factor=1, basis_include_zero=True
         super().__init__(task_size=task_size, device=device)
 
         self.num_tasks = num_tasks
         self.task_size = task_size
         self.method_params = method_params
+
+        required_basis_params = {'scale_factor', 'include_zero'}
+        if task_init_method == 'basis_vector_combinations' and not required_basis_params.issubset(method_params.keys()):
+            raise ValueError("Not all required parameters are provided in 'method_params'.")
 
         if task_init_method == 'normal':
             # could optionally include mean, stdev data in method_params here
