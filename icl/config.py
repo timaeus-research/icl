@@ -15,7 +15,7 @@ class ICLTaskConfig(BaseModel):
 
     task_size: int = 8 # D, dimensions of linear regression task
     max_examples: int = 16 # K, in-context examples (thus max_context = 2*K)
-    num_tasks: int     # M, task-diversity of pre-train dist
+    num_tasks: int = 16    # M, task-diversity of pre-train dist
     noise_variance: float = 0.25 # sigma^2 i.e. y = wx + N(0, sigma^2)
     embed_size: int = 128 # d_e = d_mid (in Phuong notation)
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
@@ -147,8 +147,8 @@ def get_config(
         "eval_batch_size": 2048,
         "checkpointer_config": {
             "checkpoint_steps": {"log_space": 50, "linear_space": 50},
-            "bucket_name": "devinterp",
-            # "local_root": "./checkpoints",
+            "bucket_name": "devinterp", # AWS 
+            # "local_root": "./checkpoints", # local checkpointing - independent of above
         },
         # for wandb?
         "logger_config": {
@@ -160,6 +160,8 @@ def get_config(
             "entity": entity,
             # "stdout": True
         },
+        "task_init_method": 'basis_vector_combinations',
+        "method_params": {"scale_factor": 1.0, "include_zero": True},
     }
 
     nested_update(config_dict, kwargs)
