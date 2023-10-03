@@ -77,8 +77,6 @@ class DTransformer(nn.Module):
         
 
     def forward(self, toks):
-        # if mechinterp=True, write attention patterns on forward pass to CSV
-        # all other forward passes inherit mechinterp from this initial one
 
         _B, T, _V = toks.shape
         assert T<=self.max_tokens, f"too many tokens! {T} > {self.max_tokens}"
@@ -181,7 +179,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         # unpack dimensions
         B, T, C = x.size()  # batch size, num_tokens, embed_size
         H = self.num_heads  # num_heads
-        c = self.head_size  # head size
+        c = self.head_size  # head size = C/H
 
         # perform Q, K, V transforms, all at once
         Q, K, V = (self.attention(x)    # B T C @ C 3C  -> B T 3C
