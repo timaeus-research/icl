@@ -9,17 +9,18 @@ import torch
 import typer
 import yaml
 from devinfra.evals import RepeatEvaluator
+from devinterp import SGLD
 from pydantic import BaseModel
 from torch import nn
 from torch.nn import functional as F
 
 import wandb
+from icl.analysis.sample import estimate_slt_observabls
 from icl.config import ICLConfig, get_config
-from icl.sample import estimate_rlct
 from icl.train import Run
 
 
-def make_rlct_evaluator(
+def make_slt_evals(
     dataset: torch.utils.data.Dataset,
     loader: torch.utils.data.DataLoader,
     lr: float = 1e-4,
@@ -27,11 +28,12 @@ def make_rlct_evaluator(
     weight_decay: float = 0.0,
     elasticity: float = 1.0,
     num_draws: int = 10,
-    num_chains: int = 5,
+    num_chains: int = 25,
     num_burnin_steps: int = 0,
     num_steps_bw_draws: int = 1,
     cores: int = 1,
-    num_repeats: int = 5,      
+    covariance_paths: List[str] = [],
+    device: str = "cpu",
 ):
     def eval_rlct(model: nn.Module):
         optimizer_kwargs = dict(
@@ -42,27 +44,26 @@ def make_rlct_evaluator(
             temperature="adaptive",
             num_samples=len(dataset),
         )
-        return {
-            "rlct": estimate_rlct(
-                model,
-                loader,
-                F.mse_loss,
-                "sgld",
-                optimizer_kwargs,
-                num_draws=num_draws,
-                num_chains=num_chains,
-                num_burnin_steps=num_burnin_steps,
-                num_steps_bw_draws=num_steps_bw_draws,
-                cores=cores,
-                pbar=True,
-                device="mps",
-            )
-        }
+        return estimate_slt_observabls(
+            model,
+            loader,
+            F.mse_loss,
+            SGLD,
+            optimizer_kwargs,
+            num_draws=num_draws,
+            num_chains=num_chains,
+            num_burnin_steps=num_burnin_steps,
+            num_steps_bw_draws=num_steps_bw_draws,
+            cores=cores,
+            pbar=True,
+            device=device,
+            covariance_paths=covariance_paths,
+        )
 
-    return RepeatEvaluator(eval_rlct, num_repeats)
+    return eval_rlct
 
 
-def eval_rlcts_over_run(config: ICLConfig, analysis_config: dict={}):
+def map_slt_evals_over_run(config: ICLConfig, analysis_config: dict={}):
     run = Run(config)
     print(run.checkpointer)
     print(run.checkpointer.providers[0].file_ids)
@@ -88,7 +89,7 @@ def eval_rlcts_over_run(config: ICLConfig, analysis_config: dict={}):
     xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
     trainset = torch.utils.data.TensorDataset(xs, ys)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=len(xs))
-    eval_rlcts = make_rlct_evaluator(
+    eval_rlcts = make_slt_evals(
         dataset=trainset,
         loader=trainloader,
         **analysis_config

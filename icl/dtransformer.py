@@ -130,11 +130,12 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
             nn.LayerNorm(normalized_shape=embed_size, device=device)
             for _ in ('before-attention', 'before-compute')
         ])
-
+        self.resid_after_attn = nn.Identity()
 
     def forward(self, x):
         # B, T, C = x.shape
         x = x + self.attention(self.layer_norms[0](x))
+        self.resid_after_attn(x)
         x = x + self.compute(self.layer_norms[1](x))
         return x
             

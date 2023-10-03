@@ -1,6 +1,13 @@
 
+from typing import Dict, List, Optional
+
+from devinfra.evals import ModelEvaluator
 from devinfra.integrations.wandb import generate_config_dicts_from_path
-from devinfra.utils.iterables import find_obj, find_unique_obj
+from devinfra.io.storage import BaseStorageProvider
+from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
+                                      flatten_dict)
+from tqdm import tqdm
+import pandas as pd
 
 from icl.config import get_config
 from icl.train import Run
@@ -28,3 +35,66 @@ def get_unique_run(sweep: str, **filters):
     config = get_config(**config_dict)
     run = Run.create_and_restore(config)
     return run
+
+
+def get_sweep_configs(sweep: str, **filters):
+    """
+    Generate ICLConfigs for all runs in the specified sweep.
+    """
+    for sweep_config_dict in filter_objs(generate_config_dicts_from_path(sweep), **filters):
+        yield get_config(**sweep_config_dict)
+
+
+def wandb_run_to_df(run):
+    history_df = run.history()
+    config_dict = get_config(**run.config).model_dump()
+
+    del config_dict["logger_config"]
+    del config_dict["checkpointer_config"]
+
+    config_dict_flat = flatten_dict(config_dict, flatten_lists=True)
+    
+    for k, v in config_dict_flat.items():
+        if isinstance(v, tuple):
+            # Repeat the tuple for the entire length of the DataFrame
+            v = [v] * len(history_df)
+            
+        history_df[k] = v
+
+    return history_df
+
+
+def wandb_runs_to_df(runs):
+    return pd.concat([wandb_run_to_df(run) for run in tqdm(runs, desc="Converting runs to dfs")])
+
+
+def load_model_at_step(config, step: int, checkpointer: Optional[BaseStorageProvider] = None):
+    if checkpointer is None:
+        checkpointer = config.checkpointer_config.factory()
+
+    model = config.task_config.model_factory()
+    model_state_dict = checkpointer.load_file(step)["model"]
+    model.load_state_dict(model_state_dict)
+
+    return model
+
+
+def load_model_at_last_checkpoint(config, checkpointer: Optional[BaseStorageProvider] = None):
+    if checkpointer is None:
+        checkpointer = config.checkpointer_config.factory()
+
+    model = config.task_config.model_factory()
+    model_state_dict = checkpointer[-1]["model"]
+    model.load_state_dict(model_state_dict)
+
+    return model
+    
+
+def map_evals_over_checkpoints(model, checkpointer: BaseStorageProvider, evaluator: ModelEvaluator, verbose=False):
+    steps = checkpointer.file_ids
+
+    for step in tqdm(steps, disable=not verbose):
+        model_state_dict = checkpointer.load_file(step)["model"]
+        model.load_state_dict(model_state_dict)
+        yield {**evaluator(model), "step": step}
+

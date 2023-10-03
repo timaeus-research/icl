@@ -15,10 +15,10 @@ from torch import nn
 from torch.nn import functional as F
 
 import wandb
-from icl.analysis.rlct import eval_rlcts_over_run, make_rlct_evaluator
+from icl.analysis.rlct import make_slt_evals, map_slt_evals_over_run
+from icl.analysis.sample import estimate_rlct
 from icl.analysis.utils import generate_config_dicts_from_path
 from icl.config import ICLConfig, get_config
-from icl.sample import estimate_rlct
 from icl.train import Run
 from icl.utils import find_obj, find_unique_obj, rm_none_vals
 
@@ -44,7 +44,7 @@ def rlcts_over_run(
     trainset = torch.utils.data.TensorDataset(xs, ys)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=len(xs))
 
-    eval_rlcts = make_rlct_evaluator(
+    eval_rlcts = make_slt_evals(
         dataset=trainset,
         loader=trainloader,
         **analysis_config
@@ -63,11 +63,11 @@ def rlcts_over_sweep(sweep: str = typer.Option(None, help="Path to wandb sweep Y
         for config_dict in generate_config_dicts_from_path(sweep, extra="rlct"):
             analysis_config = config_dict.pop("analysis_config")
             config = get_config(**config_dict)
-            eval_rlcts_over_run(config, analysis_config)
+            map_slt_evals_over_run(config, analysis_config)
     else:
         config = get_config(project="icl", entity="devinterp", extra="rlct")  # Replace as needed
         analysis_config = wandb.config["analysis_config"]
-        eval_rlcts_over_run(config, analysis_config)
+        map_slt_evals_over_run(config, analysis_config)
 
 
 if __name__ == "__main__":
