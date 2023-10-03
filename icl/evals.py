@@ -1,13 +1,13 @@
 import functools
 
 import torch
-from devinterp.evals import ModelEvaluator
+from devinfra.evals import ModelEvaluator
+from devinfra.utils.seed import set_seed
 from torch import nn
 
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
-from icl.utils import set_seed
 
 
 def mse(y1, y2, axis=None):
