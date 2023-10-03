@@ -1,27 +1,38 @@
 """
 training the transformer on synthetic in-context regression task
 """
+import torch
+import typer
+from devinfra.utils.seed import set_seed
 # manage environment
+from dotenv import load_dotenv
+from pydantic import BaseModel
+from torch import nn
+
+from icl.evals import ICLEvaluator
+
+load_dotenv()
+# in case using mps:
+import os
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # (! before import torch)
 
 import logging
 from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
 
-import dotenv
 import numpy as np
 import sentry_sdk
-import torch
 import torch.nn.functional as F
 import tqdm
-import typer
+from devinfra.io.logging import MetricLogger
+from devinfra.io.storage import BaseStorageProvider
+from devinfra.optim.schedulers import LRScheduler
 
 import wandb
 from icl.config import ICLConfig, get_config
-from icl.evals import ICLEvaluator
 from icl.model import InContextRegressionTransformer
-from icl.utils import set_seed, temp_to
-
-dotenv.load_dotenv()
-
+from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+                       RegressionSequenceDistribution)
 
 stdlogger = logging.getLogger("ICL")
 
@@ -40,6 +51,95 @@ def state_dict(model, optimizer, scheduler) -> StateDict:
     }
 
 
+class Run:
+    config: ICLConfig
+    model: nn.Module
+    optimizer: torch.optim.Optimizer
+    scheduler: Optional[LRScheduler]
+    pretrain_dist: RegressionSequenceDistribution[DiscreteTaskDistribution]
+    true_dist: RegressionSequenceDistribution[GaussianTaskDistribution]
+    evaluator: ICLEvaluator
+    checkpointer: Optional[BaseStorageProvider]
+    logger: Optional[MetricLogger]
+
+    def __init__(
+            self, 
+            config: ICLConfig, 
+            model: Optional[nn.Module] = None,
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            scheduler: Optional[LRScheduler] = None,
+            checkpointer: Optional[BaseStorageProvider] = None, 
+            logger: Optional[MetricLogger]=None, 
+    ):
+        self.config = config
+
+        # initialise model
+        if model is None:
+            model = config.task_config.model_factory().to(config.device)
+
+        self.model = model
+
+        # initialise 'pretraining' data source (for training on fixed task set)
+        self.pretrain_dist = config.task_config.pretrain_dist_factory().to(
+            config.device
+        )
+
+        # initialise 'true' data source (for evaluation, including unseen tasks)
+        self.true_dist = config.task_config.true_dist_factory().to(config.device)
+
+        # initialise evaluations
+        self.evaluator = ICLEvaluator(
+            pretrain_dist=self.pretrain_dist,
+            true_dist=self.true_dist,
+            max_examples=config.task_config.max_examples,
+            eval_batch_size=config.eval_batch_size,
+            seed=config.task_config.true_seed,
+        )
+
+        # initialise monitoring code
+        if checkpointer is None and config.checkpointer_config is not None: 
+            checkpointer = config.checkpointer_config.factory()
+
+        self.checkpointer = checkpointer
+
+        if logger is None and config.logger_config is not None:
+            logger = config.logger_config.factory()
+
+        self.logger = logger
+
+        # initialise torch optimiser
+        if optimizer is None:
+            optimizer = config.optimizer_config.factory(self.model.parameters())
+
+        self.optimizer = optimizer
+
+        if scheduler is None and config.scheduler_config is not None:
+            scheduler = config.scheduler_config.factory(self.optimizer)
+
+        self.scheduler = scheduler
+
+    def restore(self):
+        """Restores the last checkpoint for this run."""
+        if self.checkpointer:
+            self.checkpointer.sync()
+            
+            if not self.checkpointer.file_ids:
+                raise ValueError("No checkpoints found.")
+        
+            last_checkpoint = self.checkpointer[-1]
+            self.model.load_state_dict(last_checkpoint["model"])
+            self.optimizer.load_state_dict(last_checkpoint["optimizer"])
+
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(last_checkpoint["scheduler"])
+
+    @classmethod
+    def create_and_restore(cls, config: ICLConfig):
+        """Load a run from a checkpoint and restore the last checkpoint."""
+        self = cls(config)
+        self.restore()
+        return self
+
 
 def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTransformer:
     """
@@ -48,36 +148,19 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
 
-    # initialise model
-    model = config.task_config.model_factory().to(config.device)
+    run = Run(config)
+    model = run.model
     model.train()
-
-    # initialise 'pretraining' data source (for training on fixed task set)
-    pretrain_dist = config.task_config.pretrain_dist_factory().to(config.device)
-
-    # initialise 'true' data source (for evaluation, including unseen tasks)
-    true_dist = config.task_config.true_dist_factory().to(config.device)
-
-    # initialise evaluations
-    evaluator = ICLEvaluator(
-        pretrain_dist=pretrain_dist,
-        true_dist=true_dist,
-        max_examples=config.task_config.max_examples,
-        eval_batch_size=config.eval_batch_size,
-        seed=config.task_config.true_seed
-    )
-
-    # initialise monitoring code
-    checkpointer = config.checkpointer_config.factory() if config.checkpointer_config is not None else None
-    logger = config.logger_config.factory() if config.logger_config is not None else None
-
-    # initialise torch optimiser
-    optimizer = config.optimizer_config.factory(model.parameters())
-    scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
+    optimizer = run.optimizer
+    scheduler = run.scheduler
+    pretrain_dist = run.pretrain_dist
+    evaluator = run.evaluator
+    checkpointer = run.checkpointer
+    logger = run.logger
 
     num_steps = config.num_steps
 
-    # Let's only train until 50% checkpoint. 
+    # Let's only train until 50% checkpoint.
     checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
     num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
 
@@ -85,7 +168,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     # training loop
     for step in tqdm.trange(num_steps, desc="Training..."):
-        set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
+        set_seed(
+            config.task_config.sampling_seed + step
+        )  # For reproducibility if we resume training
 
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
@@ -124,7 +209,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     return model
 
 
-def get_run_config(run: 'Run'):
+def get_run_config(run: "Run"):
     """Side-effect: resumes the wandb run"""
     return get_config(**run.config, resume="must", id=run.id)
 
@@ -138,7 +223,7 @@ def get_last_checkpoint(config: ICLConfig):
     model = config.task_config.model_factory().to(config.device)
     optimizer = config.optimizer_config.factory(model.parameters())
     scheduler = config.scheduler_config.factory(optimizer)
-    
+
     model.load_state_dict(last_checkpoint["model"])
     optimizer.load_state_dict(last_checkpoint["optimizer"])
     scheduler.load_state_dict(last_checkpoint["scheduler"])
@@ -167,7 +252,12 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
     scheduler = last_checkpoint["scheduler"]
     last_checkpoint_step = scheduler.last_epoch
 
-    logging.info("Resuming run %s at step %s. Last logged at %s", run.id, last_checkpoint_step, last_log_step)
+    logging.info(
+        "Resuming run %s at step %s. Last logged at %s",
+        run.id,
+        last_checkpoint_step,
+        last_log_step,
+    )
 
     model.to(config.device).train()
 
@@ -183,19 +273,27 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         true_dist=true_dist,
         max_examples=config.task_config.max_examples,
         eval_batch_size=config.eval_batch_size,
-        seed=config.task_config.true_seed
+        seed=config.task_config.true_seed,
     )
 
     # initialise monitoring code
-    checkpointer = config.checkpointer_config.factory() if config.checkpointer_config is not None else None
-    logger = config.logger_config.factory() if config.logger_config is not None else None
+    checkpointer = (
+        config.checkpointer_config.factory()
+        if config.checkpointer_config is not None
+        else None
+    )
+    logger = (
+        config.logger_config.factory() if config.logger_config is not None else None
+    )
 
     num_steps = config.num_steps
     recent_losses = torch.zeros(100, device=config.device)
 
     # training loop
-    for step in tqdm.trange(last_checkpoint_step+1, num_steps, desc="Training..."):
-        set_seed(config.task_config.sampling_seed + step)  # For reproducibility if we resume training
+    for step in tqdm.trange(last_checkpoint_step + 1, num_steps, desc="Training..."):
+        set_seed(
+            config.task_config.sampling_seed + step
+        )  # For reproducibility if we resume training
 
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
@@ -218,10 +316,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
-            checkpoint = state_dict(model, optimizer, scheduler)
-
-            with temp_to(checkpoint, "cpu"):
-                checkpointer.save_file(step, checkpoint)
+            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
 
         if step in config.logger_config.logging_steps and step > last_log_step:
             stdlogger.info("Logging at step %s", step)
@@ -236,7 +331,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
     return model
 
 
-def clean_sweep(sweep: 'Sweep'):
+def clean_sweep(sweep: "Sweep"):
     """Get rid of any runs that never even got started."""
 
     # Delete the runs (on wandb) that are finished/crashed and have _step == None
@@ -246,12 +341,12 @@ def clean_sweep(sweep: 'Sweep'):
                 r.delete()
                 yield r
 
-    return list(r for r in _clean_sweep())        
-    
+    return list(r for r in _clean_sweep())
 
-def get_runs_to_continue(sweep: 'Sweep', num_steps: int):
+
+def get_runs_to_continue(sweep: "Sweep", num_steps: int):
     """Return all runs that have not yet reached the specified number of steps."""
-    runs =  sorted([r for r in sweep.runs], key=lambda r: r.summary.get("_step", 0))
+    runs = sorted([r for r in sweep.runs], key=lambda r: r.summary.get("_step", 0))
 
     return [r for r in runs if r.summary.get("_step", 0) < num_steps]
 
@@ -269,7 +364,9 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
         resume_run(run, is_debug=is_debug)
 
 
-def main(resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]):
+def main(
+    resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]
+):
     is_debug = False
 
     if resume is None:
@@ -282,6 +379,7 @@ def main(resume: Annotated[str, typer.Option(help="The id of a sweep or run to r
             resume_sweep(resume, is_debug=is_debug)
         else:
             typer.echo("Invalid resume command.")
+
 
 if __name__ == "__main__":
     sentry_sdk.init(
@@ -296,4 +394,3 @@ if __name__ == "__main__":
         profiles_sample_rate=1.0,
     )
     typer.run(main)
-

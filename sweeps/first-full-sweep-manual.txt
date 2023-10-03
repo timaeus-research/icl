@@ -1,0 +1,77 @@
+tpu2a
+    1       pretty-sound-162        cpu p310    quit
+    1       jumping-wave-174        xla p38     DONE
+    2       dazzling-energy-182     xla p38     DONE
+
+tpu2b
+    16      robust-water-163        cpu p310    DONE
+    thru cloud ssh:
+    2048    glorious-plant-190      xla p38     DONE
+
+tpu2c
+    256     northern-flower-164     cpu p310    died
+    256     eager-cherry-175        xla p38     DONE
+    512     crimson-mountain-183    xla p38     died (90%...)
+
+tpu2d
+    4096    glowing-fog-165         cpu p310    DONE
+    4096    divine-water-176        xla p38     DONE twice! oops!
+    8192    fine-dust-184           xla p38     DONE
+    2048    happy-snowflake-194     xla p38     ....    backup run
+
+tpu2e
+    65536   crimson-night-166       cpu p310    quit
+    65526   spring-gorge-177        xla p38     DONE
+    131072  restful-elevator-185    xla p38     DONE
+    2048    quiet-galaxy-195        xla p38     ....    backup run
+    
+tpu3a
+    1024    restful-mountain-171    xla p38     DONE
+    1048576 valiant-totem-173       xla p38     DONE
+    thru cloud ssh:
+    8192    great-wildflower-191    xla p38     ....    backup run
+
+tpu3b
+    4       clean-lake-167          cpu p310    quit
+    4       electric-lion-178       xla p38     DONE
+    8       comic-galaxy-186        xla p38     DONE
+
+tpu3c
+    64      true-shadow-168         cpu p310    quit
+    64      fresh-haze-179          xla p38     DONE
+    128     glad-sound-187          xla p38     DONE
+    512     stoic-microwave-192     xla p38     ....
+
+tpu3d
+    262144  dark-thunder-172        xla p38     DONE
+    524288  serene-flower180        xla p38     DONE
+    32      fine-mountain-188       xla p38     DONE
+    512     fancy-george-193        xla p38     ....    backup run
+
+tpu3e
+    16384   radiant-pine-169        cpu p310    died
+    16384   zesty-haze-181          xla p38     DONE
+    32768   deft-paper-189          xla p38     DONE
+
+summary
+    2^00    1       done
+    2^01    2       done
+    2^02    4       done
+    2^03    8       done
+    2^04    16      done
+    2^05    32      done
+    2^06    64      done
+    2^07    128     done
+    2^08    256     done
+    2^09    512     ....    tpu3c with tpu3d as backup (....)
+    2^10    1024    done
+    2^11    2048    done    (still tpu2d and tpu2e as backup ....)
+    2^12    4096    done    (twice accidentally)
+    2^13    8192    done    (tpu3a backup ongoing ....)
+    2^14    16384   done
+    2^15    32768   done
+    2^16    65536   done
+    2^17    131072  done
+    2^18    262144  done
+    2^19    524288  done
+    2^20    1048576 done
