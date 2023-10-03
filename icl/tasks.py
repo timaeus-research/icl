@@ -2,9 +2,23 @@ from typing import Generic, TypeVar
 from itertools import combinations
 
 import torch
-
+from devinfra.utils.device import DeviceOrDeviceLiteral
 
 T = TypeVar('T', 'GaussianTaskDistribution', 'DiscreteTaskDistribution', 'SingletonTaskDistribution')
+
+
+def apply_transformations(ws: torch.Tensor, xs: torch.Tensor, error: float, device: DeviceOrDeviceLiteral = "cpu"):
+    B, K, D = xs.shape
+
+    errors = torch.normal(
+        mean=0.,
+        std=error,
+        size=(B, K, 1,),
+        device=device,
+    )
+    ys = xs @ ws.view(B, D, 1) + errors # B K D @ B D . + B K 1 -> B K 1
+
+    return ys
 
 
 class RegressionSequenceDistribution(Generic[T]):
@@ -117,8 +131,9 @@ class RegressionSequenceDistribution(Generic[T]):
         errors = self.get_errors(B, K, device=device) # -> B K 1
         ys = self.get_ys(xs, ws, errors) # -> B K 1
 
+        ys = apply_transformations(ws, xs, self.std, device)
         return xs, ys
-
+        
 
     def loop_batches(self, num_examples: int, batch_size: int):
         """

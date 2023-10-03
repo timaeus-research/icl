@@ -10,12 +10,25 @@ class InductionHeadsTask():
 
     * `task_distribution : TaskDistribution`
         A task distribution used to construct induction head batch.
-        If measuring performance on T_pretrain then task_distribution should be equal to the 
-        DiscreteTaskDistribution object that was used to train the transformer. 
+        If measuring performance on T_pretrain then task_distribution should be equal to 
+        DiscreteTaskDistribution that was used to train the transformer. 
+    * `num_tasks : int > 0`
+        number of tasks in the discrete set.
+    * `device='cpu' : str(device name)`
+        which device to initialise tasks on
 
+    Fields:
+
+    * `task_size : int > 0`
+        number of dimensions for the tasks.
+    * `num_tasks : int > 0`
+        number of tasks in the discrete set.
+    * `tasks : tensor(self.num_tasks, self.task_size, device=self.device)`
+        the tasks, each as one row of a 2d tensor.
+    * `device='cpu' : str(device name)`
+        which device to initialise tasks on
     """
     def __init__(self, task_distribution):
-        
         self.regression_dist = RegressionSequenceDistribution(
                                 task_distribution,
                                 noise_variance=0.25**2,

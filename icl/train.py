@@ -3,13 +3,13 @@ training the transformer on synthetic in-context regression task
 """
 import torch
 import typer
+from devinfra.utils.seed import set_seed
 # manage environment
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
 
 from icl.evals import ICLEvaluator
-from icl.utils import set_seed
 
 load_dotenv()
 # in case using mps:

@@ -79,7 +79,7 @@ class DTransformer(nn.Module):
     def forward(self, toks):
 
         _B, T, _V = toks.shape
-        assert T<=self.max_tokens, f"too many tokens! {T} > {self.max_tokens}"
+        assert T <= self.max_tokens, f"too many tokens! {T} > {self.max_tokens}"
 
         # semantic and positional token embeddings
         x_positions = self.postn_embedding.weight.T[:T, :] # Tmax C ->   T C
@@ -143,7 +143,6 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         x = x + self.compute(self.layer_norms[1](x))
         return x
             
-
 
 class MultiHeadedCausalSelfAttention(nn.Module):
     def __init__(

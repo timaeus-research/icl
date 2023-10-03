@@ -215,8 +215,13 @@ def get_config(
         "eval_batch_size": 2048,
         "checkpointer_config": {
             "checkpoint_steps": {"log_space": 50, "linear_space": 50},
+<<<<<<< HEAD
             "bucket_name": "devinterp", # AWS 
             # "local_root": "./checkpoints", # local checkpointing - independent of above
+=======
+            "bucket_name": "devinterp",
+            # "local_root": "./checkpoints",
+>>>>>>> mechinterp-fix
         },
         # for wandb?
         "logger_config": {
@@ -228,8 +233,11 @@ def get_config(
             "entity": entity,
             # "stdout": True
         },
+<<<<<<< HEAD
         "task_init_method": 'basis_vector_combinations',
         "method_params": {"scale_factor": 1.0, "include_zero": True},
+=======
+>>>>>>> mechinterp-fix
     }
 
     nested_update(config_dict, kwargs)        
