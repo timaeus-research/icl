@@ -1,5 +1,5 @@
 import math
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
