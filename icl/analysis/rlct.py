@@ -9,7 +9,7 @@ import torch
 import typer
 import yaml
 from devinfra.evals import RepeatEvaluator
-from devinterp import SGLD
+from devinterp.optim.sgld import SGLD
 from pydantic import BaseModel
 from torch import nn
 from torch.nn import functional as F
@@ -34,6 +34,7 @@ def make_slt_evals(
     cores: int = 1,
     covariance_paths: List[str] = [],
     device: str = "cpu",
+    verbose: bool = True,
 ):
     def eval_rlct(model: nn.Module):
         optimizer_kwargs = dict(
@@ -55,9 +56,9 @@ def make_slt_evals(
             num_burnin_steps=num_burnin_steps,
             num_steps_bw_draws=num_steps_bw_draws,
             cores=cores,
-            pbar=True,
             device=device,
             covariance_paths=covariance_paths,
+            verbose=verbose
         )
 
     return eval_rlct
