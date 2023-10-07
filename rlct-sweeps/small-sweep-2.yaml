@@ -1,15 +1,9 @@
 name: small-model-sweep-2
 method: grid
-command: ["python", "-m", "icl"]
+command: ["python", "icl/analysis", "cov"]
 project: icl
 entity: devinterp
 parameters:
-  analysis_config:
-    parameters:
-      elasticity:
-        values: [1., 10., 100., 1000.]
-      num_draws:
-        values: [10, 100, 1000]
   task_config: 
     parameters:
       task_size:
@@ -27,7 +21,7 @@ parameters:
       num_heads:
         value: 4
       num_layers:
-        values: [2,3,4]
+        values: [2,4]
       model_seed:
         value: 0
       pretrain_seed:
@@ -39,6 +33,6 @@ parameters:
   optimizer_config:
     parameters:
       lr:
-        values: [0.003, 0.07, 0.01, 0.03]
+        value: 0.01
   eval_batch_size:
     value: 1024

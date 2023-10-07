@@ -6,6 +6,7 @@ from devinfra.integrations.wandb import generate_config_dicts_from_path
 from devinfra.io.storage import BaseStorageProvider
 from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
                                       flatten_dict)
+import torch
 from tqdm import tqdm
 import pandas as pd
 
@@ -97,4 +98,11 @@ def map_evals_over_checkpoints(model, checkpointer: BaseStorageProvider, evaluat
         model_state_dict = checkpointer.load_file(step)["model"]
         model.load_state_dict(model_state_dict)
         yield {**evaluator(model), "step": step}
+
+
+def split_attn_weights(W: torch.Tensor, num_heads: int, embed_dim: int, head_size: int):
+    W_split = W.view((embed_dim, num_heads, head_size * 3))
+
+    for h in range(num_heads):
+        yield tuple(W_split[:, h, i*head_size:(i+1)*head_size] for i in range(3))
 
