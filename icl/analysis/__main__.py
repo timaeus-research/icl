@@ -30,6 +30,7 @@ import torch
 import typer
 import yaml
 from devinfra.evals import Criterion
+from devinfra.utils.device import get_default_device
 from devinterp.optim.sgld import SGLD
 from devinterp.slt.learning_coeff import plot_learning_coeff_trace
 from pydantic import BaseModel
@@ -234,13 +235,15 @@ def rlct_and_cov():
     trainset = torch.utils.data.TensorDataset(xs, ys)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=len(xs))
 
+    device = str(get_default_device())
+
     callbacks = [
         WithinHeadCovarianceCallback(
             head_size=run.config.task_config.embed_size // run.config.task_config.num_heads,
             num_heads=run.config.task_config.num_heads,
             embed_size=run.config.task_config.embed_size,
             num_evals=K,
-            device=run.config.device,
+            device=device,
             paths=[
                 f"token_sequence_transformer.blocks.{i}.attention.attention"
                 for i in range(run.config.task_config.num_layers)
@@ -248,15 +251,17 @@ def rlct_and_cov():
         )
     ]
 
+    cores = int(os.environ.get("CORES", cpu_count() // 2))
+
     slt_evals = make_slt_evals(
         dataset=trainset,
         loader=trainloader,
-        cores=1,
+        cores=cores,
         lr=1e-5,
         num_draws=100,
         elasticity=1.,
         num_chains=10,
-        device="cuda",
+        device=device,
         callbacks=callbacks
     )
 
