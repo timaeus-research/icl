@@ -18,7 +18,7 @@ import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # (! before import torch)
 
 import logging
-from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
 import numpy as np
 import sentry_sdk
@@ -365,7 +365,7 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
 
 
 def main(
-    resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]
+    resume: str = typer.Option(help="The id of a sweep or run to resume.")
 ):
     is_debug = False
 
