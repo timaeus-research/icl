@@ -199,17 +199,18 @@ def plot_attn_eigencomponents(evecs, evals, num_layers: int, slug: Optional[str]
 
             rows = None
             evals_label = ""
-            if len(layer_evals.shape) > 1: 
-                rows = [f"Head {h} (eval={layer_evals[h]})" for h in range(len(layer_evals))]
+
+            if len(layer_evals) > 1: 
+                rows = [f"Head {h} (eval={layer_evals[h]:.2f})" for h in range(len(layer_evals))]
             else:
-                evals_label = f" (eval={layer_evals})"
+                evals_label = f" with value {layer_evals})"
 
             plot_attn_weights(
                 torch.Tensor(attn_layer), 
                 num_heads=4,
                 embed_dim=64, 
                 head_size=16, 
-                title=f"Eigenvector {i} of covariance matrix within attention layer 0 {evals_label}\n{title}",
+                title=f"Layer {l} Eigenvector {i}{evals_label}\n{title}",
                 cols=(f"$u_{{Q,{i}}}^{{({l})}}$", f"$u_{{K,{i}}}^{{({l})}}$", f"$u_{{V,{i}}}^{{({l})}}$"),
                 save=(FIGURES / (f"cov-attn{l}-evec{i}-" + slug + ".png") if slug else None),
                 rows=rows
@@ -289,7 +290,7 @@ def rlct_and_cov():
             evecs, 
             evals, 
             num_layers=run.config.task_config.num_layers, slug=slug + f"@t={step}",
-            title=run.config.to_latex() + f"\nt={step}"
+            title="Within head covariance matrix\n" + run.config.to_latex() + f"\nt={step}"
         )
         plt.close()
 
