@@ -120,9 +120,7 @@ class Run:
 
     def restore(self):
         """Restores the last checkpoint for this run."""
-        if self.checkpointer:
-            self.checkpointer.sync()
-            
+        if self.checkpointer:            
             if not self.checkpointer.file_ids:
                 raise ValueError("No checkpoints found.")
         

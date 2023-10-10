@@ -21,7 +21,7 @@ parameters:
       num_heads:
         value: 4
       num_layers:
-        value: [2, 4]
+        value: 2 #[2, 4]
       model_seed:
         value: 0
       pretrain_seed:
