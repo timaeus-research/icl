@@ -231,7 +231,7 @@ def get_config(
             # "stdout": True,
         },
         "task_init_method": 'basis_vector_combinations',
-        "method_params": {"scale_factor": 1.0, "include_zero": True},,
+        "method_params": {"scale_factor": 1.0, "include_zero": True},
         "device": 'xla',
     }
 
