@@ -79,19 +79,21 @@ def make_slt_evals(
 @app.command("grid-search")
 def llc_hyperparam_grid_search_sgld(
     path: Path,
-    gammas: List[float]=[1., 10.], # [1., 10., 100.], 
-    lrs: List[float]=[1e-6, 1e-5], #, 1e-4], 
-    num_draws: int=100, 
-    num_chains: int=5,
+    gammas: List[float]=[1., 10., 100.], 
+    lrs: List[float]=[1e-6, 1e-5, 1e-4], 
+    num_draws: int=1000, 
+    num_chains: int=25,
     log_num_tasks: Optional[List[int]] = None
 ):      
     configs = list(get_sweep_configs(path))
     results = []
 
+    print("Loaded configs")
+
     device = get_default_device()
 
     for config in configs:
-        if log_num_tasks is not None and int(np.log2(config.task_config.num_tasks)) not in log_num_tasks:
+        if log_num_tasks and int(np.log2(config.task_config.num_tasks)) not in log_num_tasks:
             continue
 
         num_layers = config.task_config.num_layers
@@ -179,7 +181,7 @@ def llc_hyperparam_grid_search_sgld(
 
 
 @app.command("plot-grid")
-def plot_grid_search_results(csv_path: str, num_chains: int=10):
+def plot_grid_search_results(csv_path: str, num_chains: int=25):
     # Read the DataFrame from the CSV file
     df = pd.read_csv(csv_path)
 
