@@ -235,5 +235,29 @@ def get_config(
         "device": 'xla',
     }
 
-    nested_update(config_dict, kwargs)
-    return ICLConfig.from_wandb(**config_dict)
+    nested_update(config_dict, kwargs)        
+    logger_config = config_dict["logger_config"]
+
+    # Sync with wandb (side-effects!)
+    if logger_config["project"] is not None and logger_config["entity"] is not None:
+        if "run_name" in config_dict:
+            run_name = config_dict.pop("run_name")
+            wandb.init(
+                project=logger_config["project"],
+                entity=logger_config["entity"],
+                name=run_name,
+            )
+        else:
+            wandb.init(
+                project=logger_config["project"], entity=logger_config["entity"]
+            )
+
+        nested_update(config_dict, wandb.config)
+        
+    return ICLConfig(**config_dict)
+
+    # nested_update(config_dict, kwargs)
+    # return ICLConfig.from_wandb(**config_dict)
+
+
+    
