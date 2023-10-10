@@ -189,7 +189,7 @@ def get_config(
     num_steps = 500_000
     batch_size = 256
     max_learning_rate = 1e-3
-    num_tasks = 64
+    num_tasks = 1024
 
     config_dict = {
         # model & data config
@@ -214,11 +214,13 @@ def get_config(
         # evaluation config
         "eval_batch_size": 2048,
         "checkpointer_config": {
-            "checkpoint_steps": {"log_space": 50, "linear_space": 50},
-            "bucket_name": "devinterp", # AWS 
-            # "local_root": "./checkpoints", # local checkpointing - independent of above
+            "checkpoint_steps": {
+                "log_space": 50,
+                "linear_space": 50,
+            },
+            "bucket_name": "devinterp",
+            # "local_root": "./checkpoints",
         },
-        # for wandb?
         "logger_config": {
             "logging_steps": {
                 "log_space": 100,
@@ -226,29 +228,12 @@ def get_config(
             },
             "project": project,
             "entity": entity,
-            # "stdout": True
+            # "stdout": True,
         },
         "task_init_method": 'basis_vector_combinations',
-        "method_params": {"scale_factor": 1.0, "include_zero": True},
+        "method_params": {"scale_factor": 1.0, "include_zero": True},,
+        "device": 'xla',
     }
 
-    nested_update(config_dict, kwargs)        
-    logger_config = config_dict["logger_config"]
-
-    # Sync with wandb (side-effects!)
-    if logger_config["project"] is not None and logger_config["entity"] is not None:
-        if "run_name" in config_dict:
-            run_name = config_dict.pop("run_name")
-            wandb.init(
-                project=logger_config["project"],
-                entity=logger_config["entity"],
-                name=run_name,
-            )
-        else:
-            wandb.init(
-                project=logger_config["project"], entity=logger_config["entity"]
-            )
-
-        nested_update(config_dict, wandb.config)
-        
-    return ICLConfig(**config_dict)
+    nested_update(config_dict, kwargs)
+    return ICLConfig.from_wandb(**config_dict)

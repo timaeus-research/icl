@@ -18,8 +18,8 @@ import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # (! before import torch)
 
 import logging
+# from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict
-from typing_extensions import Annotated
 
 import numpy as np
 import sentry_sdk
@@ -149,186 +149,112 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
 
-    run = Run(config)
-    model = run.model
+    # special code if device is 'xla'
+    XLA = (config.device == 'xla')
+    if XLA:
+        stdlogger.info("device is 'xla'! some special code will run...")
+        stdlogger.info("importing torch_xla...")
+        import torch_xla.core.xla_model as xm
+        # import torch_xla.debug.metrics as met
+        stdlogger.info("configuring default XLA device...")
+        device = xm.xla_device()
+        stdlogger.info("xla ready!")
+    else:
+        device = config.device
+
+    # model initialisation
+    stdlogger.info("initialising model")
+    model = config.task_config.model_factory().to(device)
     model.train()
-    optimizer = run.optimizer
-    scheduler = run.scheduler
-    pretrain_dist = run.pretrain_dist
-    evaluator = run.evaluator
-    checkpointer = run.checkpointer
-    logger = run.logger
-
-    num_steps = config.num_steps
-
-    # Let's only train until 50% checkpoint.
-    checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
-    num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
-
-    recent_losses = torch.zeros(100, device=config.device)
-
-    # training loop
-    for step in tqdm.trange(num_steps, desc="Training..."):
-        set_seed(
-            config.task_config.sampling_seed + step
-        )  # For reproducibility if we resume training
-
-        # data generation and forward pass
-        xs, ys = pretrain_dist.get_batch(
-            num_examples=config.task_config.max_examples,
-            batch_size=config.batch_size,
-        )
-        ys_pred = model(xs, ys)
-        loss = F.mse_loss(ys, ys_pred)
-        # backward pass and gradient step
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-
-        recent_losses[step % 100] = loss
-
-        if step % 100 == 0 and step > 0 and config.is_wandb_enabled:
-            # TODO: Figure out how to make this work with Logger
-            wandb.log({"batch/loss": loss.mean().item()}, step=step)
-
-        # Log to wandb & save checkpoints according to log_steps
-        if step in config.checkpointer_config.checkpoint_steps:
-            stdlogger.info("Saving checkpoint at step %s", step)
-            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
-
-        if step in config.logger_config.logging_steps:
-            stdlogger.info("Logging at step %s", step)
-            model.eval()
-            metrics = evaluator(model)
-            model.train()
-            logger.log(metrics, step=step)
-
-    if config.is_wandb_enabled:
-        wandb.finish()
-
-    return model
-
-
-def get_run_config(run: "Run"):
-    """Side-effect: resumes the wandb run"""
-    return get_config(**run.config, resume="must", id=run.id)
-
-
-def get_last_checkpoint(config: ICLConfig):
-    """Get the last checkpoint for a given run"""
-    checkpointer = config.checkpointer_config.factory()
-    last_checkpoint_step = sorted([int(x) for x in checkpointer.get_file_ids()])[-1]
-    last_checkpoint = checkpointer.load_file(last_checkpoint_step)
-
-    model = config.task_config.model_factory().to(config.device)
-    optimizer = config.optimizer_config.factory(model.parameters())
-    scheduler = config.scheduler_config.factory(optimizer)
-
-    model.load_state_dict(last_checkpoint["model"])
-    optimizer.load_state_dict(last_checkpoint["optimizer"])
-    scheduler.load_state_dict(last_checkpoint["scheduler"])
-
-    return {
-        "model": model,
-        "optimizer": optimizer,
-        "scheduler": scheduler,
-    }
-
-
-def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
-    """
-    Initialise and train an InContextRegressionTransformer model, tracking
-    various metrics.
-    """
-    logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
-
-    config = get_run_config(run)
-    last_log_step = run.summary.get("_step")
-
-    # initialise model, optimizer, and scheduler
-    last_checkpoint = get_last_checkpoint(config)
-    model = last_checkpoint["model"]
-    optimizer = last_checkpoint["optimizer"]
-    scheduler = last_checkpoint["scheduler"]
-    last_checkpoint_step = scheduler.last_epoch
-
-    logging.info(
-        "Resuming run %s at step %s. Last logged at %s",
-        run.id,
-        last_checkpoint_step,
-        last_log_step,
-    )
-
-    model.to(config.device).train()
 
     # initialise 'pretraining' data source (for training on fixed task set)
-    pretrain_dist = config.task_config.pretrain_dist_factory().to(config.device)
+    stdlogger.info("initialising data (pretrain)")
+    pretrain_dist = config.task_config.pretrain_dist_factory().to(device)
 
     # initialise 'true' data source (for evaluation, including unseen tasks)
-    true_dist = config.task_config.true_dist_factory().to(config.device)
+    stdlogger.info("initialising data (true)")
+    true_dist = config.task_config.true_dist_factory().to(device)
 
     # initialise evaluations
+    stdlogger.info("initialising evaluator")
+    if XLA: xm.mark_step()
     evaluator = ICLEvaluator(
         pretrain_dist=pretrain_dist,
         true_dist=true_dist,
         max_examples=config.task_config.max_examples,
         eval_batch_size=config.eval_batch_size,
-        seed=config.task_config.true_seed,
+        seed=config.task_config.true_seed
     )
+    if XLA: xm.mark_step()
 
     # initialise monitoring code
-    checkpointer = (
-        config.checkpointer_config.factory()
-        if config.checkpointer_config is not None
-        else None
-    )
-    logger = (
-        config.logger_config.factory() if config.logger_config is not None else None
-    )
+    stdlogger.info("initialising checkpointer and logger")
+    checkpointer = config.checkpointer_config.factory() if config.checkpointer_config is not None else None
+    logger = config.logger_config.factory() if config.logger_config is not None else None
 
-    num_steps = config.num_steps
-    recent_losses = torch.zeros(100, device=config.device)
+    # initialise torch optimiser
+    stdlogger.info("initialising optimiser and scheduler")
+    optimizer = config.optimizer_config.factory(model.parameters())
+    scheduler = config.scheduler_config.factory(optimizer)  # type: ignore
+
+    # TODO: this is unused and may be slowing down XLA... use it or lose it
+    # recent_losses = torch.zeros(100, device=device)
 
     # training loop
-    for step in tqdm.trange(last_checkpoint_step + 1, num_steps, desc="Training..."):
-        set_seed(
-            config.task_config.sampling_seed + step
-        )  # For reproducibility if we resume training
-
-        # data generation and forward pass
+    stdlogger.info("starting training loop")
+    stdlogger.info("note: first two iterations slow while XLA compiles")
+    stdlogger.info("note: early iterations slow due to logspace checkpoints")
+    for step in tqdm.trange(config.num_steps, desc="training..."):
+        # per-step seeds for reproducibility if we resume training
+        set_seed(config.task_config.sampling_seed + step)
+        
+        # training step
+        if XLA: xm.mark_step()
         xs, ys = pretrain_dist.get_batch(
             num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
         ys_pred = model(xs, ys)
         loss = F.mse_loss(ys, ys_pred)
-        # backward pass and gradient step
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
         scheduler.step()
+        if XLA: xm.mark_step()
 
-        recent_losses[step % 100] = loss
+        # see above
+        # recent_losses[step % 100] = loss
 
-        if step % 100 == 0 and step > last_log_step and config.is_wandb_enabled:
+        # wand logging: log batch loss every 100 steps
+        if step % 100 == 0 and step > 0 and config.is_wandb_enabled:
+            stdlogger.info("logging batch loss at step %s", step)
+            # TODO: Figure out how to make this work with `logger`
             wandb.log({"batch/loss": loss.mean().item()}, step=step)
-
-        # Log to wandb & save checkpoints according to log_steps
-        if step in config.checkpointer_config.checkpoint_steps:
-            stdlogger.info("Saving checkpoint at step %s", step)
-            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
-
-        if step in config.logger_config.logging_steps and step > last_log_step:
-            stdlogger.info("Logging at step %s", step)
+        
+        # evaluate and log metrics to wandb according to log_steps
+        if step in config.logger_config.logging_steps:
+            stdlogger.info("evaluating metrics at step %s", step)
+            if XLA: xm.mark_step()
             model.eval()
             metrics = evaluator(model)
             model.train()
+            if XLA: xm.mark_step()
+            stdlogger.info("logging metrics at step %s", step)
             logger.log(metrics, step=step)
+
+
+        # save checkpoints according to checkpoint_steps
+        if step in config.checkpointer_config.checkpoint_steps:
+            # TODO: if xla: move model to CPU before saving
+            stdlogger.info("saving checkpoint at step %s", step)
+            if XLA: xm.mark_step()
+            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
+            if XLA: xm.mark_step()
 
     if config.is_wandb_enabled:
         wandb.finish()
 
+    # TODO: if XLA, move model off TPU?
     return model
 
 
