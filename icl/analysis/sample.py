@@ -1,3 +1,4 @@
+import inspect
 import itertools
 import os
 from copy import deepcopy
@@ -6,8 +7,8 @@ from functools import partial
 from logging import Logger
 from pathlib import Path
 from pprint import pp
-from typing import (Callable, Dict, Iterable, List, Literal, Optional, Tuple,
-                    Type, Union)
+from typing import (Any, Callable, Dict, Iterable, List, Literal, Optional,
+                    Tuple, Type, Union)
 
 import devinfra
 import devinterp
@@ -47,6 +48,97 @@ def get_weights(model, paths):
             yield layer.bias.view((-1,))
  
  
+class LLCEstimator:
+    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
+        self.num_chains = num_chains
+        self.num_draws = num_draws
+        self.n = torch.tensor(n, dtype=torch.float32).to(device)
+        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device)
+        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
+        self.llc_mean = torch.tensor(0., dtype=torch.float32).to(device)
+        self.llc_std = torch.tensor(0., dtype=torch.float32).to(device)
+
+    def update(self, chain: int, draw: int, loss: float):
+        self.losses[chain, draw] = loss 
+
+    @property
+    def init_loss(self):
+        return self.losses[0, 0]
+
+    def finalize(self):
+        avg_losses = self.losses.mean(axis=1)
+        self.llc_per_chain = (self.n / self.n.log()) * (avg_losses - self.init_loss)
+        self.llc_mean = self.llc_per_chain.mean()
+        self.llc_std = self.llc_per_chain.std()
+        
+    def sample(self):
+        return {
+            "llc/mean": self.llc_mean.item(),
+            "llc/std": self.llc_std.item(),
+            **{f"llc/chain_{i}/mean": self.llc_per_chain[i].item() for i in range(self.num_chains)},
+            "loss/trace": self.losses.cpu().numpy(),
+        }
+    
+    def __call__(self, chain: int, draw: int, loss: float):
+        self.update(chain, draw, loss)
+
+
+class OnlineLLCEstimator:
+    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
+        self.num_chains = num_chains
+        self.num_draws = num_draws
+        self.n = torch.tensor(n, dtype=torch.float32).to(device).share_memory_()
+        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device).share_memory_()
+        self.llcs = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device).share_memory_()
+        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device).share_memory_()
+        self.llc_means = torch.tensor(num_chains, dtype=torch.float32).to(device).share_memory_()
+        self.llc_stds = torch.tensor(num_chains, dtype=torch.float32).to(device).share_memory_()
+
+    def update(self, chain: int, draw: int, loss: float):
+        self.losses[chain, draw] = loss 
+
+        if draw == 0:  # TODO: We can probably drop this and it still works (but harder to read)
+            self.llcs[0, draw] = 0.
+        else:
+            t = draw + 1
+            prev_llc = self.llcs[chain, draw - 1]
+
+            with torch.no_grad():
+                self.llcs[chain, draw] = (1 / t) * (
+                    (t - 1) * prev_llc + (self.n / self.n.log()) * (loss - self.init_loss)
+                )
+
+    @property
+    def init_loss(self):
+        return self.losses[0, 0]
+
+    def finalize(self):
+        self.llc_means = self.llcs.mean(axis=0)
+        self.llc_stds = self.llcs.std(axis=0)
+
+    def sample(self):
+        return {
+            "llc/means": self.llc_means.cpu().numpy(),
+            "llc/stds": self.llc_stds.cpu().numpy(),
+            "llc/trace": self.llcs.cpu().numpy(),
+            "loss/trace": self.losses.cpu().numpy(),
+        }
+    
+    def __call__(self, chain: int, draw: int, loss: float):
+        self.update(chain, draw, loss)
+
+
+def call_with(func: Callable, **kwargs):
+    """Check the func annotation and call with only the necessary kwargs."""
+    sig = inspect.signature(func)
+    
+    # Filter out the kwargs that are not in the function's signature
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    
+    # Call the function with the filtered kwargs
+    return func(**filtered_kwargs)
+
+
 def sample_single_chain(
     ref_model: nn.Module,
     loader: DataLoader,
@@ -61,12 +153,10 @@ def sample_single_chain(
     verbose=True,
     device: Union[str, torch.device] = torch.device("cpu"),
     callbacks: List[Callable] = [],
-    online: bool = False,
 ):
     # Initialize new model and optimizer for this chain
     model = deepcopy(ref_model).to(device)
 
-    num_samples = len(loader.dataset)
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
 
@@ -75,16 +165,7 @@ def sample_single_chain(
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
 
-    local_draws = pd.DataFrame(
-        index=range(num_draws),
-        columns=["chain", "step", "loss"] + ["llc"] if online else [],
-    )
-
     model.train()
-    n = torch.tensor(num_samples, device=device)
-    t = torch.tensor(0, device=device)
-    prev_llc = torch.tensor(0, device=device) if online else None
-    init_loss = torch.tensor(0, device=device) if online else None
 
     for i, (xs, ys) in  tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose):
         optimizer.zero_grad()
@@ -96,29 +177,12 @@ def sample_single_chain(
         optimizer.step()
 
         if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-            t += 1
-            draw_idx = (i - num_burnin_steps) // num_steps_bw_draws
-            local_draws.loc[draw_idx, "step"] = i
-            local_draws.loc[draw_idx, "chain"] = chain
-            local_draws.loc[draw_idx, "loss"] = loss.detach().item()
-            
+            draw = (i - num_burnin_steps) // num_steps_bw_draws
+            loss = loss.item()
+
             with torch.no_grad():
                 for callback in callbacks:
-                    callback(model)
-
-            if online:
-                if draw_idx == 0:
-                    init_loss = loss.detach()
-                    local_draws.loc[draw_idx, "llc"] = 0.
-                else:
-                    with torch.no_grad():
-                        llc =  (1 / t) * (
-                            (t - 1) * prev_llc + (n / n.log()) * (loss - init_loss)
-                        )
-                        prev_llc = llc
-                        local_draws.loc[draw_idx, "llc"] = llc.detach().item()
-
-    return local_draws
+                    call_with(callback, **locals())  # Cursed but we'll fix it later
 
 
 def _sample_single_chain(kwargs):
@@ -140,7 +204,6 @@ def sample(
     device: torch.device = torch.device("cpu"),
     verbose: bool = True,
     callbacks: List[Callable] = [],
-    online: bool = False,
 ):
     """
     Sample model weights using a given optimizer, supporting multiple chains.
@@ -186,7 +249,6 @@ def sample(
             device=device,
             verbose=verbose,
             callbacks=callbacks,
-            online=online,
         )
 
     results = []
@@ -199,13 +261,10 @@ def sample(
         for i in range(num_chains):
             results.append(_sample_single_chain(get_args(i)))
 
-    results_df = pd.concat([r for r in results], ignore_index=True)
-
     for callback in callbacks:
         if hasattr(callback, "finalize"):
             callback.finalize()
 
-    return results_df
 
 
 def estimate_slt_observables(
@@ -226,7 +285,12 @@ def estimate_slt_observables(
     online: bool = False,
 ):
 
-    trace = sample(
+    if online:
+        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+    else:
+        llc_estimator = LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+
+    sample(
         model=model,
         loader=loader,
         criterion=criterion,
@@ -240,89 +304,14 @@ def estimate_slt_observables(
         seed=seed,
         verbose=verbose,
         device=device,
-        callbacks=callbacks,
-        online=online,
+        callbacks=[*callbacks, llc_estimator],
     )
-
-    baseline_loss = trace.loc[trace["chain"] == 0, "loss"].iloc[0]
-    num_samples = len(loader.dataset)
-    avg_losses = trace.groupby("chain")["loss"].mean()
-    chain_averages = np.zeros(num_chains)
 
     results = {}
 
-    if online:
-        for i in range(num_chains):
-            chain_averages[i] = trace.loc[(trace["chain"] == i) & (trace["step"] == num_draws-1), "llc"].values[0]
-
-        llcs_over_time = trace.groupby("step")["llc"]
-        results["lc/online/mean"] = llcs_over_time.mean().values
-        results["lc/online/std"] = llcs_over_time.std().values
-
-    else:
-        for i in range(num_chains):
-            chain_avg_loss = avg_losses.iloc[i]
-            chain_averages[i] = (chain_avg_loss - baseline_loss) * num_samples / np.log(num_samples)
-
-    avg_loss = chain_averages.mean()
-    std_loss = chain_averages.std()
-
-    results.update({
-        "lc/mean": avg_loss.item(),
-        "lc/std": std_loss.item(),
-        "lc/trace": trace,
-        **{f"lc/chain_{i}/mean": chain_averages[i].item() for i in range(num_chains)},
-        # **{f"lc/chain/{i}/trace": trace.loc[trace["chain"] == i] for i in range(num_chains)},
-    })
-
     for callback in callbacks:
-        results.update(callback.sample())
-    
+        if hasattr(callback, "sample"):
+            results.update(callback.sample())
+
     return results
 
-
-
-
-def estimate_rlct(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    criterion: Criterion,
-    sampling_method: Type[torch.optim.Optimizer] = SGLD,
-    optimizer_kwargs: Optional[Dict[str, Union[float, Literal["adaptive"]]]] = None,
-    num_draws: int = 100,
-    num_chains: int = 10,
-    num_burnin_steps: int = 0,
-    num_steps_bw_draws: int = 1,
-    cores: int = 1,
-    seed: Optional[Union[int, List[int]]] = None,
-    verbose: bool = True,
-    device: str = "cpu",
-) -> float:
-    trace = sample(
-        model=model,
-        loader=loader,
-        criterion=criterion,
-        sampling_method=sampling_method,
-        optimizer_kwargs=optimizer_kwargs,
-        num_draws=num_draws,
-        num_chains=num_chains,
-        num_burnin_steps=num_burnin_steps,
-        num_steps_bw_draws=num_steps_bw_draws,
-        cores=cores,
-        seed=seed,
-        verbose=verbose,
-        device=device,
-    )[0]
-
-    baseline_loss = trace.loc[trace["chain"] == 0, "loss"].iloc[0]
-    num_samples = len(loader.dataset)
-    avg_losses = trace.groupby("chain")["loss"].mean()
-    results = torch.zeros(num_chains, device=device)
-
-    for i in range(num_chains):
-        chain_avg_loss = avg_losses.iloc[i]
-        results[i] = (chain_avg_loss - baseline_loss) * num_samples / np.log(num_samples)
-
-    avg_loss = results.mean()
-
-    return avg_loss.item()

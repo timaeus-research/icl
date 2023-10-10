@@ -45,7 +45,6 @@ from typer import Typer
 
 import wandb
 from icl.analysis.rlct import make_slt_evals, map_slt_evals_over_run
-from icl.analysis.sample import estimate_rlct
 from icl.analysis.utils import (generate_config_dicts_from_path,
                                 get_unique_run, split_attn_weights)
 from icl.config import ICLConfig, get_config
