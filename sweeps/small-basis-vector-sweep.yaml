@@ -37,10 +37,11 @@ parameters:
       task_init_method:
         value: 'basis_vector_combinations'
       method_params: 
-        scale_factor: 
-          value: 1.0
-        include_zero: 
-          value: true
+        parameters:
+          scale_factor: 
+            value: 1.0
+          include_zero: 
+            value: true
   optimizer_config:
     parameters:
       lr:
