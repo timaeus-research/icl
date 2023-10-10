@@ -79,10 +79,10 @@ def make_slt_evals(
 @app.command("grid-search")
 def llc_hyperparam_grid_search_sgld(
     path: Path,
-    gammas: List[float]=[1., 10.], #, 100.], 
-    lrs: List[float]=[1e-6, 1e-5], #, 1e-4], 
-    chain_lengths: List[int]=[10, 20, 50], #[100, 200, 300, 400, 600, 800, 1000], 
-    num_chains: int=5,
+    gammas: List[float]=[1., 10., 100.], 
+    lrs: List[float]=[1e-6, 1e-5, 1e-4], 
+    chain_lengths: List[int]=[100, 200, 300, 400, 600, 800, 1000], 
+    num_chains: int=10,
     log_num_tasks: Optional[List[int]] = None
 ):      
     configs = list(get_sweep_configs(path))
@@ -162,7 +162,7 @@ def llc_hyperparam_grid_search_sgld(
 
 
 @app.command("plot-grid")
-def plot_grid_search_results(csv_path: str):
+def plot_grid_search_results(csv_path: str, num_chains: int=10):
     # Read the DataFrame from the CSV file
     df = pd.read_csv(csv_path)
 
@@ -181,6 +181,8 @@ def plot_grid_search_results(csv_path: str):
 
     # Create subplots
     fig, axes = plt.subplots(len(unique_lrs), len(unique_gammas), figsize=(15, 15))
+
+    fig.suptitle(f"$\hat\lambda$ grid search ($n_\mathrm{{chains}}={num_chains}$)")
 
     # Loop through the grid
     for i, lr in enumerate(unique_lrs):
@@ -202,7 +204,7 @@ def plot_grid_search_results(csv_path: str):
                 # Plot using Seaborn for better aesthetics
                 sns.lineplot(x='num_draws', y='lc/mean', data=task_specific_df, ax=ax, label=f'M={num_tasks}', color=color)
                 ax.fill_between(task_specific_df['num_draws'], task_specific_df['lc/mean'] - task_specific_df['lc/std'], 
-                                task_specific_df['lc/mean'] + task_specific_df['lc/std'], color=color, alpha=0.3)
+                                task_specific_df['lc/mean'] + task_specific_df['lc/std'], color=color, alpha=0.15)
 
             ax.set_title(f"$\epsilon={lr}, \gamma={gamma}$")
             ax.set_xlabel(r"$t_\mathrm{SGLD}$")
@@ -210,7 +212,7 @@ def plot_grid_search_results(csv_path: str):
 
     plt.legend()
     plt.savefig("figures/llc-grid-search.png")
-    plt.show()
+    plt.close()
  
 
 if __name__ == "__main__":
