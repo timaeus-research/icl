@@ -23,7 +23,7 @@ parameters:
       mlp_size:
         value: 128
       num_heads:
-        value: [1, 2, 4]
+        values: [1, 2, 4]
       num_layers:
         values: [1, 2]
       model_seed:
