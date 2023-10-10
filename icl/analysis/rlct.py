@@ -79,10 +79,10 @@ def make_slt_evals(
 @app.command("grid-search")
 def llc_hyperparam_grid_search_sgld(
     path: Path,
-    gammas: List[float]=[1., 10., 100.], 
-    lrs: List[float]=[1e-6, 1e-5, 1e-4], 
-    chain_lengths: List[int]=[100, 200, 300, 400, 600, 800, 1000], 
-    num_chains: int=10,
+    gammas: List[float]=[1., 10.], # [1., 10., 100.], 
+    lrs: List[float]=[1e-6, 1e-5], #, 1e-4], 
+    num_draws: int=100, 
+    num_chains: int=5,
     log_num_tasks: Optional[List[int]] = None
 ):      
     configs = list(get_sweep_configs(path))
@@ -94,8 +94,8 @@ def llc_hyperparam_grid_search_sgld(
         if log_num_tasks is not None and int(np.log2(config.task_config.num_tasks)) not in log_num_tasks:
             continue
 
-        num_layers = config.model_config.num_layers
-        num_heads = config.model_config.num_heads
+        num_layers = config.task_config.num_layers
+        num_heads = config.task_config.num_heads
         num_tasks = config.task_config.num_tasks
 
         print("\n")
@@ -107,7 +107,7 @@ def llc_hyperparam_grid_search_sgld(
         loader = torch.utils.data.DataLoader(dataset, batch_size=len(dataset)) 
         callbacks=[]
 
-        for gamma, lr, num_draws in itertools.product(gammas, lrs, chain_lengths):
+        for gamma, lr in itertools.product(gammas, lrs):
             llcs = estimate_slt_observables(
                 run.model,
                 loader,
@@ -125,35 +125,52 @@ def llc_hyperparam_grid_search_sgld(
                 num_chains=num_chains,
                 cores=1,
                 device=device,
-                callbacks=callbacks
+                callbacks=callbacks,
+                online=True
             )
 
-            trace = llcs.pop("lc/trace")
+            trace = llcs["lc/trace"]
+            llcs_over_time_mean = llcs["lc/online/mean"]
+            llcs_over_time_std = llcs["lc/online/std"]
 
             plt.figure()
+            cmap = plt.cm.viridis
 
             for chain in range(num_chains):
                 del llcs[f"lc/chain_{chain}/mean"]
                 data = trace.loc[trace["chain"] == chain]
-                sns.lineplot(x=np.arange(num_draws), y=data["loss"])
-
+                color = cmap(chain / num_chains)
+                sns.lineplot(x=np.arange(num_draws), y=data["loss"], color=color, alpha=0.5, label=f"_Chain {chain}")
+            
             # Horizontal line at the initial loss
             init_loss = trace.loc[trace["step"] == 0, "loss"].iloc[0]
             plt.axhline(y=init_loss, color="k", linestyle="--")
 
             plt.xlabel("num_steps")
-            plt.ylabel("$nL_n(w)$")
+            plt.ylabel("$L_n(w_t)$")
             plt.title(f"LLC trace (L={num_layers}, H={num_heads}, M={num_tasks}, lr={lr}, gamma={gamma}, num_draws={num_draws})")
+            
+            # Add extra axis to plot for the llcs_over_time
+            ax2 = plt.twinx()
+            ax2.plot(np.arange(num_draws), llcs_over_time_mean, color="r", alpha=0.5)
+            ax2.fill_between(np.arange(num_draws), llcs_over_time_mean - llcs_over_time_std, 
+                             llcs_over_time_mean + llcs_over_time_std, color="r", alpha=0.15)
+
+            ax2.set_ylabel(r"$\hat\lambda$")
+            
+            ax2.legend()
             plt.savefig(f"figures/llc-trace-L{num_layers}-H{num_heads}-M{num_tasks}-lr={lr}-gamma={gamma}-num_draws={num_draws}.png")
             plt.close()
 
-            results.append({
-                "gamma": gamma,
-                "lr": lr,
-                "num_draws": num_draws,
-                **(config.task_config.model_dump()),
-                **llcs
-            })
+            for t in range(num_draws):
+                results.append({
+                    "lc/mean": llcs_over_time_mean[t],
+                    "lc/std": llcs_over_time_std[t],
+                    "gamma": gamma,
+                    "lr": lr,
+                    "num_draws": t,
+                    **(config.task_config.model_dump()),
+                })
 
             print(yaml.dump(results[-1]))
         

@@ -60,11 +60,13 @@ def sample_single_chain(
     seed: Optional[int] = None,
     verbose=True,
     device: Union[str, torch.device] = torch.device("cpu"),
-    callbacks: List[Callable] = []
+    callbacks: List[Callable] = [],
+    online: bool = False,
 ):
     # Initialize new model and optimizer for this chain
     model = deepcopy(ref_model).to(device)
 
+    num_samples = len(loader.dataset)
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
 
@@ -75,10 +77,14 @@ def sample_single_chain(
 
     local_draws = pd.DataFrame(
         index=range(num_draws),
-        columns=["chain", "step", "loss"],
+        columns=["chain", "step", "loss"] + ["llc"] if online else [],
     )
 
     model.train()
+    n = torch.tensor(num_samples, device=device)
+    t = torch.tensor(0, device=device)
+    prev_llc = torch.tensor(0, device=device) if online else None
+    init_loss = torch.tensor(0, device=device) if online else None
 
     for i, (xs, ys) in  tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose):
         optimizer.zero_grad()
@@ -90,6 +96,7 @@ def sample_single_chain(
         optimizer.step()
 
         if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+            t += 1
             draw_idx = (i - num_burnin_steps) // num_steps_bw_draws
             local_draws.loc[draw_idx, "step"] = i
             local_draws.loc[draw_idx, "chain"] = chain
@@ -98,6 +105,18 @@ def sample_single_chain(
             with torch.no_grad():
                 for callback in callbacks:
                     callback(model)
+
+            if online:
+                if draw_idx == 0:
+                    init_loss = loss.detach()
+                    local_draws.loc[draw_idx, "llc"] = 0.
+                else:
+                    with torch.no_grad():
+                        llc =  (1 / t) * (
+                            (t - 1) * prev_llc + (n / n.log()) * (loss - init_loss)
+                        )
+                        prev_llc = llc
+                        local_draws.loc[draw_idx, "llc"] = llc.detach().item()
 
     return local_draws
 
@@ -120,7 +139,8 @@ def sample(
     seed: Optional[Union[int, List[int]]] = None,
     device: torch.device = torch.device("cpu"),
     verbose: bool = True,
-    callbacks: List[Callable] = []
+    callbacks: List[Callable] = [],
+    online: bool = False,
 ):
     """
     Sample model weights using a given optimizer, supporting multiple chains.
@@ -165,7 +185,8 @@ def sample(
             optimizer_kwargs=optimizer_kwargs,
             device=device,
             verbose=verbose,
-            callbacks=callbacks
+            callbacks=callbacks,
+            online=online,
         )
 
     results = []
@@ -201,7 +222,8 @@ def estimate_slt_observables(
     seed: Optional[Union[int, List[int]]] = None,
     verbose: bool = True,
     device: str = "cpu",
-    callbacks: List[Callable] = []
+    callbacks: List[Callable] = [],
+    online: bool = False,
 ):
 
     trace = sample(
@@ -218,28 +240,40 @@ def estimate_slt_observables(
         seed=seed,
         verbose=verbose,
         device=device,
-        callbacks=callbacks
+        callbacks=callbacks,
+        online=online,
     )
 
     baseline_loss = trace.loc[trace["chain"] == 0, "loss"].iloc[0]
     num_samples = len(loader.dataset)
     avg_losses = trace.groupby("chain")["loss"].mean()
-    chain_averages = torch.zeros(num_chains, device=device)
+    chain_averages = np.zeros(num_chains)
 
-    for i in range(num_chains):
-        chain_avg_loss = avg_losses.iloc[i]
-        chain_averages[i] = (chain_avg_loss - baseline_loss) * num_samples / np.log(num_samples)
+    results = {}
+
+    if online:
+        for i in range(num_chains):
+            chain_averages[i] = trace.loc[(trace["chain"] == i) & (trace["step"] == num_draws-1), "llc"].values[0]
+
+        llcs_over_time = trace.groupby("step")["llc"]
+        results["lc/online/mean"] = llcs_over_time.mean().values
+        results["lc/online/std"] = llcs_over_time.std().values
+
+    else:
+        for i in range(num_chains):
+            chain_avg_loss = avg_losses.iloc[i]
+            chain_averages[i] = (chain_avg_loss - baseline_loss) * num_samples / np.log(num_samples)
 
     avg_loss = chain_averages.mean()
     std_loss = chain_averages.std()
 
-    results = {
+    results.update({
         "lc/mean": avg_loss.item(),
         "lc/std": std_loss.item(),
         "lc/trace": trace,
         **{f"lc/chain_{i}/mean": chain_averages[i].item() for i in range(num_chains)},
         # **{f"lc/chain/{i}/trace": trace.loc[trace["chain"] == i] for i in range(num_chains)},
-    }
+    })
 
     for callback in callbacks:
         results.update(callback.sample())
