@@ -53,7 +53,7 @@ class LLCEstimator:
         self.num_chains = num_chains
         self.num_draws = num_draws
         self.n = torch.tensor(n, dtype=torch.float32).to(device)
-        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device)
+        self.losses = np.zeros((num_chains, num_draws), dtype=np.float32)
         self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
         self.llc_mean = torch.tensor(0., dtype=torch.float32).to(device)
         self.llc_std = torch.tensor(0., dtype=torch.float32).to(device)
@@ -67,7 +67,7 @@ class LLCEstimator:
 
     def finalize(self):
         avg_losses = self.losses.mean(axis=1)
-        self.llc_per_chain = (self.n / self.n.log()) * (avg_losses - self.init_loss)
+        self.llc_per_chain = (self.n / self.n.log()).detach().cpu().numpy() * (avg_losses - self.init_loss)
         self.llc_mean = self.llc_per_chain.mean()
         self.llc_std = self.llc_per_chain.std()
         
@@ -76,7 +76,7 @@ class LLCEstimator:
             "llc/mean": self.llc_mean.item(),
             "llc/std": self.llc_std.item(),
             **{f"llc/chain_{i}/mean": self.llc_per_chain[i].item() for i in range(self.num_chains)},
-            "loss/trace": self.losses.cpu().numpy(),
+            "loss/trace": self.losses,
         }
     
     def __call__(self, chain: int, draw: int, loss: float):
@@ -87,12 +87,20 @@ class OnlineLLCEstimator:
     def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
         self.num_chains = num_chains
         self.num_draws = num_draws
-        self.n = torch.tensor(n, dtype=torch.float32).to(device).share_memory_()
-        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device).share_memory_()
-        self.llcs = np.zeros((num_chains, num_draws), dtype=torch.float32).to(device).share_memory_()
-        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device).share_memory_()
-        self.llc_means = torch.tensor(num_chains, dtype=torch.float32).to(device).share_memory_()
-        self.llc_stds = torch.tensor(num_chains, dtype=torch.float32).to(device).share_memory_()
+        self.n = torch.tensor(n, dtype=torch.float32).to(device)
+        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32)
+        self.llcs = np.zeros((num_chains, num_draws), dtype=torch.float32)
+        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
+        self.llc_means = torch.tensor(num_chains, dtype=torch.float32).to(device)
+        self.llc_stds = torch.tensor(num_chains, dtype=torch.float32).to(device)
+
+    def share_memory_(self):
+        self.n.share_memory_()
+        self.llc_per_chain.share_memory_()
+        self.llc_means.share_memory_()
+        self.llc_stds.share_memory_()
+
+        return self
 
     def update(self, chain: int, draw: int, loss: float):
         self.losses[chain, draw] = loss 
@@ -286,9 +294,9 @@ def estimate_slt_observables(
 ):
 
     if online:
-        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+        callbacks.append(OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device))
     else:
-        llc_estimator = LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+        callbacks.append(LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device))
 
     sample(
         model=model,
@@ -304,7 +312,7 @@ def estimate_slt_observables(
         seed=seed,
         verbose=verbose,
         device=device,
-        callbacks=[*callbacks, llc_estimator],
+        callbacks=callbacks,
     )
 
     results = {}

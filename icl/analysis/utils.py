@@ -1,14 +1,14 @@
 
 from typing import Dict, List, Optional
 
+import pandas as pd
+import torch
 from devinfra.evals import ModelEvaluator
 from devinfra.integrations.wandb import generate_config_dicts_from_path
 from devinfra.io.storage import BaseStorageProvider
 from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
                                       flatten_dict)
-import torch
 from tqdm import tqdm
-import pandas as pd
 
 from icl.config import get_config
 from icl.train import Run
@@ -26,14 +26,23 @@ def get_run(sweep: str, **filters):
     return run
 
 
+def get_unique_config(sweep: str, **filters):
+    """
+    Find the config with the specified filters in the specified sweep.
+    Requires that only one config matches the filters.
+    """
+    config_dicts = list(generate_config_dicts_from_path(sweep))
+    config_dict = find_unique_obj(config_dicts, **filters) 
+    config = get_config(**config_dict)
+    return config
+
+
 def get_unique_run(sweep: str, **filters):
     """
     Find the run with the specified filters in the specified sweep.
     Requires that only one run matches the filters.
     """
-    config_dicts = list(generate_config_dicts_from_path(sweep))
-    config_dict = find_unique_obj(config_dicts, **filters) 
-    config = get_config(**config_dict)
+    config = get_unique_config(sweep, **filters)
     run = Run.create_and_restore(config)
     return run
 

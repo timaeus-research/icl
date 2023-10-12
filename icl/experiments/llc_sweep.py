@@ -1,49 +1,39 @@
-import itertools
-import os
-import warnings
-from pathlib import Path
-from pprint import pp
-from typing import (Callable, Dict, Iterable, List, Literal, Optional, Tuple,
-                    TypeVar, Union)
 
-import devinfra
-import devinterp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import sentry_sdk
 import torch
 import typer
-import yaml
-from devinfra.evals import RepeatEvaluator
 from devinfra.utils.device import get_default_device
 from devinterp.optim.sgld import SGLD
-from dotenv import load_dotenv
-from pydantic import BaseModel
-from torch import nn
+from devinterp.optim.sgnht import SGNHT
 from torch.nn import functional as F
-from tqdm import tqdm
 
 import wandb
 from icl.analysis.sample import sample
-from icl.analysis.utils import get_sweep_configs
-from icl.config import ICLConfig, get_config
+from icl.config import get_config
+from icl.experiments.utils import *
 from icl.train import Run
+from icl.utils import pyvar_dict_to_latex, pyvar_dict_to_slug
 
 app = typer.Typer()
 
 
 class ObservedOnlineLLCEstimator:
-    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
+    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu", threshold=0.05):
         self.num_chains = num_chains
         self.num_draws = num_draws
         self.n = torch.tensor(n, dtype=torch.float32).to(device)
         self.losses = torch.zeros((num_chains, num_draws), dtype=torch.float32).to(device)
         self.llcs = torch.zeros((num_chains, num_draws), dtype=torch.float32).to(device)
         self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
-        self.llc_means = torch.tensor(num_chains, dtype=torch.float32).to(device)
-        self.llc_stds = torch.tensor(num_chains, dtype=torch.float32).to(device)
+        
+        # If a chain has a loss < init_loss for more than `threshold` draws, do not include it in the final estimate.
+        self.threshold = threshold
+        self.num_draws_in_chain_below_init = torch.zeros(num_chains, dtype=torch.float32).to(device)
+        self.chain_below_threshold = torch.zeros(num_chains, dtype=torch.bool).to(device)
+        self.thresholded_llcs = torch.zeros(num_draws, dtype=torch.float32).to(device)
 
     def update(self, chain: int, draw: int, loss: float):
         self.losses[chain, draw] = loss 
@@ -59,24 +49,49 @@ class ObservedOnlineLLCEstimator:
                     (t - 1) * prev_llc + (self.n / self.n.log()) * (loss - self.init_loss)
                 )
 
+        if self.threshold:
+            if loss < self.init_loss:
+                self.num_draws_in_chain_below_init[chain] += 1
+
+            if (self.num_draws_in_chain_below_init[chain] / draw) > self.threshold:
+                self.chain_below_threshold[chain] = 0.
+            else:
+                self.chain_below_threshold[chain] = 1.
+
+
         # Assumes this is run serially
         if chain == self.num_chains - 1:
-            wandb.log({"llc/mean": self.llcs[:, draw].mean().item(), "llc/std": self.llcs[:, draw].std().item()}, step=draw)
+            thresholded_llcs = self.llcs[self.chain_below_threshold, draw]
+            self.thresholded_llcs[draw] = thresholded_llcs.mean()
+
+            wandb.log({
+                "llc/mean": self.llcs[:, draw].mean().item(), 
+                "llc/std": self.llcs[:, draw].std().item(),
+                "llc/max": self.llcs[:, draw].max().item(),
+                "llc/min": self.llcs[:, draw].min().item(),
+                "thresholded-llc/mean": thresholded_llcs.mean().item(),
+                "thresholded-llc/std": thresholded_llcs.std().item(),
+                "thresholded-llc/max": thresholded_llcs.max().item(),
+                "thresholded-llc/min": thresholded_llcs.min().item(),
+                **{
+                    f"chain-llcs/{i}": self.llcs[i, draw].item() for i in range(self.num_chains)
+                },    
+            }, step=draw)
 
     @property
     def init_loss(self):
         return self.losses[0, 0]
 
-    def finalize(self):
-        self.llc_means = self.llcs.mean(axis=0)
-        self.llc_stds = self.llcs.std(axis=0)
-
     def sample(self):
         return {
-            "llc/means": self.llc_means.cpu().numpy(),
-            "llc/stds": self.llc_stds.cpu().numpy(),
+            # "llc/mean": self.llcs[:, -1].mean().cpu().numpy(),
+            # "llc/std": self.llcs[:, -1].std().cpu().numpy(),
+            # "llc/thresholded-mean": self.llcs[self.chain_below_threshold, :].mean(axis=0).cpu().numpy(),
+            "llc/means": self.llcs.mean(axis=0).cpu().numpy(),
+            "llc/stds": self.llcs.std(axis=0).cpu().numpy(),
             "llc/trace": self.llcs.cpu().numpy(),
             "loss/trace": self.losses.cpu().numpy(),
+
         }
     
     def __call__(self, chain: int, draw: int, loss: float):
@@ -85,12 +100,9 @@ class ObservedOnlineLLCEstimator:
 
 def estimate_llc_at_end(
     config: dict,
-    gamma: float, 
-    lr: float, 
-    num_draws: int=1000, 
-    num_chains: int=25,
-    use_wandb: bool=False,
+    sampler_config: dict,
 ):      
+    cores = int(os.environ.get("CORES", 1))
     config = get_config(**config)
 
     print("Loaded configs")
@@ -108,31 +120,38 @@ def estimate_llc_at_end(
     dataset = torch.utils.data.TensorDataset(xs, ys)
     loader = torch.utils.data.DataLoader(dataset, batch_size=len(dataset)) 
     
+    num_chains = sampler_config.pop("num_chains", 25)
+    num_draws = sampler_config.pop("num_draws", 1000)
+
     llc_estimator = ObservedOnlineLLCEstimator(num_chains, num_draws, len(dataset), device=device)
     callbacks=[llc_estimator]
+
+    sampling_method = sampler_config.pop("sampling_method", "sgld")
+
+    if sampling_method == "sgld":
+        optimizer_class = SGLD
+    elif sampling_method == "sgnht":
+        optimizer_class = SGNHT
+    else:
+        raise ValueError(f"Unknown sampling method: {sampling_method}")
 
     sample(
         run.model,
         loader,
         F.mse_loss,
-        SGLD,
+        optimizer_class,
         optimizer_kwargs=dict(
-            lr=lr,
-            noise_level=1.,
-            weight_decay=0.,
-            elasticity=gamma,
-            temperature="adaptive",
+            **sampler_config,
             num_samples=len(dataset),
         ),
         num_draws=num_draws,
         num_chains=num_chains,
-        cores=1,
+        cores=cores,
         device=device,
         callbacks=callbacks,
     )
 
     llcs = llc_estimator.sample()
-
     trace = llcs["loss/trace"]
     llcs_over_time_mean = llcs["llc/means"]
     llcs_over_time_std = llcs["llc/stds"]
@@ -151,7 +170,23 @@ def estimate_llc_at_end(
 
     plt.xlabel("num_steps")
     plt.ylabel("$L_n(w_t)$")
-    plt.title(f"LLC trace (L={num_layers}, H={num_heads}, M={num_tasks}, lr={lr}, gamma={gamma}, num_draws={num_draws})")
+
+    title_vars = pyvar_dict_to_latex({
+        "num_layers": num_layers,
+        "num_heads": num_heads,
+        "num_tasks": num_tasks,
+        "num_draws": num_draws,
+        **sampler_config,
+    })
+    slug = pyvar_dict_to_slug({
+        "num_layers": num_layers,
+        "num_heads": num_heads,
+        "num_tasks": num_tasks,
+        "num_draws": num_draws,
+        **sampler_config,
+    })
+
+    plt.title(f"LLC trace ({title_vars})")
     
     # Add extra axis to plot for the llcs_over_time
     ax2 = plt.twinx()
@@ -161,17 +196,23 @@ def estimate_llc_at_end(
 
     ax2.set_ylabel(r"$\hat\lambda$")
     ax2.legend()
-    plt.savefig(f"figures/llc-trace-L{num_layers}-H{num_heads}-M{num_tasks}-lr={lr}-gamma={gamma}-num_draws={num_draws}.png")
+    plt.savefig(f"figures/llc-trace-{slug}.png")
     plt.close()
 
 
 @app.command("wandb")
 def llc_sweep_with_wandb():      
     wandb.init(project="icl-llc", entity="devinterp")
+    # Rename run
     print("Initialized wandb")
     config = dict(wandb.config)
-    analysis_config = config.pop("analysis_config")
-    estimate_llc_at_end(config, **analysis_config, use_wandb=True)
+    sampler_config = config.pop("analysis_config")
+    title_config = sampler_config.copy()
+    del title_config["num_draws"]
+    del title_config["num_chains"]
+    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}:{pyvar_dict_to_slug(title_config)}"
+    wandb.run.save()
+    estimate_llc_at_end(config, sampler_config)
     wandb.finish()
 
 
@@ -231,6 +272,7 @@ def plot_grid_search_results(csv_path: str, num_chains: int=25):
 
 
 if __name__ == "__main__":
+    prepare_experiments()
     app()
     
 
