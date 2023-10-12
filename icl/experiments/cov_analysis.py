@@ -208,6 +208,8 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
         cores=cores,
         lr=lr,
         elasticity=gamma,
+        # num_draws=100,
+        # num_chains=10, 
         num_draws=num_draws,
         num_chains=num_chains,
         device=device,
@@ -238,9 +240,17 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
 
         for name, results in covariances.items():
             evecs, evals = results["evecs"], results["evals"]
-    
+
+            parts = [p.split(":")[-1].replace("/", ".") for p in name.split("-")]
+            obs_name = "x".join(parts)
+
+            if len(parts) == 1:
+                obs_name = "within/" + obs_name
+            else:
+                obs_name = "between/" + obs_name
+
             for i in range(num_evals):
-                observables[f"cov/eval_{i}/{name}"] = evals[i]
+                observables[f"cov_eval_{i}/{obs_name}"] = evals[i]
 
             # principal_evals[name] = evals[0]
             # principal_evecs[name] = evecs[:, 0]
@@ -290,6 +300,7 @@ def llcs_and_cov_from_wandb():
     config_dict = dict(wandb.config)
     analysis_config = config_dict.pop("analysis_config")
     config = get_config(**config_dict)
+    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     llcs_and_cov(config, **analysis_config)
     wandb.finish()
 

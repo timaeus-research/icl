@@ -75,7 +75,7 @@ class LLCEstimator:
         return {
             "llc/mean": self.llc_mean.item(),
             "llc/std": self.llc_std.item(),
-            **{f"llc/chain_{i}/mean": self.llc_per_chain[i].item() for i in range(self.num_chains)},
+            **{f"llc-chain/{i}": self.llc_per_chain[i].item() for i in range(self.num_chains)},
             "loss/trace": self.losses,
         }
     
