@@ -329,7 +329,7 @@ class BetweenLayerCovarianceAccumulator:
 
         self.num_draws = 0
         self.is_finished = False
-
+    
     def to_matrices(self):
         """Convert the moments to a covariance matrix."""
         covariances = {}

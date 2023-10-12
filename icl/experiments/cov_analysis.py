@@ -199,7 +199,6 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
     trainset = torch.utils.data.TensorDataset(xs, ys)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=len(xs))
 
-    device = str(get_default_device())
     cov_accumulator = make_transformer_cov_accumulator(model, device=device, num_evals=num_evals)
 
     slt_evals = make_slt_evals(

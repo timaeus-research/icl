@@ -70,3 +70,60 @@ def pyvar_dict_to_latex(d: dict):
 
 def pyvar_dict_to_slug(d: dict):
     return "_".join([f"{pyvar_to_slugvar(k)}{v}" for k, v in d.items()])
+
+
+def get_locations(L: int):
+    locations = [
+        'token_sequence_transformer.token_embedding',
+    ]
+
+    for l in range(L):
+        locations.extend([
+            f'token_sequence_transformer.blocks.{l}',
+            f'token_sequence_transformer.blocks.{l}.attention.attention',
+            f'token_sequence_transformer.blocks.{l}.compute',
+        ])
+
+    locations.extend([
+        'token_sequence_transformer.unembedding',
+    ])
+
+    return locations
+
+
+def get_model_locations_to_display(L: int):
+    locations = {
+        'token_sequence_transformer.token_embedding': "Embedding",
+    }
+
+    for l in range(L):
+        locations.update({
+            f'token_sequence_transformer.blocks.{l}': f"Block {l}",
+            f'token_sequence_transformer.blocks.{l}.attention.attention': f"Block {l} Attention Logits",
+            f'token_sequence_transformer.blocks.{l}.compute': f"Block {l} MLP",
+        })
+
+    locations.update({
+        'token_sequence_transformer.unembedding': "Unembedding",
+    })
+
+    return locations
+
+
+def get_model_locations_to_slug(L: int):
+    locations = {
+        'token_sequence_transformer.token_embedding': "0.0-embed",
+    }
+
+    for l in range(L):
+        locations.update({
+            f'token_sequence_transformer.blocks.{l}': f"{l+1}-block",
+            f'token_sequence_transformer.blocks.{l}.attention.attention': f"{l+1}.1-attn",
+            f'token_sequence_transformer.blocks.{l}.compute': f"{l+1}.2-mlp",
+        })
+
+    locations.update({
+        'token_sequence_transformer.unembedding': f"{L+1}-unembed-ln",
+    })
+
+    return locations
