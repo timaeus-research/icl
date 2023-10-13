@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Callable, Dict, List, Literal, Optional, Tuple
 
 import devinfra
 import matplotlib.pyplot as plt
@@ -117,10 +117,7 @@ def plot_multi_head(axs, data, title):
 
 
 
-def plot_activations_one_sample(model, x, y, save_path, config: ICLConfig):
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-
+def plot_activations_one_sample(model, x, y, yhat, activations, config: ICLConfig, make_slug: Optional[Callable[[str], Path]]=None, make_title: Optional[Callable[[str], str]]=None):
     details = config.to_latex()
     task_config = config.task_config
 
@@ -134,19 +131,20 @@ def plot_activations_one_sample(model, x, y, save_path, config: ICLConfig):
     locations_to_display = get_model_locations_to_display(L=num_layers)
     locations_to_slug = get_model_locations_to_slug(L=num_layers)
 
-    yhat, activations = model.run_with_cache(x, y)
-
     fig, ax = plt.subplots(1, 1)
     xypred = torch.cat([x[0], y[0], yhat[0]], dim=-1).T
-    plot_matrix(ax, xypred, "Input and output")
+    title = make_title("Input, Target, and Output") if make_title is not None else "Input, Target, and Output"
+    slug = str(make_slug("4.0-x_y_and_pred")) if make_slug is not None else "4.0-x_y_and_pred"
+    plot_matrix(ax, xypred)
     ax.set_yticklabels([None, "$x$", None, None, None, "$y$", r"$\hat y$"])
-    plt.savefig(os.path.join(save_path, "4.0-x_y_and_pred.png"))
+    plt.savefig(slug + ".png")
     plt.close()
 
     for location in locations:
         display_location = locations_to_display.get(location, location)
-        title = f"{display_location}\n{details}"
+        title =  make_title(display_location) if make_title is not None else display_location
         slug = locations_to_slug.get(location, location)
+        slug = str(make_slug(slug)) if make_slug is not None else slug
 
         if location.endswith("compute"):
             fig, axs = plt.subplots(3, 1, figsize=(15, 15))
@@ -201,11 +199,13 @@ def plot_activations_one_sample(model, x, y, save_path, config: ICLConfig):
             else:
                 raise ValueError("Unsupported number of dimensions.")
 
-        plt.savefig(os.path.join(save_path, f"{slug}.png"))
+        plt.savefig(slug + ".png")
         plt.close()
 
 
-def plot_activations(model, xs, ys, save_path, config: ICLConfig, num_ws: int, num_xs: int, figsize=None):
+
+
+def plot_activations_grids(model, xs, ys, save_path, config: ICLConfig, num_ws: int, num_xs: int, figsize=None):
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -241,7 +241,7 @@ def plot_activations(model, xs, ys, save_path, config: ICLConfig, num_ws: int, n
     for i in range(num_xs):
         axes[0, i].set_title(f"Input {i}")
     
-    plt.savefig(os.path.join(save_path, "4.0-x_y_and_pred.png"))
+    plt.savefig(save_path + "-4.0-x_y_and_pred.png")
     plt.close()
 
     # for i in range(batch_size):  # Assuming batch size of 4  
@@ -354,9 +354,33 @@ def plot_activations(model, xs, ys, save_path, config: ICLConfig, num_ws: int, n
                 raise ValueError("Unsupported number of dimensions.")
 
         plt.tight_layout()
-        plt.savefig(os.path.join(save_path, f"{slug}.png"))
+        plt.savefig(save_path + f"-{slug}.png")
         plt.close()
 
+
+def plot_activations(model, xs, ys, config: ICLConfig, num_ws: int, num_xs: int, figsize=None, make_slug: Optional[Callable[[str], Path]]=None, make_title: Optional[Callable[[str], str]]=None):
+    figsize = figsize or [10 * num_xs, 10 * num_ws]
+
+    yhats, activations = model.run_with_cache(xs, ys)
+
+    for w in range(num_ws):
+        for i in range(num_xs):
+            I = w * num_xs + i
+            x = xs[I].unsqueeze(0)
+            y = ys[I].unsqueeze(0)
+            yhat = yhats[I].unsqueeze(0)
+            act = {k: v[I].unsqueeze(0) for k, v in activations.items() if v is not None}
+        
+            def _make_slug(slug):
+                slug = f"w{w}x{i}/{slug}"
+                return str(make_slug(slug) if make_slug is not None else slug)
+            
+            def _make_title(title):
+                title = f"Task {w}, Input {i}: {title}"
+                return make_title(title) if make_title is not None else title 
+
+            plot_activations_one_sample(model, x, y, yhat, act, config, make_slug=_make_slug, make_title=_make_title)
+    
 
 
 def activations_over_time(
@@ -382,7 +406,7 @@ def activations_over_time(
     if seed is not None:
         torch.manual_seed(seed)
 
-    steps = list(checkpointer.file_ids) if steps is None else steps
+    steps = list(checkpointer.file_ids) if not steps else steps
     checkpointer.file_ids = steps  # Gross, sorry. 
 
     if ws_source == "pretrain" and num_ws > run.config.task_config.num_tasks:
@@ -396,19 +420,24 @@ def activations_over_time(
     xs = torch.cat([xs_unique for _ in range(num_ws)], dim=0)
     ys = torch.cat(ys_per_ws, dim=0)
 
-    #for step, model in zip(steps, iter_models(model, checkpointer)):
-    step = 0
-    model = hook(run.model)
-    print(step)
+    for step, model in zip(steps, iter_models(model, checkpointer)):
+        print(step)
+        hooked_model = hook(model)
 
-    # print(ws.shape, xs_unique.shape, [y.shape for y in ys_per_ws])
-    # print(xs.shape, ys.shape)
+        def make_slug(slug):
+            path = FIGURES / (f"activations-{config.to_slug().replace('.', '_')}/t={step}") / slug
 
-    slug = FIGURES / (f"activations-{config.to_slug()}@t={step}".replace(".", "_"))
-    title = f"Activations for {num_ws} {ws_source} tasks of {num_xs} {xs_source} inputs \n{config.to_latex()}"
+            if not os.path.exists(os.path.dirname(path)):
+                os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    plot_activations(model, xs, ys, slug, run.config, num_ws=num_ws, num_xs=num_xs)
-    return
+            return path
+        
+        def make_title(title):
+            return title + f" at $t={step}$\n{config.to_latex()}"
+
+
+        plot_activations(hooked_model, xs, ys, run.config, num_ws=num_ws, num_xs=num_xs, make_slug=make_slug, make_title=make_title)
+        
 
 @app.command("activations")
 def activations_over_time_from_cmd_line(
