@@ -262,6 +262,7 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
         wandb.log(observables, step=step)
         cov_accumulator.reset()
 
+
 @app.command("cov")
 def llcs_and_cov_from_cmd_line(
     sweep: str = typer.Option(None, help="Path to wandb sweep YAML file"), 
@@ -299,7 +300,7 @@ def llcs_and_cov_from_wandb():
     config_dict = dict(wandb.config)
     analysis_config = config_dict.pop("analysis_config")
     config = get_config(**config_dict)
-    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
+    wandb.run.name = f"L{config_dict['task_config']['num_layers']}H{config_dict['task_config']['num_heads']}M{config_dict['task_config']['num_tasks']}"
     llcs_and_cov(config, **analysis_config)
     wandb.finish()
 
