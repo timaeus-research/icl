@@ -31,7 +31,6 @@ def iter_models(model, checkpointer, verbose=False):
         yield model
 
 
-
 def plot_attn_weights(W: torch.Tensor, num_heads: int, embed_dim: int, head_size: int, cols=("$W_Q^{(h)}$", "$W_K^{(h)}$", "$W_V^{(h)}$"), title="", save: Optional[str] = None, rows:Optional[List[str]] =None):
     if len(W.shape) == 1:  # Num heads * Embedding dimension * Head size * 3
         heads = list(split_attn_weights(W, num_heads, embed_dim, head_size))
@@ -294,7 +293,6 @@ def llcs_and_cov_from_wandb():
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
     """
-    config = get_config(project="icl", entity="devinterp")
     wandb.init(project="icl", entity="devinterp")
     print("Initialized wandb")
     config_dict = dict(wandb.config)

@@ -1,4 +1,4 @@
-name: sgld-hyperparam-grid-search
+name: L2H4-sgld-hyperparam-grid-search
 method: grid
 command: ["python", "icl/experiments/llc_sweep.py", "wandb"]
 project: icl-llc
@@ -7,7 +7,7 @@ parameters:
   analysis_config:
     parameters: 
       elasticity:
-       value: 1. # [1., 10., 100.]
+       values: [.1, 1., 10.]
       num_draws:
         value: 1000
       lr: 
@@ -32,7 +32,6 @@ parameters:
         value: 4
       num_layers:
         value: 2
-        # values: [2, 4]
       model_seed:
         value: 0
       pretrain_seed:

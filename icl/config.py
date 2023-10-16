@@ -164,6 +164,8 @@ class ICLConfig(BaseModel):
         checkpoint_config = data.get("checkpointer_config", None)
         if num_tasks is not None and checkpoint_config is not None:
             task_config_dict = data["task_config"]
+
+            # Watchh out with changing the task configs because it can break the hashing below. 
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
@@ -213,6 +215,7 @@ class ICLConfig(BaseModel):
             'B': self.batch_size,
             'T': self.num_training_samples // self.batch_size,
         }, delimiter=delimiter, equal_sign=equal_sign)
+
 
 def get_config(
     project: Optional[str] = None, entity: Optional[str] = None, **kwargs

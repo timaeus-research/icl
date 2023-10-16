@@ -95,7 +95,7 @@ def plot_matrix(ax, data, title: Optional[str] = None):
 
 def plot_attention(axs, data, titles, num_heads):
     q, k, softmax, v  = data
-    qk = q @ k.transpose(-2, -1)
+    qk = (q.unsqueeze(0) @ k.unsqueeze(0).transpose(-2, -1))[0]
 
     # Rows for each head
     # Columns for Q, K, QK, V

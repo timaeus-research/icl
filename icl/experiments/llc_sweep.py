@@ -114,6 +114,7 @@ def estimate_llc_at_end(
 
     print("\n")
     print("-" * 30 + f" M={num_tasks} " + "-" * 30)
+    # Retrieve the last available checkpoint from AWS
     run = Run.create_and_restore(config)
 
     xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
@@ -218,6 +219,7 @@ def llc_sweep_with_wandb():
 
 @app.command("plot")
 def plot_grid_search_results(csv_path: str, num_chains: int=25):
+    """TODO: Fill in docstring."""
     # Read the DataFrame from the CSV file
     df = pd.read_csv(csv_path)
 
