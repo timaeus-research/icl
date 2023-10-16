@@ -28,9 +28,11 @@ class ICLTaskConfig(BaseModel):
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
     num_heads: int = 2 # attention heads per layer 
     num_layers: int = 8 # each layer has one attention head and one MLP 
-    use_embedding: bool = True
+    use_mlp: bool = True
     use_layernorm: bool = True
     use_softmax: bool = True
+    task_init: str = 'normal' # method for instantiating tasks, 'basis' or 'normal'
+    method_params: dict = {} # parameters for task distribution initialisation
     model_seed: int = 0 # random seed 
     pretrain_seed: int = 1 
     true_seed: int = 2
@@ -59,6 +61,8 @@ class ICLTaskConfig(BaseModel):
             task_distribution=DiscreteTaskDistribution(
                 num_tasks=self.num_tasks,
                 task_size=self.task_size,
+                task_init=self.task_init,
+                method_params=self.method_params
             ),
             noise_variance=self.noise_variance,
         )
