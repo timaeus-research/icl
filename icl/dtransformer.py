@@ -36,43 +36,63 @@ class DTransformer(nn.Module):
         mlp_size,
         num_heads,
         num_layers,
+        use_mlp=True,
+        use_layernorm=True,
+        use_softmax=True,
         device='cpu',
     ):
         super().__init__()
+
+        # Embedding layer
         self.token_embedding = nn.Linear(
-            in_features=token_size,
-            out_features=embed_size,
-            bias=False,
-            device=device,
-        )
+                in_features=token_size,
+                out_features=embed_size,
+                bias=False,
+                device=device,
+            )
         self.postn_embedding = nn.Linear(
             in_features=max_tokens,
             out_features=embed_size,
             bias=False,
             device=device,
         )
+
+        # Multihead attention blocks
         self.blocks = nn.ModuleList([
             MultiHeadedCausalSelfAttentionTransformerBlock(
                 embed_size=embed_size,
                 mlp_size=mlp_size,
                 max_tokens=max_tokens,
                 num_heads=num_heads,
+                use_mlp=use_mlp,
+                use_layernorm=use_layernorm,
+                use_softmax=use_softmax,
                 device=device,
             )
             for _ in range(num_layers)
         ])
-        # unembedding
-        self.unembedding = nn.Sequential(
-            nn.LayerNorm(
-                normalized_shape=embed_size,
-                device=device,
-            ),
-            nn.Linear(
+
+        # Unembedding 
+        if use_layernorm:
+            self.unembedding = nn.Sequential(
+                nn.LayerNorm(
+                    normalized_shape=embed_size,
+                    device=device,
+                ),
+                nn.Linear(
+                    in_features=embed_size,
+                    out_features=token_size,
+                    device=device,
+                ),
+            )
+        else:
+            self.unembedding = nn.Linear(
                 in_features=embed_size,
                 out_features=token_size,
                 device=device,
-            ),
-        )
+            )
+
+
         self.max_tokens = max_tokens
         
 
@@ -112,24 +132,44 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         mlp_size,
         max_tokens,
         num_heads,
+        use_mlp,
+        use_layernorm,
+        use_softmax,
         device='cpu',
     ):
         super().__init__()
+        # Attention block
         self.attention = MultiHeadedCausalSelfAttention(
             embed_size=embed_size,
             max_tokens=max_tokens,
             num_heads=num_heads,
+            use_softmax=use_softmax,
             device=device,
         )
-        self.compute = nn.Sequential(
-            nn.Linear(embed_size, mlp_size, device=device),
-            nn.ReLU(),
-            nn.Linear(mlp_size, embed_size, device=device),
-        )
-        self.layer_norms = nn.ModuleList([
-            nn.LayerNorm(normalized_shape=embed_size, device=device)
-            for _ in ('before-attention', 'before-compute')
-        ])
+
+        # MLP block
+        if use_mlp:
+            self.compute = nn.Sequential(
+                nn.Linear(embed_size, mlp_size, device=device),
+                nn.ReLU(),
+                nn.Linear(mlp_size, embed_size, device=device),
+            )
+        else:
+            # The MLP is (we think) implicitly acting as the output matrix W_O which is otherwise missing. 
+            # Therefore instead of the identity, this should be a linear layer with no bias.
+            self.compute = nn.Linear(embed_size, embed_size, device=device)
+
+        if use_layernorm:
+            self.layer_norms = nn.ModuleList([
+                nn.LayerNorm(normalized_shape=embed_size, device=device)
+                for _ in ('before-attention', 'before-compute')
+            ])
+        else: 
+            self.layer_norms = nn.ModuleList([
+                nn.Identity()
+                for _ in ('before-attention', 'before-compute')
+            ])
+        
         self.resid_after_attn = nn.Identity()
 
     def forward(self, x):
@@ -146,6 +186,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         embed_size,
         max_tokens,
         num_heads,
+        use_softmax,
         device='cpu'
     ):
         super().__init__()
@@ -162,6 +203,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
             device=device,
         )
         self.attention_softmax = nn.Softmax(dim=-1)
+        self.use_softmax = use_softmax
 
         # precompute causal mask
         mask_shape = (max_tokens, max_tokens)
@@ -190,7 +232,11 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         A = A + self.causal_mask[:T,:T] # B H T T + . . T T -> B H T T
 
         # convert affinities to mixing weights and mix value vectors
-        p = self.attention_softmax(A)
+        if self.use_softmax:
+            p = self.attention_softmax(A)
+        else:
+            p = A
+            
         y = p @ V                   # B H T T @ B H T c -> B H T c
 
         # recombine / concatenate heads into new embedding

@@ -28,6 +28,9 @@ class ICLTaskConfig(BaseModel):
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
     num_heads: int = 2 # attention heads per layer 
     num_layers: int = 8 # each layer has one attention head and one MLP 
+    use_embedding: bool = True
+    use_layernorm: bool = True
+    use_softmax: bool = True
     model_seed: int = 0 # random seed 
     pretrain_seed: int = 1 
     true_seed: int = 2
@@ -44,6 +47,8 @@ class ICLTaskConfig(BaseModel):
             mlp_size=self.mlp_size,
             num_heads=self.num_heads,
             num_layers=self.num_layers,
+            use_layernorm=self.use_layernorm,
+            use_softmax=self.use_softmax,
         )
 
     def pretrain_dist_factory(self):
