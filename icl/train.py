@@ -154,10 +154,10 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         import torch_xla.core.xla_model as xm
         # import torch_xla.debug.metrics as met
         stdlogger.info("configuring default XLA device...")
-        config.device = xm.xla_device()
+        config.xm_device = xm.xla_device()
         stdlogger.info("xla ready!")
     else:
-        config.device = config.device # obviously redundant, kept for ease
+        config.xm_device = config.device # obviously redundant, kept for ease
 
     run = Run(config)
     model = run.model
