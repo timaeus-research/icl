@@ -146,12 +146,26 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
 
+    # special code if device is 'xla'
+    XLA = (config.device == 'xla')
+    if XLA:
+        stdlogger.info("device is 'xla'! some special code will run...")
+        stdlogger.info("importing torch_xla...")
+        import torch_xla.core.xla_model as xm
+        # import torch_xla.debug.metrics as met
+        stdlogger.info("configuring default XLA device...")
+        config.device = xm.xla_device()
+        stdlogger.info("xla ready!")
+    else:
+        config.device = config.device # obviously redundant, kept for ease
+
     run = Run(config)
     model = run.model
     model.train()
     optimizer = run.optimizer
     scheduler = run.scheduler
     pretrain_dist = run.pretrain_dist
+    if XLA: xm.mark_step()
     evaluator = run.evaluator
     checkpointer = run.checkpointer
     logger = run.logger
@@ -170,6 +184,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
             config.task_config.sampling_seed + step
         )  # For reproducibility if we resume training
 
+
         # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
             num_examples=config.task_config.max_examples,
@@ -182,6 +197,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         loss.backward()
         optimizer.step()
         scheduler.step()
+        if XLA: xm.mark_step()
 
         recent_losses[step % 100] = loss
 
@@ -193,6 +209,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
             checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
+            if XLA: xm.mark_step()
 
         if step in config.logger_config.logging_steps:
             stdlogger.info("Logging at step %s", step)
@@ -200,7 +217,11 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
             metrics = evaluator(model)
             model.train()
             logger.log(metrics, step=step)
+            if XLA: xm.mark_step()
 
+    # TODO: The config.device is only changed within the train loop, not the resume_run or checkpointing. 
+    # Its possible that this could break it later since the xm.xla_device() is not being recorded. 
+    # Hopefully the checkpointing moves it to cpu anyway. Potentially need to change the below functions (aforementioned) later. 
     if config.is_wandb_enabled:
         wandb.finish()
 
