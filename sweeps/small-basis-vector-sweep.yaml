@@ -1,4 +1,4 @@
-name: L2H1-PT-test.yaml
+name: small-basis-vector-sweep
 method: grid
 command: ["python", "-m", "icl"]
 project: icl
@@ -10,19 +10,22 @@ parameters:
         value: 8
       max_examples:
         value: 16
+      num_steps:
+        value: 10000
       num_tasks:
-        values: [8, 32, 64]
-        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+        values: [1, 2, 4, 8, 16, 32]
+        # values: [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536]
+        # values: [1, 2, 4, 8, 16, 32, 64python -m wandb sweep sweeps/, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
       noise_variance:
-        value: 0.25
+        value: 0.125
       embed_size:
         value: 128
       mlp_size:
         value: 128
       num_heads:
-        value: 1
+        values: [1, 2, 4]
       num_layers:
-        value: 2
+        values: [1, 2]
       model_seed:
         value: 0
       pretrain_seed:
@@ -31,14 +34,8 @@ parameters:
         value: 2
       sampling_seed:
         value: 3
-      use_mlp:
-        value: true
-      use_layernorm:
-        value: true
-      use_softmax:
-        value: true
       task_init_method:
-        values: ['normal', 'basis']
+        value: 'basis_vector_combinations'
       method_params: 
         parameters:
           scale_factor: 
@@ -48,6 +45,6 @@ parameters:
   optimizer_config:
     parameters:
       lr:
-        values: [0.0003, 0.001, 0.003]
+        value: 0.0003
   eval_batch_size:
     value: 2048
