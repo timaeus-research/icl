@@ -235,6 +235,7 @@ class DiscreteTaskDistribution(TaskDistribution):
         super().__init__(task_size=task_size, device=device)
         self.num_tasks = num_tasks
         self.method_params = method_params
+        self.task_init = task_init
 
         required_basis_params = {'scale_factor', 'include_zero'}
         if self.task_init == 'basis' and not required_basis_params.issubset(self.method_params.keys()):
@@ -255,8 +256,9 @@ class DiscreteTaskDistribution(TaskDistribution):
         # Creates a M D sized tensor of tasks according to the rule outlined in class docstring. 
 
         M, D = self.num_tasks, self.task_size
-        if M > 2**D:
-            raise ValueError(f"num_tasks {M} must be less than or equal to 2^task_size {2**D} at the present time.")
+        # if M > 2**D:
+        #     raise ValueError(f"num_tasks {M} must be less than or equal to 2^task_size {2**D} at the present time.")
+        excess_count = M - 2**D
 
         scale_factor, include_zero = self.method_params['scale_factor'], self.method_params['include_zero']
         
@@ -288,12 +290,24 @@ class DiscreteTaskDistribution(TaskDistribution):
                     if combination_count == 0:
                         break
                 current_combination_length += 1
+                if current_combination_length>D:
+                    break
+                print('Combination length: ' + str(current_combination_length))
 
         # scale_factor gives the option of scaling the task regression weights (in case noise_var=0.25^2 is too great). 
         # scale_factor defaults to 1.
         scaled_T = scale_factor*T
-        
-        return scaled_T.to(self.device)
+        print('Made it here')
+        # After 2**D combinations, add normally distributed tasks
+        if combination_count >0:
+            T = torch.cat((scaled_T, torch.normal(
+                mean=0.,
+                std=1.,
+                size=(combination_count, D,),
+                device=self.device,
+            )))
+
+        return T.to(self.device)
 
 
     def sample_tasks(self, n: int):
