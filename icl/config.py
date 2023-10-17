@@ -105,7 +105,7 @@ class ICLConfig(BaseModel):
     task_config: ICLTaskConfig
 
     class Config:
-        frozen = True
+        # frozen = True # So that I can update the xm_device later on
         arbitrary_types_allowed = True
 
     # Properties
