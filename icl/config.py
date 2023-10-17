@@ -267,8 +267,8 @@ def get_config(
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": 1000,
-                "linear_space": 1000,
+                "log_space": 100,
+                "linear_space": 100,
             },
             "project": project,
             "entity": entity,
@@ -293,6 +293,9 @@ def get_config(
             wandb.init(
                 project=logger_config["project"], entity=logger_config["entity"]
             )
+        
+        # Include all wandb config params to see on dashboard
+        wandb.config.update(config_dict)
 
         # d2 overrides d1 in nested_update, so all the wandb settings from the .yaml ultimately override the defaults
         nested_update(config_dict, wandb.config)
