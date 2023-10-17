@@ -271,6 +271,7 @@ def get_config(
             "entity": entity,
             # "stdout": True
         },
+        "device": 'xla',
     }
 
     nested_update(config_dict, kwargs)        
