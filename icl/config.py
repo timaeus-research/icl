@@ -42,6 +42,7 @@ class ICLTaskConfig(BaseModel):
         if self.model_seed is not None:
             set_seed(self.model_seed)
 
+        # Anything that is changed about the model must then be changed in dtransformer.py and model.py
         return InContextRegressionTransformer(
             task_size=self.task_size,
             max_examples=self.max_examples,
@@ -49,6 +50,7 @@ class ICLTaskConfig(BaseModel):
             mlp_size=self.mlp_size,
             num_heads=self.num_heads,
             num_layers=self.num_layers,
+            use_mlp =self.use_mlp,
             use_layernorm=self.use_layernorm,
             use_softmax=self.use_softmax,
         )
@@ -227,7 +229,7 @@ def get_config(
     project: Optional[str] = None, entity: Optional[str] = None, **kwargs
 ) -> ICLConfig:
     # (shared parameters)
-    num_steps = 500_000
+    num_steps = 2**18
     batch_size = 256
     max_learning_rate = 1e-3
     num_tasks = 64
@@ -262,8 +264,8 @@ def get_config(
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": 100,
-                "linear_space": 100,
+                "log_space": 1000,
+                "linear_space": 1000,
             },
             "project": project,
             "entity": entity,
@@ -288,6 +290,7 @@ def get_config(
                 project=logger_config["project"], entity=logger_config["entity"]
             )
 
+        # d2 overrides d1 in nested_update, so all the wandb settings from the .yaml ultimately override the defaults
         nested_update(config_dict, wandb.config)
         
     return ICLConfig(**config_dict)

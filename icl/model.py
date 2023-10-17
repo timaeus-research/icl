@@ -37,6 +37,9 @@ class InContextRegressionTransformer(torch.nn.Module):
         mlp_size,
         num_heads,
         num_layers,
+        use_mlp=True,
+        use_layernorm=True,
+        use_softmax=True,
         device='cpu',
     ):
         super().__init__()
@@ -47,6 +50,9 @@ class InContextRegressionTransformer(torch.nn.Module):
             mlp_size=mlp_size,
             num_heads=num_heads,
             num_layers=num_layers,
+            use_mlp=use_mlp,
+            use_layernorm=use_layernorm,
+            use_softmax=use_softmax,
             device=device,
         )
         self.task_size = task_size
