@@ -10,6 +10,7 @@ from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
 from pydantic import BaseModel, Field, model_validator
+import torch # This is for the type-hint for xm_device
 
 import wandb
 from icl.model import InContextRegressionTransformer
