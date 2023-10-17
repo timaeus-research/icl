@@ -150,7 +150,7 @@ LayerWeightsAccessor = Callable[[nn.Module], torch.Tensor]
 
 class WithinLayerCovarianceAccumulator:
     """
-    A CovarianceAccumulator to compute covariance within attention heads.
+    A CovarianceAccumulator to compute covariance between arbitrary layers.
     For use with `estimate`.
 
     Attributes:
@@ -256,18 +256,10 @@ class WithinLayerCovarianceAccumulator:
 
 class BetweenLayerCovarianceAccumulator:
     """
-    A CovarianceAccumulator to compute covariance between different layers.
+    A CovarianceAccumulator to compute covariance between arbitrary layers.
     For use with `estimate`.
-
-    Attributes:
-        num_heads (int): The number of attention heads.
-        num_weights_per_head (int): The number of weights per attention head.
-        accessors (List[LayerWeightsAccessor]): Functions to access attention head weights.
-        num_layers (int): The number of layers (= number of accessors).
-        num_weights_per_layer (int): The number of weights per layer.
-        num_weights (int): The total number of weights.
     """
-    def __init__(self, model, pairs: Dict[str, Tuple[str, str]], device = "cpu", num_evals=3, **accessors: LayerWeightsAccessor):
+    def __init__(self, model, pairs: Dict[str, Tuple[str, str]], device = "cpu", num_evals=3, **accessors: Dict[str, LayerWeightsAccessor]):
         self.num_layers = len(accessors)
         self.accessors = accessors
         self.pairs = pairs

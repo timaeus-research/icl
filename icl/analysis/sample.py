@@ -172,6 +172,7 @@ def sample_single_chain(
         torch.manual_seed(seed)
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
+
     model.train()
 
     for i, (xs, ys) in  tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose):
@@ -293,9 +294,11 @@ def estimate_slt_observables(
 ):
 
     if online:
-        callbacks.append(OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device))
+        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
     else:
-        callbacks.append(LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device))
+        llc_estimator = LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+
+    callbacks = [llc_estimator, *callbacks]
 
     sample(
         model=model,
@@ -311,7 +314,7 @@ def estimate_slt_observables(
         seed=seed,
         verbose=verbose,
         device=device,
-        callbacks=callbacks,
+        callbacks=callbacks
     )
 
     results = {}

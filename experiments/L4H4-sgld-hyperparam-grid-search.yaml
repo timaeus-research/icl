@@ -1,0 +1,48 @@
+name: L4H4-sgld-hyperparam-grid-search
+method: grid
+command: ["python", "icl/experiments/llc_sweep.py", "wandb"]
+project: icl-llc
+entity: devinterp
+parameters:
+  analysis_config:
+    parameters: 
+      elasticity:
+       values: [.1, 1., 10.]
+      num_draws:
+        value: 1000
+      lr: 
+        values: [0.000001, 0.00001, 0.0001, 0.0003, 0.001]
+      num_chains:
+        value: 25
+  task_config: 
+    parameters:
+      task_size:
+        value: 4
+      max_examples:
+        value: 8
+      num_tasks:
+        values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+      noise_variance:
+        value: 0.125
+      embed_size:
+        value: 64
+      mlp_size:
+        value: 64
+      num_heads:
+        value: 4
+      num_layers:
+        value: 4
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: 1
+      true_seed:
+        value: 2
+      sampling_seed:
+        value: 3
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.01
+  eval_batch_size:
+    value: 1024

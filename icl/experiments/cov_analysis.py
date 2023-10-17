@@ -187,7 +187,10 @@ def plot_evecs(evals: Dict[str, np.ndarray], evecs: Dict[str, np.ndarray], shape
 
 def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: int=1000, num_chains: int=10, device: Optional[str]=None, cores: Optional[int]=None, num_evals=3, steps: Optional[list] = None):
     cores = cores or int(os.environ.get("CORES", cpu_count() // 2))
-    device = device or get_default_device()
+    device: str = device or str(get_default_device())
+
+    wandb.init(project="icl", entity="devinterp")
+    wandb.run.name = f"L{config.task_config.num_layers}H{config.task_config.num_heads}M{config.task_config.num_tasks}"
 
     run = Run(config)
     print(run.config.to_slug(delimiter="-"))
@@ -222,8 +225,10 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
     # logger = run.logger
     # print([l for l in logger.loggers])
 
-    steps = list(checkpointer.file_ids) if steps is None else steps
+    steps = list(checkpointer.file_ids) if not steps else steps
     checkpointer.file_ids = steps  # Gross, sorry. 
+
+    print("Steps:", steps)
 
     for step, model in zip(steps, iter_models(model, checkpointer)):
         print(step)
@@ -261,6 +266,7 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
         wandb.log(observables, step=step)
         cov_accumulator.reset()
 
+    wandb.finish()
 
 @app.command("cov")
 def llcs_and_cov_from_cmd_line(
