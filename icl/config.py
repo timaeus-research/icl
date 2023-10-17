@@ -99,7 +99,7 @@ class ICLConfig(BaseModel):
     # Misc
     device: str = Field(default_factory=get_default_device)
     criterion: CriterionLiteral = "cross_entropy"
-    xm_device: torch.device = torch.device("cpu") # THIS COULD BE BAD
+    xm_device: "torch.device" = torch.device("cpu") # THIS COULD BE BAD
 
     eval_batch_size: int
     task_config: ICLTaskConfig
