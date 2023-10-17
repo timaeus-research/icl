@@ -106,6 +106,7 @@ class ICLConfig(BaseModel):
 
     class Config:
         frozen = True
+        arbitrary_types_allowed = True
 
     # Properties
 
