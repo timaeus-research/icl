@@ -1,4 +1,4 @@
-name: L2H1-PT-test.yaml
+name: L2H1-PTs.yaml
 method: grid
 command: ["python", "-m", "icl"]
 project: icl
@@ -51,5 +51,3 @@ parameters:
         values: [0.0003, 0.001, 0.003]
   eval_batch_size:
     value: 2048
-  num_steps:
-    value: 1000
