@@ -26,7 +26,7 @@ if __name__ == "__main__":
     )
 
     logging.basicConfig(level=logging.INFO)
-    # config = get_config(project="icl", entity="devinterp")
-    config = get_config()
+    config = get_config(project="icl", entity="devinterp")
+    #config = get_config()
     train(config, is_debug=False)
 
