@@ -197,7 +197,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         scheduler.step()
         if XLA: xm.mark_step()
 
-        recent_losses[step % 100] = loss
+        #recent_losses[step % 100] = loss
 
         if step % 100 == 0 and step > 0 and config.is_wandb_enabled:
             # TODO: Figure out how to make this work with Logger
@@ -304,7 +304,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
     )
 
     num_steps = config.num_steps
-    recent_losses = torch.zeros(100, device=config.device)
+    #recent_losses = torch.zeros(100, device=config.device)
 
     # training loop
     for step in tqdm.trange(last_checkpoint_step + 1, num_steps, desc="Training..."):
@@ -325,7 +325,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         optimizer.step()
         scheduler.step()
 
-        recent_losses[step % 100] = loss
+        #recent_losses[step % 100] = loss
 
         if step % 100 == 0 and step > last_log_step and config.is_wandb_enabled:
             wandb.log({"batch/loss": loss.mean().item()}, step=step)
