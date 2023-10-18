@@ -173,10 +173,8 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     num_steps = config.num_steps
 
     # Let's only train until 50% checkpoint.
-    checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
-    num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
-
-    recent_losses = torch.zeros(100, device=config.device)
+    # checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
+    # recent_losses = torch.zeros(100, device=config.device)
 
     # training loop
     for step in tqdm.trange(num_steps, desc="Training..."):

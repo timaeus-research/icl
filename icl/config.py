@@ -267,8 +267,8 @@ def get_config(
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": 100,
-                "linear_space": 100,
+                "log_space": 200,
+                "linear_space": 200,
             },
             "project": project,
             "entity": entity,
