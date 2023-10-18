@@ -293,11 +293,11 @@ def get_config(
             wandb.init(
                 project=logger_config["project"], entity=logger_config["entity"]
             )
-        
-        # Include all wandb config params to see on dashboard
-        wandb.config.update(config_dict)
 
         # d2 overrides d1 in nested_update, so all the wandb settings from the .yaml ultimately override the defaults
         nested_update(config_dict, wandb.config)
+
+        # Include all wandb config params to see on dashboard
+        wandb.config.update(config_dict)
         
     return ICLConfig(**config_dict)

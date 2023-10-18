@@ -51,3 +51,5 @@ parameters:
         values: [0.0003, 0.001, 0.003]
   eval_batch_size:
     value: 2048
+  num_steps:
+    value: 1000
