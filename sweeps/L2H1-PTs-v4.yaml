@@ -39,7 +39,7 @@ parameters:
       use_softmax:
         value: true
       task_init:
-        value: 'basis'
+        value: ['basis', 'normal']
       method_params: 
         parameters:
           scale_factor: 

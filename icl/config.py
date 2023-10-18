@@ -292,8 +292,7 @@ def get_config(
             )
         else:
             wandb.init(
-                project=logger_config["project"], entity=logger_config["entity"],
-                name=f"L{}H{}M{}"
+                project=logger_config["project"], entity=logger_config["entity"]
             )
 
         # d2 overrides d1 in nested_update, so all the wandb settings from the .yaml ultimately override the defaults
