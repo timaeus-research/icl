@@ -302,6 +302,9 @@ def get_config(
         wandb.config.update(config_dict)
 
     wandb_config = wandb.config
+
+    print(wandb_config)
+
     run_name = 'L{l}H{h}M{m:02}_MLP-{mlp}_noisevar-{noise}_taskinit-{task_init}'.format(
         l=wandb_config['task_config']['num_layers'],
         h=wandb_config['task_config']['num_heads'],
