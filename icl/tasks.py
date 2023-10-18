@@ -252,6 +252,8 @@ class DiscreteTaskDistribution(TaskDistribution):
         elif task_init == 'basis':
             self.tasks = self.generate_basis_vector_tasks()
 
+        print(f"task-init is {task_init}")
+
     def generate_basis_vector_tasks(self):
         # Creates a M D sized tensor of tasks according to the rule outlined in class docstring. 
 

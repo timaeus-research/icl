@@ -12,6 +12,7 @@ from devinfra.utils.seed import set_seed
 from pydantic import BaseModel, Field, model_validator
 import torch # This is for the type-hint for xm_device
 from numpy import log2
+from icl.utils import print_dict
 
 import wandb
 from icl.model import InContextRegressionTransformer
@@ -303,14 +304,15 @@ def get_config(
 
     wandb_config = wandb.config
 
-    print(wandb_config)
+
+    print_dict(wandb_config)
 
     run_name = 'L{l}H{h}M{m:02}_MLP-{mlp}_noisevar-{noise}_taskinit-{task_init}'.format(
         l=wandb_config['task_config']['num_layers'],
         h=wandb_config['task_config']['num_heads'],
         m=int(log2(wandb_config['task_config']['num_tasks'])),
         mlp=str(wandb_config['task_config']['use_mlp']),
-        noise = wandb_config['task_config']['noise_var'],
+        noise = wandb_config['task_config']['noise_variance'],
         task_init= wandb_config['task_config']['task_init'],
     )
         

@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import pprint
 
 
 def directory_creator(directory, new_subdir):
@@ -127,3 +128,6 @@ def get_model_locations_to_slug(L: int):
     })
 
     return locations
+
+def print_dict(d):
+    pprint.pprint(d, width=1)
