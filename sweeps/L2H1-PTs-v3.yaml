@@ -1,0 +1,53 @@
+name: L2H1-PTs-v3
+method: grid
+command: ["python", "-m", "icl"]
+project: icl
+entity: devinterp
+parameters:
+  task_config: 
+    parameters:
+      task_size:
+        value: 8
+      max_examples:
+        value: 16
+      num_tasks:
+        values: [8, 32, 64]
+        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+      noise_variance:
+        value: 0.25
+      embed_size:
+        value: 128
+      mlp_size:
+        value: 128
+      num_heads:
+        value: 1
+      num_layers:
+        value: 2
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: 1
+      true_seed:
+        value: 2
+      sampling_seed:
+        value: 3
+      use_mlp:
+        value: true
+      use_layernorm:
+        value: true
+      use_softmax:
+        value: true
+      task_init_method:
+        values: ['normal', 'basis']
+      method_params: 
+        parameters:
+          scale_factor: 
+            value: 1.0
+          include_zero: 
+            value: true
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.003
+  eval_batch_size:
+    value: 2048

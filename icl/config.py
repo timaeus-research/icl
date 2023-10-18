@@ -11,6 +11,7 @@ from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
 from devinfra.utils.seed import set_seed
 from pydantic import BaseModel, Field, model_validator
 import torch # This is for the type-hint for xm_device
+from numpy import log2
 
 import wandb
 from icl.model import InContextRegressionTransformer
@@ -267,8 +268,8 @@ def get_config(
         # for wandb?
         "logger_config": {
             "logging_steps": {
-                "log_space": 200,
-                "linear_space": 200,
+                "log_space": 1000,
+                "linear_space": 1000,
             },
             "project": project,
             "entity": entity,
@@ -291,7 +292,8 @@ def get_config(
             )
         else:
             wandb.init(
-                project=logger_config["project"], entity=logger_config["entity"]
+                project=logger_config["project"], entity=logger_config["entity"],
+                name=f"L{}H{}M{}"
             )
 
         # d2 overrides d1 in nested_update, so all the wandb settings from the .yaml ultimately override the defaults
@@ -299,5 +301,17 @@ def get_config(
 
         # Include all wandb config params to see on dashboard
         wandb.config.update(config_dict)
+
+    wandb_config = wandb.config
+    run_name = 'L{l}H{h}M{m:02}_MLP-{mlp}_noisevar-{noise}_taskinit-{task_init}'.format(
+        l=wandb_config['task_config']['num_layers'],
+        h=wandb_config['task_config']['num_heads'],
+        m=int(log2(wandb_config['task_config']['num_tasks'])),
+        mlp=str(wandb_config['task_config']['use_mlp']),
+        noise = wandb_config['task_config']['noise_var'],
+        task_init= wandb_config['task_config']['task_init'],
+    )
+        
+    wandb.run.name = run_name
         
     return ICLConfig(**config_dict)
