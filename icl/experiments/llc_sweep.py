@@ -222,6 +222,7 @@ def llc_sweep_with_wandb():
     title_config = sampler_config.copy()
     del title_config["num_draws"]
     del title_config["num_chains"]
+    del title_config["batch_size"]
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}:{pyvar_dict_to_slug(title_config)}"
     wandb.run.save()
     estimate_llc_at_end(config, sampler_config)
