@@ -159,10 +159,11 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     num_steps = config.num_steps
 
     recent_losses = torch.zeros(100, device=config.device)
+    sampling_seed = config.task_config.sampling_seed if config.task_config.sampling_seed is not None else config.task_config.pretrain_seed * num_steps
 
     for step in tqdm.trange(num_steps, desc="Training..."):
         set_seed(
-            config.task_config.sampling_seed + step
+            sampling_seed + step
         )  # For reproducibility if we resume training
 
         xs, ys = pretrain_dist.get_batch(
