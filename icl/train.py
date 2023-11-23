@@ -158,26 +158,19 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     num_steps = config.num_steps
 
-    # Let's only train until 50% checkpoint.
-    checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
-    num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
-
     recent_losses = torch.zeros(100, device=config.device)
 
-    # training loop
     for step in tqdm.trange(num_steps, desc="Training..."):
         set_seed(
             config.task_config.sampling_seed + step
         )  # For reproducibility if we resume training
 
-        # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
             num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
         ys_pred = model(xs, ys)
         loss = F.mse_loss(ys, ys_pred)
-        # backward pass and gradient step
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()

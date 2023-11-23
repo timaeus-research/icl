@@ -12,7 +12,8 @@ from torch.nn import functional as F
 
 import wandb
 from icl.analysis.sample import sample
-from icl.config import get_config
+from icl.config import ICLConfig, get_config
+from icl.evals import ICLEvaluator
 from icl.experiments.utils import *
 from icl.train import Run
 from icl.utils import pyvar_dict_to_latex, pyvar_dict_to_slug
@@ -103,7 +104,7 @@ def estimate_llc_at_end(
     sampler_config: dict,
 ):      
     cores = int(os.environ.get("CORES", 1))
-    config = get_config(**config)
+    config: ICLConfig = get_config(**config)
 
     print("Loaded configs")
 
@@ -112,10 +113,20 @@ def estimate_llc_at_end(
     num_heads = config.task_config.num_heads
     num_tasks = config.task_config.num_tasks
 
+    batch_size = sampler_config.pop("batch_size", 128)
+
     print("\n")
     print("-" * 30 + f" M={num_tasks} " + "-" * 30)
     # Retrieve the last available checkpoint from AWS
     run = Run.create_and_restore(config)
+
+    run.evaluator = ICLEvaluator(
+        pretrain_dist=run.pretrain_dist,
+        true_dist=run.true_dist,
+        max_examples=config.task_config.max_examples,
+        eval_batch_size=batch_size,
+        seed=config.task_config.true_seed,
+    )
 
     xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
     dataset = torch.utils.data.TensorDataset(xs, ys)
