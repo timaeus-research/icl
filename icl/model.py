@@ -38,6 +38,7 @@ class InContextRegressionTransformer(torch.nn.Module):
         num_heads,
         num_layers,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.token_sequence_transformer = DTransformer(
@@ -48,6 +49,7 @@ class InContextRegressionTransformer(torch.nn.Module):
             num_heads=num_heads,
             num_layers=num_layers,
             device=device,
+            layer_norm=layer_norm
         )
         self.task_size = task_size
         self.max_examples = max_examples

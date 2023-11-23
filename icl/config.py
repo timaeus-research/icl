@@ -32,6 +32,7 @@ class ICLTaskConfig(BaseModel):
     pretrain_seed: int = 1 
     true_seed: int = 2
     sampling_seed: int = 3
+    layer_norm: bool = True
 
     def model_factory(self):
         if self.model_seed is not None:
@@ -44,6 +45,7 @@ class ICLTaskConfig(BaseModel):
             mlp_size=self.mlp_size,
             num_heads=self.num_heads,
             num_layers=self.num_layers,
+            layer_norm=self.layer_norm,
         )
 
     def pretrain_dist_factory(self):
@@ -163,9 +165,14 @@ class ICLConfig(BaseModel):
         # Automatically fill in the project_dir field of the checkpointer
         checkpoint_config = data.get("checkpointer_config", None)
         if num_tasks is not None and checkpoint_config is not None:
-            task_config_dict = data["task_config"]
+            task_config_dict = data["task_config"].copy()
 
             # Watchh out with changing the task configs because it can break the hashing below. 
+
+            # For compatibility with old configs
+            if task_config_dict.get('layer_norm', True):
+                del task_config_dict['layer_norm']
+
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
