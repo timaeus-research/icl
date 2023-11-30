@@ -124,13 +124,13 @@ def estimate_llc_at_end(
         pretrain_dist=run.pretrain_dist,
         true_dist=run.true_dist,
         max_examples=config.task_config.max_examples,
-        eval_batch_size=batch_size,
+        eval_batch_size=batch_size * sampler_config['num_chains'] * sampler_config['num_draws'],
         seed=config.task_config.true_seed,
     )
 
     xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
     dataset = torch.utils.data.TensorDataset(xs, ys)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=len(dataset)) 
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)  # Shuffle might meant repeats
     
     num_chains = sampler_config.pop("num_chains", 25)
     num_draws = sampler_config.pop("num_draws", 1000)

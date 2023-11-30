@@ -170,7 +170,7 @@ class ICLConfig(BaseModel):
             # Watchh out with changing the task configs because it can break the hashing below. 
 
             # For compatibility with old configs
-            if task_config_dict.get('layer_norm', True):
+            if task_config_dict.get('layer_norm', False):
                 del task_config_dict['layer_norm']
 
             task_config_hash = hash_dict(task_config_dict)[:6]

@@ -19,6 +19,7 @@ from icl.analysis.llc import make_slt_evals
 from icl.analysis.utils import (get_sweep_configs, get_unique_config,
                                 split_attn_weights)
 from icl.config import ICLConfig, get_config
+from icl.evals import ICLEvaluator
 from icl.experiments.utils import *
 from icl.train import Run
 
@@ -185,7 +186,7 @@ def plot_evecs(evals: Dict[str, np.ndarray], evecs: Dict[str, np.ndarray], shape
 
 
 
-def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: int=1000, num_chains: int=10, device: Optional[str]=None, cores: Optional[int]=None, num_evals=3, steps: Optional[list] = None):
+def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: int=1000, num_chains: int=10, device: Optional[str]=None, cores: Optional[int]=None, num_evals=3, steps: Optional[list] = None, batch_size=1024):
     cores = cores or int(os.environ.get("CORES", cpu_count() // 2))
     device: str = device or str(get_default_device())
 
@@ -197,11 +198,24 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
     model = run.model
     model.train()
     checkpointer = run.checkpointer
+
+    run.evaluator = ICLEvaluator(
+        pretrain_dist=run.pretrain_dist,
+        true_dist=run.true_dist,
+        max_examples=config.task_config.max_examples,
+        eval_batch_size=batch_size * num_chains * num_draws,  # Larger than the n used during sampling
+        seed=config.task_config.true_seed,
+    )
+
     xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
     trainset = torch.utils.data.TensorDataset(xs, ys)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=len(xs))
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size)
 
-    cov_accumulator = make_transformer_cov_accumulator(model, device=device, num_evals=num_evals)
+    callbacks = []
+
+    if num_evals > 0:
+        cov_accumulator = make_transformer_cov_accumulator(model, device=device, num_evals=num_evals)
+        callbacks.append(cov_accumulator)
 
     slt_evals = make_slt_evals(
         dataset=trainset,
@@ -214,7 +228,8 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
         num_draws=num_draws,
         num_chains=num_chains,
         device=device,
-        callbacks=[cov_accumulator]
+        callbacks=callbacks,
+        num_samples=batch_size
     )
 
     # slug = run.config.to_slug(delimiter="-")
@@ -234,37 +249,39 @@ def llcs_and_cov(config: ICLConfig, gamma: float=1., lr: float=1e-4, num_draws: 
         print(step)
         observables = slt_evals(run.model)
 
-        trace = observables.pop("loss/trace")
-        covariances = cov_accumulator.to_eigens()
+        if num_evals > 0:
+            trace = observables.pop("loss/trace")
+            covariances = cov_accumulator.to_eigens()
 
-        # original_shapes = {name: tuple(accessor(model).shape) for name, accessor in cov_accumulator.accessors.items()}
-        # principal_evals = {}
-        # principal_evecs= {}
+            # original_shapes = {name: tuple(accessor(model).shape) for name, accessor in cov_accumulator.accessors.items()}
+            # principal_evals = {}
+            # principal_evecs= {}
 
-        for name, results in covariances.items():
-            evecs, evals = results["evecs"], results["evals"]
+            for name, results in covariances.items():
+                evecs, evals = results["evecs"], results["evals"]
 
-            parts = [p.split(":")[-1].replace("/", ".") for p in name.split("-")]
-            obs_name = "x".join(parts)
+                parts = [p.split(":")[-1].replace("/", ".") for p in name.split("-")]
+                obs_name = "x".join(parts)
 
-            if len(parts) == 1:
-                obs_name = "within/" + obs_name
-            else:
-                obs_name = "between/" + obs_name
+                if len(parts) == 1:
+                    obs_name = "within/" + obs_name
+                else:
+                    obs_name = "between/" + obs_name
 
-            for i in range(num_evals):
-                observables[f"cov_eval_{i}/{obs_name}"] = evals[i]
+                for i in range(num_evals):
+                    observables[f"cov_eval_{i}/{obs_name}"] = evals[i]
 
-            # principal_evals[name] = evals[0]
-            # principal_evecs[name] = evecs[:, 0]
+                # principal_evals[name] = evals[0]
+                # principal_evecs[name] = evecs[:, 0]
 
-        # slug = FIGURES / (f"cov-{config.to_slug()}@t={step}".replace(".", "_"))
-        # title = f"Principal covariance eigenvalues\n{config.to_latex()}"
+            # slug = FIGURES / (f"cov-{config.to_slug()}@t={step}".replace(".", "_"))
+            # title = f"Principal covariance eigenvalues\n{config.to_latex()}"
 
-        # plot_evecs(evals=principal_evals, evecs=principal_evecs, shapes=original_shapes, title=title, save=slug)
-        # logger.log(observables, step=step)
+            # plot_evecs(evals=principal_evals, evecs=principal_evecs, shapes=original_shapes, title=title, save=slug)
+            # logger.log(observables, step=step)
+            cov_accumulator.reset()
+
         wandb.log(observables, step=step)
-        cov_accumulator.reset()
 
     wandb.finish()
 
@@ -281,6 +298,7 @@ def llcs_and_cov_from_cmd_line(
     num_draws: int = typer.Option(None, help="Number of draws"), 
     num_chains: int = typer.Option(None, help="Number of chains"), 
     steps: Optional[List[int]] = typer.Option(None, help="Step"), 
+    batch_size: Optional[int] = typer.Option(None, help="Batch size")
 ):
     """
     Initialise and train an InContextRegressionTransformer model, tracking
@@ -288,7 +306,7 @@ def llcs_and_cov_from_cmd_line(
     """
         
     filters = rm_none_vals(dict(task_config={"num_tasks": num_tasks, "num_layers": num_layers, "num_heads": num_heads, "embed_size": embed_size}, optimizer_config={"lr": lr}))
-    analysis_config = rm_none_vals(dict(gamma=gamma, lr=epsilon, num_draws=num_draws, num_chains=num_chains,  steps=steps))
+    analysis_config = rm_none_vals(dict(gamma=gamma, lr=epsilon, num_draws=num_draws, num_chains=num_chains,  steps=steps, batch_size=batch_size))
     config = get_unique_config(sweep, **filters)
     llcs_and_cov(config, **analysis_config)
 

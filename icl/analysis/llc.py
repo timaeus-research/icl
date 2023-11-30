@@ -47,7 +47,8 @@ def make_slt_evals(
     num_steps_bw_draws: int = 1,
     cores: int = 1,
     device: str = "cpu",
-    callbacks: List[Callable] = []
+    callbacks: List[Callable] = [],
+    num_samples: Optional[int] = None
 ):
     def eval_rlct(model: nn.Module):
         optimizer_kwargs = dict(
@@ -56,7 +57,7 @@ def make_slt_evals(
             weight_decay=weight_decay,
             elasticity=elasticity,
             temperature="adaptive",
-            num_samples=len(dataset),
+            num_samples=num_samples or len(dataset),
         )
         return estimate_slt_observables(
             model,
