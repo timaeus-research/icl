@@ -6,8 +6,21 @@ import torch
 from scipy.sparse.linalg import eigsh
 from torch import nn
 
-from icl.analysis.sample import get_weights
 
+def get_weights(model, paths):
+    for path in paths:
+        full_path = path.split(".")
+        layer = model
+
+        for p in full_path:
+            layer = getattr(layer, p)
+
+        yield layer.weight.view((-1,))
+
+        if layer.bias is not None:
+            yield layer.bias.view((-1,))
+ 
+ 
 
 class CovarianceCallback:
     def __init__(self, num_weights: int, device = "cpu", paths: List[str] = [], num_evals=3):

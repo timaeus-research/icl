@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from icl.analysis.cov import WithinHeadCovarianceCallback
+from icl.analysis.sample import make_slt_evals
 
 load_dotenv()
 
@@ -44,7 +45,7 @@ from tqdm import tqdm
 from typer import Typer
 
 import wandb
-from icl.analysis.llc import make_slt_evals, map_slt_evals_over_run
+from icl.analysis.llc import map_slt_evals_over_run
 from icl.analysis.utils import (generate_config_dicts_from_path,
                                 get_unique_run, split_attn_weights)
 from icl.config import ICLConfig, get_config

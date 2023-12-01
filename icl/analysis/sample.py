@@ -21,6 +21,7 @@ import torch
 import yaml
 from devinfra.evals import Criterion
 from devinterp.optim.sgld import SGLD
+from devinterp.optim.sgnht import SGNHT
 from torch import nn
 from torch.multiprocessing import (Pool, cpu_count, get_context,
                                    set_start_method)
@@ -29,122 +30,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typer import Typer
 
+from icl.analysis.llc import (LLCEstimator, ObservedOnlineLLCEstimator,
+                              OnlineLLCEstimator)
 from icl.analysis.utils import get_unique_run
 from icl.config import ICLConfig, get_config
 from icl.train import Run
-
-
-def get_weights(model, paths):
-    for path in paths:
-        full_path = path.split(".")
-        layer = model
-
-        for p in full_path:
-            layer = getattr(layer, p)
-
-        yield layer.weight.view((-1,))
-
-        if layer.bias is not None:
-            yield layer.bias.view((-1,))
- 
- 
-class LLCEstimator:
-    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
-        self.num_chains = num_chains
-        self.num_draws = num_draws
-        self.n = torch.tensor(n, dtype=torch.float32).to(device)
-        self.losses = np.zeros((num_chains, num_draws), dtype=np.float32)
-        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
-        self.llc_mean = torch.tensor(0., dtype=torch.float32).to(device)
-        self.llc_std = torch.tensor(0., dtype=torch.float32).to(device)
-
-    def update(self, chain: int, draw: int, loss: float):
-        self.losses[chain, draw] = loss 
-
-    @property
-    def init_loss(self):
-        return self.losses[0, 0]
-
-    def finalize(self):
-        avg_losses = self.losses.mean(axis=1)
-        self.llc_per_chain = (self.n / self.n.log()).detach().cpu().numpy() * (avg_losses - self.init_loss)
-        self.llc_mean = self.llc_per_chain.mean()
-        self.llc_std = self.llc_per_chain.std()
-        
-    def sample(self):
-        return {
-            "llc/mean": self.llc_mean.item(),
-            "llc/std": self.llc_std.item(),
-            **{f"llc-chain/{i}": self.llc_per_chain[i].item() for i in range(self.num_chains)},
-            "loss/trace": self.losses,
-        }
-    
-    def __call__(self, chain: int, draw: int, loss: float):
-        self.update(chain, draw, loss)
-
-
-class OnlineLLCEstimator:
-    def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu"):
-        self.num_chains = num_chains
-        self.num_draws = num_draws
-        self.n = torch.tensor(n, dtype=torch.float32).to(device)
-        self.losses = np.zeros((num_chains, num_draws), dtype=torch.float32)
-        self.llcs = np.zeros((num_chains, num_draws), dtype=torch.float32)
-        self.llc_per_chain = torch.zeros(num_chains, dtype=torch.float32).to(device)
-        self.llc_means = torch.tensor(num_chains, dtype=torch.float32).to(device)
-        self.llc_stds = torch.tensor(num_chains, dtype=torch.float32).to(device)
-
-    def share_memory_(self):
-        self.n.share_memory_()
-        self.llc_per_chain.share_memory_()
-        self.llc_means.share_memory_()
-        self.llc_stds.share_memory_()
-
-        return self
-
-    def update(self, chain: int, draw: int, loss: float):
-        self.losses[chain, draw] = loss 
-
-        if draw == 0:  # TODO: We can probably drop this and it still works (but harder to read)
-            self.llcs[0, draw] = 0.
-        else:
-            t = draw + 1
-            prev_llc = self.llcs[chain, draw - 1]
-
-            with torch.no_grad():
-                self.llcs[chain, draw] = (1 / t) * (
-                    (t - 1) * prev_llc + (self.n / self.n.log()) * (loss - self.init_loss)
-                )
-
-    @property
-    def init_loss(self):
-        return self.losses[0, 0]
-
-    def finalize(self):
-        self.llc_means = self.llcs.mean(axis=0)
-        self.llc_stds = self.llcs.std(axis=0)
-
-    def sample(self):
-        return {
-            "llc/means": self.llc_means.cpu().numpy(),
-            "llc/stds": self.llc_stds.cpu().numpy(),
-            "llc/trace": self.llcs.cpu().numpy(),
-            "loss/trace": self.losses.cpu().numpy(),
-        }
-    
-    def __call__(self, chain: int, draw: int, loss: float):
-        self.update(chain, draw, loss)
-
-
-def call_with(func: Callable, **kwargs):
-    """Check the func annotation and call with only the necessary kwargs."""
-    sig = inspect.signature(func)
-    
-    # Filter out the kwargs that are not in the function's signature
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
-    
-    # Call the function with the filtered kwargs
-    return func(**filtered_kwargs)
 
 
 def sample_single_chain(
@@ -290,13 +180,16 @@ def estimate_slt_observables(
     verbose: bool = True,
     device: str = "cpu",
     callbacks: List[Callable] = [],
-    online: bool = False,
+    online: Union[bool, Literal['observed']] = False,
 ):
+    num_samples: int = optimizer_kwargs["num_samples"]
 
-    if online:
-        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+    if online == "observed":
+        llc_estimator = ObservedOnlineLLCEstimator(num_chains, num_draws, num_samples, device=device)
+    elif online:
+        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, num_samples, device=device)
     else:
-        llc_estimator = LLCEstimator(num_chains, num_draws, len(loader.dataset), device=device)
+        llc_estimator = LLCEstimator(num_chains, num_draws, num_samples, device=device)
 
     callbacks = [llc_estimator, *callbacks]
 
@@ -324,4 +217,58 @@ def estimate_slt_observables(
             results.update(callback.sample())
 
     return results
+
+
+def make_slt_evals(
+    dataset: torch.utils.data.Dataset,
+    loader: torch.utils.data.DataLoader,
+    lr: float = 1e-4,
+    noise_level: float = 1.0,
+    weight_decay: float = 0.0,
+    elasticity: float = 1.0,
+    num_draws: int = 10,
+    num_chains: int = 25,
+    num_burnin_steps: int = 0,
+    num_steps_bw_draws: int = 1,
+    cores: int = 1,
+    device: str = "cpu",
+    callbacks: List[Callable] = [],
+    num_samples: Optional[int] = None,
+    sampling_method: Literal["sgld", "sgnht"] = "sgld",
+    **optimizer_kwargs
+):
+    
+    if sampling_method == "sgld":
+        optimizer_class = SGLD
+    elif sampling_method == "sgnht":
+        optimizer_class = SGNHT
+    else:
+        raise ValueError(f"Unknown sampling method: {sampling_method}")
+
+    optimizer_kwargs.update(dict(
+        lr=lr,
+        noise_level=noise_level,
+        weight_decay=weight_decay,
+        elasticity=elasticity,
+        temperature="adaptive",
+        num_samples=num_samples or len(dataset),
+    ))
+
+    def eval_rlct(model: nn.Module):
+        return estimate_slt_observables(
+            model,
+            loader,
+            F.mse_loss,
+            optimizer_class,
+            optimizer_kwargs,
+            num_draws=num_draws,
+            num_chains=num_chains,
+            num_burnin_steps=num_burnin_steps,
+            num_steps_bw_draws=num_steps_bw_draws,
+            cores=cores,
+            device=device,
+            callbacks=callbacks
+        )
+
+    return eval_rlct
 
