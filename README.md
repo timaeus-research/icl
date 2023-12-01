@@ -158,3 +158,15 @@ some atefacts such as commit messages referencing unrelated files and
 projects.
 Furthermore, for posterity, there is some discussion around metrics in
 [this PR](https://github.com/timaeus-research/devinterp/pull/2).
+
+
+Analysis
+--------
+
+
+Generate activation plots for each checkpoint in a run:
+
+```
+ CORES=1 PYTORCH_ENABLE_MPS_FALLBACK=1 python icl/experiments/activations_analysis.py activations --sweep rlct-sweeps/L2H4-activations.yaml --num-tasks 1 
+```
+
