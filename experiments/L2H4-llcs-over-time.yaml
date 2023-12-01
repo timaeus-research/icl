@@ -1,6 +1,6 @@
-name: L2H4-covariances
+name: L2H4-llcs-over-time
 method: grid
-command: ["python", "icl/experiments/cov_analysis.py", "wandb"]
+command: ["python", "icl/experiments/sweep_over_time.py", "wandb"]
 project: icl
 entity: devinterp
 parameters:

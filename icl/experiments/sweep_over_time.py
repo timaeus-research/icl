@@ -30,6 +30,7 @@ def sweep_over_time(
     config: ICLConfig,
     sampler_config: dict,
     steps: Optional[List[int]] = None,
+    use_wandb: bool = False,
 ):      
     cores = int(os.environ.get("CORES", 1))
     device = get_default_device()
@@ -82,7 +83,7 @@ def sweep_over_time(
     # Iterate over checkpoints
     steps = steps or list(run.checkpointer.file_ids)
 
-    for step, model in zip(steps, iter_models(run.model, run.checkpointer)):
+    for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
         print(step)
         results = slt_evals(model)
 
@@ -118,8 +119,10 @@ def sweep_over_time(
             # logger.log(observables, step=step)
             cov_accumulator.reset()
 
+        
         # Save to wandb
-        wandb.log(results, step=step)
+        if use_wandb:
+            wandb.log(results, step=step)
        
 
 @app.command("wandb")
@@ -130,7 +133,7 @@ def wandb_sweep_over_time():
     sampler_config = config.pop("analysis_config")
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     wandb.run.save()
-    sweep_over_time(get_config(**config), sampler_config)
+    sweep_over_time(get_config(**config), sampler_config, use_wandb=True)
     wandb.finish()
 
 
