@@ -6,7 +6,8 @@ from devinfra.io import CheckpointerConfig, MetricLoggingConfig
 from devinfra.monitoring import expand_steps_config_
 from devinfra.optim import OptimizerConfig, SchedulerConfig
 from devinfra.utils.device import get_default_device
-from devinfra.utils.iterables import hash_dict, nested_update
+from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
+                                      nested_update)
 from devinfra.utils.seed import set_seed
 from pydantic import BaseModel, Field, model_validator
 
@@ -31,6 +32,7 @@ class ICLTaskConfig(BaseModel):
     pretrain_seed: int = 1 
     true_seed: int = 2
     sampling_seed: int = 3
+    layer_norm: bool = True
 
     def model_factory(self):
         if self.model_seed is not None:
@@ -43,6 +45,7 @@ class ICLTaskConfig(BaseModel):
             mlp_size=self.mlp_size,
             num_heads=self.num_heads,
             num_layers=self.num_layers,
+            layer_norm=self.layer_norm,
         )
 
     def pretrain_dist_factory(self):
@@ -162,7 +165,14 @@ class ICLConfig(BaseModel):
         # Automatically fill in the project_dir field of the checkpointer
         checkpoint_config = data.get("checkpointer_config", None)
         if num_tasks is not None and checkpoint_config is not None:
-            task_config_dict = data["task_config"]
+            task_config_dict = data["task_config"].copy()
+
+            # Watchh out with changing the task configs because it can break the hashing below. 
+
+            # For compatibility with old configs
+            if task_config_dict.get('layer_norm', False):
+                del task_config_dict['layer_norm']
+
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
@@ -176,6 +186,42 @@ class ICLConfig(BaseModel):
                 data["run_name"] += f"-{data.pop('extra')}"
 
         return data
+
+    def to_latex(self):
+        return dicts_to_latex({
+            'L': self.task_config.num_layers, 
+            'H': self.task_config.num_heads, 
+            'M': self.task_config.num_tasks,
+        }, {
+            'K': self.task_config.max_examples,
+            'D': self.task_config.task_size,
+            r'\sigma^2': self.task_config.noise_variance,
+            r'd_{\mathrm{mlp}}': self.task_config.mlp_size,
+            r'd_{\mathrm{embed}}': self.task_config.embed_size,
+            r'\mathrm{seeds}': (self.task_config.model_seed, self.task_config.pretrain_seed, self.task_config.true_seed, self.task_config.sampling_seed),
+        }, {
+            'n': self.num_training_samples,
+            r'\eta': self.optimizer_config.lr,
+            'B': self.batch_size,
+            'T': self.num_training_samples // self.batch_size,
+        })
+    
+    def to_slug(self, delimiter="-", equal_sign=""):
+        return dict_to_slug({
+            'L': self.task_config.num_layers, 
+            'H': self.task_config.num_heads, 
+            'M': self.task_config.num_tasks,
+            'K': self.task_config.max_examples,
+            'D': self.task_config.task_size,
+            'err': self.task_config.noise_variance,
+            'dmlp': self.task_config.mlp_size,
+            'dembed': self.task_config.embed_size,
+            'seeds': delimiter.join(map(str, [self.task_config.model_seed, self.task_config.pretrain_seed, self.task_config.true_seed, self.task_config.sampling_seed])),
+            'n': self.num_training_samples,
+            'lr': self.optimizer_config.lr,
+            'B': self.batch_size,
+            'T': self.num_training_samples // self.batch_size,
+        }, delimiter=delimiter, equal_sign=equal_sign)
 
 
 def get_config(

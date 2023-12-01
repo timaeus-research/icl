@@ -37,6 +37,7 @@ class DTransformer(nn.Module):
         num_heads,
         num_layers,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.token_embedding = nn.Linear(
@@ -58,21 +59,31 @@ class DTransformer(nn.Module):
                 max_tokens=max_tokens,
                 num_heads=num_heads,
                 device=device,
+                layer_norm=layer_norm,
             )
             for _ in range(num_layers)
         ])
         # unembedding
-        self.unembedding = nn.Sequential(
-            nn.LayerNorm(
-                normalized_shape=embed_size,
-                device=device,
-            ),
-            nn.Linear(
+
+        if layer_norm:
+            self.unembedding = nn.Sequential(
+                nn.LayerNorm(
+                    normalized_shape=embed_size,
+                    device=device,
+                ),
+                nn.Linear(
+                    in_features=embed_size,
+                    out_features=token_size,
+                    device=device,
+                ),
+            )
+        else:
+            self.unembedding = nn.Linear(
                 in_features=embed_size,
                 out_features=token_size,
                 device=device,
-            ),
-        )
+            )
+
         self.max_tokens = max_tokens
         
 
@@ -113,6 +124,7 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         max_tokens,
         num_heads,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.attention = MultiHeadedCausalSelfAttention(
@@ -126,15 +138,21 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
             nn.ReLU(),
             nn.Linear(mlp_size, embed_size, device=device),
         )
-        self.layer_norms = nn.ModuleList([
-            nn.LayerNorm(normalized_shape=embed_size, device=device)
-            for _ in ('before-attention', 'before-compute')
-        ])
 
+        if layer_norm:
+            self.layer_norms = nn.ModuleList([
+                nn.LayerNorm(normalized_shape=embed_size, device=device)
+                for _ in ('before-attention', 'before-compute')
+            ])
+        else:
+            self.layer_norms = nn.ModuleList([nn.Identity() for _ in range(2)])
+
+        self.resid_after_attn = nn.Identity()
 
     def forward(self, x):
         # B, T, C = x.shape
         x = x + self.attention(self.layer_norms[0](x))
+        self.resid_after_attn(x)
         x = x + self.compute(self.layer_norms[1](x))
         return x
             
@@ -145,7 +163,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         embed_size,
         max_tokens,
         num_heads,
-        device='cpu'
+        device='cpu',
     ):
         super().__init__()
         # validate dimensions

@@ -18,7 +18,7 @@ import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # (! before import torch)
 
 import logging
-from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
 import numpy as np
 import sentry_sdk
@@ -120,9 +120,7 @@ class Run:
 
     def restore(self):
         """Restores the last checkpoint for this run."""
-        if self.checkpointer:
-            self.checkpointer.sync()
-            
+        if self.checkpointer:            
             if not self.checkpointer.file_ids:
                 raise ValueError("No checkpoints found.")
         
@@ -160,26 +158,20 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     num_steps = config.num_steps
 
-    # Let's only train until 50% checkpoint.
-    checkpoint_steps = sorted(list(config.checkpointer_config.checkpoint_steps))
-    num_steps = checkpoint_steps[len(checkpoint_steps) // 2] + 1
-
     recent_losses = torch.zeros(100, device=config.device)
+    sampling_seed = config.task_config.sampling_seed if config.task_config.sampling_seed is not None else config.task_config.pretrain_seed * num_steps
 
-    # training loop
     for step in tqdm.trange(num_steps, desc="Training..."):
         set_seed(
-            config.task_config.sampling_seed + step
+            sampling_seed + step
         )  # For reproducibility if we resume training
 
-        # data generation and forward pass
         xs, ys = pretrain_dist.get_batch(
             num_examples=config.task_config.max_examples,
             batch_size=config.batch_size,
         )
         ys_pred = model(xs, ys)
         loss = F.mse_loss(ys, ys_pred)
-        # backward pass and gradient step
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
@@ -365,7 +357,7 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
 
 
 def main(
-    resume: Annotated[str, typer.Option(help="The id of a sweep or run to resume.")]
+    resume: str = typer.Option(help="The id of a sweep or run to resume.")
 ):
     is_debug = False
 
