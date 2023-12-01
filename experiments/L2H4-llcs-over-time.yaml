@@ -18,6 +18,8 @@ parameters:
         value: 1024
       num_samples:
         value: 1024  # Note this doesn't match eval_batch_size
+      num_evals:
+        value: 0
   task_config: 
     parameters:
       task_size:

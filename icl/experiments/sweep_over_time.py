@@ -27,13 +27,12 @@ app = typer.Typer()
 
 
 def sweep_over_time(
-    config: dict,
+    config: ICLConfig,
     sampler_config: dict,
+    steps: Optional[List[int]] = None,
 ):      
     cores = int(os.environ.get("CORES", 1))
     device = get_default_device()
-
-    config: ICLConfig = get_config(**config)
     run = Run.create_and_restore(config)
     
     # Dataset for SGLD
@@ -76,13 +75,12 @@ def sweep_over_time(
         # Sampling
         lr=sampler_config.pop("lr", 1e-4),
         elasticity=sampler_config.pop("gamma", 1.),
-        batch_size=batch_size,
         num_samples=eff_num_samples,
         **sampler_config
     )
 
     # Iterate over checkpoints
-    steps = list(run.checkpointer.file_ids)
+    steps = steps or list(run.checkpointer.file_ids)
 
     for step, model in zip(steps, iter_models(run.model, run.checkpointer)):
         print(step)
@@ -132,11 +130,11 @@ def wandb_sweep_over_time():
     sampler_config = config.pop("analysis_config")
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     wandb.run.save()
-    sweep_over_time(config, sampler_config)
+    sweep_over_time(get_config(**config), sampler_config)
     wandb.finish()
 
 
-@app.command("cov")
+@app.command("sweep")
 def cmd_line_sweep_over_time(
     sweep: str = typer.Option(None, help="Path to wandb sweep YAML file"), 
     num_tasks: int = typer.Option(None, help="Number of tasks to train on"), 
@@ -157,9 +155,9 @@ def cmd_line_sweep_over_time(
     """
         
     filters = rm_none_vals(dict(task_config={"num_tasks": num_tasks, "num_layers": num_layers, "num_heads": num_heads, "embed_size": embed_size}, optimizer_config={"lr": lr}))
-    analysis_config = rm_none_vals(dict(gamma=gamma, lr=epsilon, num_draws=num_draws, num_chains=num_chains,  steps=steps, batch_size=batch_size))
+    analysis_config = rm_none_vals(dict(gamma=gamma, lr=epsilon, num_draws=num_draws, num_chains=num_chains, batch_size=batch_size))
     config = get_unique_config(sweep, **filters)
-    sweep_over_time(config, analysis_config)
+    sweep_over_time(config, analysis_config, steps=steps)
 
 
 if __name__ == "__main__":

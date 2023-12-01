@@ -116,17 +116,6 @@ class OnlineLLCEstimator:
         self.update(chain, draw, loss)
 
 
-def call_with(func: Callable, **kwargs):
-    """Check the func annotation and call with only the necessary kwargs."""
-    sig = inspect.signature(func)
-    
-    # Filter out the kwargs that are not in the function's signature
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
-    
-    # Call the function with the filtered kwargs
-    return func(**filtered_kwargs)
-
-
 class ObservedOnlineLLCEstimator:
     def __init__(self, num_chains: int, num_draws: int, n: int, device="cpu", threshold=0.05):
         self.num_chains = num_chains

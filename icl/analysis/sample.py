@@ -37,6 +37,17 @@ from icl.config import ICLConfig, get_config
 from icl.train import Run
 
 
+def call_with(func: Callable, **kwargs):
+    """Check the func annotation and call with only the necessary kwargs."""
+    sig = inspect.signature(func)
+    
+    # Filter out the kwargs that are not in the function's signature
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    
+    # Call the function with the filtered kwargs
+    return func(**filtered_kwargs)
+
+
 def sample_single_chain(
     ref_model: nn.Module,
     loader: DataLoader,
