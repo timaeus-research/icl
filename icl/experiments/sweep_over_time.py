@@ -86,9 +86,9 @@ def sweep_over_time(
     for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
         print(step)
         results = slt_evals(model)
+        trace = results.pop("loss/trace")
 
         if num_evals > 0:
-            trace = results.pop("loss/trace")
             covariances = cov_accumulator.to_eigens()
 
             # original_shapes = {name: tuple(accessor(model).shape) for name, accessor in cov_accumulator.accessors.items()}
