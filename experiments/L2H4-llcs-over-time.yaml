@@ -1,6 +1,6 @@
 name: L2H4-covariances
 method: grid
-command: ["python", "icl/experiments/cov_analysis.py", "from-wandb"]
+command: ["python", "icl/experiments/cov_analysis.py", "wandb"]
 project: icl
 entity: devinterp
 parameters:
@@ -16,6 +16,8 @@ parameters:
         value: 25
       batch_size: 
         value: 1024
+      num_samples:
+        value: 1024  # Note this doesn't match eval_batch_size
   task_config: 
     parameters:
       task_size:
@@ -46,3 +48,5 @@ parameters:
     parameters:
       lr:
         value: 0.01
+  eval_batch_size:
+    value: 1048576
