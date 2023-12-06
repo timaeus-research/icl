@@ -1,7 +1,7 @@
 from typing import Any, Optional
 
-from devinterp.learner import LearnerConfig
-from devinterp.utils import nested_update
+from icl.devinterp.learner import LearnerConfig
+from icl.devinterp.utils import nested_update
 from pydantic import BaseModel, model_validator
 
 from icl.model import InContextRegressionTransformer
