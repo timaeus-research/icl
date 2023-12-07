@@ -37,6 +37,7 @@ class DTransformer(nn.Module):
         num_heads,
         num_layers,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.token_embedding = nn.Linear(
@@ -58,27 +59,40 @@ class DTransformer(nn.Module):
                 max_tokens=max_tokens,
                 num_heads=num_heads,
                 device=device,
+                layer_norm=layer_norm,
             )
             for _ in range(num_layers)
         ])
         # unembedding
-        self.unembedding = nn.Sequential(
-            nn.LayerNorm(
-                normalized_shape=embed_size,
-                device=device,
-            ),
-            nn.Linear(
+
+        if layer_norm:
+            self.unembedding = nn.Sequential(
+                nn.LayerNorm(
+                    normalized_shape=embed_size,
+                    device=device,
+                ),
+                nn.Linear(
+                    in_features=embed_size,
+                    out_features=token_size,
+                    device=device,
+                ),
+            )
+        else:
+            self.unembedding = nn.Linear(
                 in_features=embed_size,
                 out_features=token_size,
                 device=device,
-            ),
-        )
+            )
+
         self.max_tokens = max_tokens
         
 
     def forward(self, toks):
+        # if mechinterp=True, write attention patterns on forward pass to CSV
+        # all other forward passes inherit mechinterp from this initial one
+
         _B, T, _V = toks.shape
-        assert T<=self.max_tokens, f"too many tokens! {T} > {self.max_tokens}"
+        assert T <= self.max_tokens, f"too many tokens! {T} > {self.max_tokens}"
 
         # semantic and positional token embeddings
         x_positions = self.postn_embedding.weight.T[:T, :] # Tmax C ->   T C
@@ -87,12 +101,13 @@ class DTransformer(nn.Module):
 
         # apply the num_layers layers / attention blocks in sequence
         for block in self.blocks:
-            x = x + block(x)                        # B T C + B T C -> B T C
+            x = x + block(x) # B T C + B T C -> B T C
 
         # unembedding: transform back to predicted next tokens
         y = self.unembedding(x)                     # B T C @ . C V -> B T V
         
         return y
+
         # NOTE:
         # during training,  we only care about y[:, :-1, :]...
         # during inference, we only care about y[:, -1:, :]...
@@ -109,6 +124,7 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         max_tokens,
         num_heads,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.attention = MultiHeadedCausalSelfAttention(
@@ -122,18 +138,24 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
             nn.ReLU(),
             nn.Linear(mlp_size, embed_size, device=device),
         )
-        self.layer_norms = nn.ModuleList([
-            nn.LayerNorm(normalized_shape=embed_size, device=device)
-            for _ in ('before-attention', 'before-compute')
-        ])
 
+        if layer_norm:
+            self.layer_norms = nn.ModuleList([
+                nn.LayerNorm(normalized_shape=embed_size, device=device)
+                for _ in ('before-attention', 'before-compute')
+            ])
+        else:
+            self.layer_norms = nn.ModuleList([nn.Identity() for _ in range(2)])
+
+        self.resid_after_attn = nn.Identity()
 
     def forward(self, x):
         # B, T, C = x.shape
         x = x + self.attention(self.layer_norms[0](x))
+        self.resid_after_attn(x)
         x = x + self.compute(self.layer_norms[1](x))
         return x
-
+            
 
 class MultiHeadedCausalSelfAttention(nn.Module):
     def __init__(
@@ -156,13 +178,14 @@ class MultiHeadedCausalSelfAttention(nn.Module):
             bias=False,
             device=device,
         )
+        self.attention_softmax = nn.Softmax(dim=-1)
+
         # precompute causal mask
         mask_shape = (max_tokens, max_tokens)
         causal_mask = torch.log(torch.tril(torch.ones(mask_shape, device=device)))
         self.register_buffer('causal_mask', causal_mask)
         # precompute attention normalisation factor
         self.attention_scale = self.head_size ** 0.5
-
 
     def forward(self, x):
         # unpack dimensions
@@ -184,16 +207,14 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         A = A + self.causal_mask[:T,:T] # B H T T + . . T T -> B H T T
 
         # convert affinities to mixing weights and mix value vectors
-        p = fn.softmax(A, dim=-1)   # B H T T -> B H T T(sum to 1)
+        p = self.attention_softmax(A)
         y = p @ V                   # B H T T @ B H T c -> B H T c
 
         # recombine / concatenate heads into new embedding
         y = (y                      #    B H T c
-                .transpose(-3, -2)  # -> B T H c
-                .contiguous()       # -> (make underlying memory match view)
-                .view(B, T, C)      # -> B T C
-             )
-
+            .transpose(-3, -2)  # -> B T H c
+            .contiguous()       # -> (make underlying memory match view)
+            .view(B, T, C)      # -> B T C
+        )
+        
         return y
-
-

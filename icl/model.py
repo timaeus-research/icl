@@ -38,6 +38,7 @@ class InContextRegressionTransformer(torch.nn.Module):
         num_heads,
         num_layers,
         device='cpu',
+        layer_norm=True,
     ):
         super().__init__()
         self.token_sequence_transformer = DTransformer(
@@ -48,10 +49,18 @@ class InContextRegressionTransformer(torch.nn.Module):
             num_heads=num_heads,
             num_layers=num_layers,
             device=device,
+            layer_norm=layer_norm
         )
         self.task_size = task_size
         self.max_examples = max_examples
         self.device = device
+
+        # TODO: Where else is this information stored on a given run? Is it bad juju for it 
+        # to hang around with the transformer all the time? 
+        self.embed_size = embed_size
+        self.mlp_size = mlp_size
+        self.num_heads = num_heads
+        self.num_layers = num_layers
 
     
     def forward(self, xs, ys):
@@ -68,12 +77,13 @@ class InContextRegressionTransformer(torch.nn.Module):
 
         # encode examples as token sequence
         toks = to_token_sequence(xs, ys)
+
         # run dtransformer to predict next tokens
         toks_pred = self.token_sequence_transformer(toks)
         # decode y predictions from next-token-prediction
         ys_pred = from_predicted_token_sequence(toks_pred)
         return ys_pred
-
+    
     def to(self, *args, **kwargs):
         self.device = args[0]
         return super().to(*args, **kwargs)
