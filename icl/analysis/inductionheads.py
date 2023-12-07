@@ -68,8 +68,6 @@ class InductionHeadsTask():
 
         # Use mechinterp to flag to return associated weight matrix for each task (batch element) in distribution in order to do fuzzy estimation
 
-
-
     pretrain_dist = RegressionSequenceDistribution(
                     task_distribution=DiscreteTaskDistribution(
                         num_tasks=2,

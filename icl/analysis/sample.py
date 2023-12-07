@@ -30,8 +30,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typer import Typer
 
-from icl.analysis.llc import (LLCEstimator, ObservedOnlineLLCEstimator,
-                              OnlineLLCEstimator)
+from icl.analysis.slt import (SLTObservablesEstimator)
 from icl.analysis.utils import get_unique_run
 from icl.config import ICLConfig, get_config
 from icl.train import Run
@@ -42,7 +41,11 @@ def call_with(func: Callable, **kwargs):
     sig = inspect.signature(func)
     
     # Filter out the kwargs that are not in the function's signature
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    if "kwargs" in sig.parameters:
+        filtered_kwargs = kwargs
+
+    else:
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
     
     # Call the function with the filtered kwargs
     return func(**filtered_kwargs)
@@ -175,6 +178,32 @@ def sample(
             callback.finalize()
 
 
+def generate_slt_callbacks(
+        dataset: torch.utils.data.Dataset,
+        criterion: Criterion,
+        batch_size: int = 1024,
+        num_draws: int = 100,
+        num_chains: int = 10,
+        dataset_size: Optional[int] = None,
+        temperature: Union[Literal['adaptive'], float] = 'adaptive',
+        device: str = "cpu",
+        online: Union[bool, Literal['observed']] = False,
+):  
+    def losses_generator(model):
+        _loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+        for xs, ys in _loader:
+            xs, ys = xs.to(device), ys.to(device)
+            y_preds = model(xs, ys)
+            yield criterion(y_preds, ys)
+
+    slt_observables_estimator = SLTObservablesEstimator(num_chains, num_draws, dataset_size, temperature=temperature, device=device, losses_generator=losses_generator, online=bool(online))
+    # logging_callback = 
+
+    return [
+        slt_observables_estimator
+    ]
+    
 
 def estimate_slt_observables(
     model: torch.nn.Module,
@@ -182,6 +211,7 @@ def estimate_slt_observables(
     criterion: Criterion,
     sampling_method: Type[torch.optim.Optimizer] = SGLD,
     optimizer_kwargs: Optional[Dict[str, Union[float, Literal["adaptive"]]]] = None,
+    evals_kwargs: Optional[Dict[str, Any]] = None,
     num_draws: int = 100,
     num_chains: int = 10,
     num_burnin_steps: int = 0,
@@ -193,14 +223,17 @@ def estimate_slt_observables(
     callbacks: List[Callable] = [],
     online: Union[bool, Literal['observed']] = False,
 ):
-    num_samples: int = optimizer_kwargs["num_samples"]
+    dataset_size: int = optimizer_kwargs["dataset_size"]
+    
+    slt_estimator = generate_slt_callbacks(
+        dataset,
+        criterion,
+        num_draws=num_draws,
+        num_chains=num_chains,
+        dataset_size=dataset_size,
 
-    if online == "observed":
-        llc_estimator = ObservedOnlineLLCEstimator(num_chains, num_draws, num_samples, device=device)
-    elif online:
-        llc_estimator = OnlineLLCEstimator(num_chains, num_draws, num_samples, device=device)
-    else:
-        llc_estimator = LLCEstimator(num_chains, num_draws, num_samples, device=device)
+        **evals_kwargs
+    )
 
     callbacks = [llc_estimator, *callbacks]
 
@@ -244,7 +277,7 @@ def make_slt_evals(
     cores: int = 1,
     device: str = "cpu",
     callbacks: List[Callable] = [],
-    num_samples: Optional[int] = None,
+    dataset_size: Optional[int] = None,
     sampling_method: Literal["sgld", "sgnht"] = "sgld",
     **optimizer_kwargs
 ):
@@ -262,7 +295,7 @@ def make_slt_evals(
         weight_decay=weight_decay,
         elasticity=elasticity,
         temperature="adaptive",
-        num_samples=num_samples or len(dataset),
+        dataset_size=dataset_size or len(dataset),
     ))
 
     def eval_rlct(model: nn.Module):

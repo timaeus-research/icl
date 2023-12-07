@@ -12,7 +12,7 @@ from torch.nn import functional as F
 
 import wandb
 from icl.analysis.cov import make_transformer_cov_accumulator
-from icl.analysis.llc import ObservedOnlineLLCEstimator
+from icl.analysis.slt import ObservedOnlineLLCEstimator
 from icl.analysis.sample import estimate_slt_observables
 from icl.config import ICLConfig, get_config
 from icl.evals import ICLEvaluator
