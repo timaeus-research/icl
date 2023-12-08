@@ -102,3 +102,44 @@ class ICLEvaluator(ModelEvaluator):
             **get_token_losses_dict(true_model_losses, "true"),
 
         }
+    
+class SubsequenceMSELoss:
+
+    def __init__(self, reduction: str = "mean") -> None:
+        self.reduction = reduction
+
+    def __call__(
+            self, 
+            y_pred: torch.Tensor,  # B K
+            y: torch.Tensor  # B K
+    ) -> torch.Tensor:
+        """
+        Compute the MSE loss between y_pred and y, but only on a random subsequence
+        of the first K' elements of y_pred and y, where K' is sampled uniformly from
+        [1, K]. 
+        
+        Always takes the mean over tokens. Reduction is applied to the batch.
+        """
+
+        # Apply random mask to y_pred & y
+        B, K = y_pred.shape
+
+        loss = torch.zeros(B if self.reduction == "none" else 1)
+
+        for i in range(B):
+            K_prime = np.random.randint(1, K + 1)
+
+            if self.reduction == "none":
+                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+            else:
+                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+
+        # Compute MSE loss
+        if self.reduction == "mean":
+            return loss / B
+        elif self.reduction == "sum":
+            return loss
+        elif self.reduction == "none":
+            return loss
+        else:
+            raise ValueError(f"Unknown reduction: {self.reduction}")

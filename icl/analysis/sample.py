@@ -15,7 +15,6 @@ import devinterp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field, field_validator, model_validator
 import seaborn as sns
 import sentry_sdk
 import torch
@@ -23,6 +22,7 @@ import yaml
 from devinfra.evals import Criterion
 from devinterp.optim.sgld import SGLD
 from devinterp.optim.sgnht import SGNHT
+from pydantic import BaseModel, Field, field_validator, model_validator
 from torch import nn
 from torch.multiprocessing import (Pool, cpu_count, get_context,
                                    set_start_method)
@@ -30,11 +30,13 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typer import Typer
-from icl.analysis.cov import make_transformer_cov_accumulator
 
-from icl.analysis.slt import (LikelihoodMetricsEstimator, SLTObservablesEstimator)
+from icl.analysis.cov import make_transformer_cov_accumulator
+from icl.analysis.slt import (LikelihoodMetricsEstimator,
+                              SLTObservablesEstimator)
 from icl.analysis.utils import get_unique_run
 from icl.config import ICLConfig, get_config
+from icl.evals import SubsequenceMSELoss
 from icl.train import Run
 
 
@@ -281,48 +283,30 @@ class SamplerConfig(BaseModel):
     def to_sampler(self, run: Run):
         return Sampler(self, run)
         
+    def get_loss_fn(self):
+        reduction = "none" if "singular-fluctuation" in self.eval_metrics else "mean"
 
-class SubsequenceMSELoss:
-
-    def __init__(self, reduction: str = "mean") -> None:
-        self.reduction = reduction
-
-    def __call__(
-            self, 
-            y_pred: torch.Tensor,  # B K
-            y: torch.Tensor  # B K
-    ) -> torch.Tensor:
-        """
-        Compute the MSE loss between y_pred and y, but only on a random subsequence
-        of the first K' elements of y_pred and y, where K' is sampled uniformly from
-        [1, K]. 
-        
-        Always takes the mean over tokens. Reduction is applied to the batch.
-        """
-
-        # Apply random mask to y_pred & y
-        B, K = y_pred.shape
-
-        loss = torch.zeros(B if self.reduction == "none" else 1)
-
-        for i in range(B):
-            K_prime = np.random.randint(1, K + 1)
-
-            if self.reduction == "none":
-                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
-            else:
-                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
-
-        # Compute MSE loss
-        if self.reduction == "mean":
-            return loss / B
-        elif self.reduction == "sum":
-            return loss
-        elif self.reduction == "none":
-            return loss
+        if self.eval_loss_fn == "mse":
+            return nn.MSELoss(reduction=reduction)
         else:
-            raise ValueError(f"Unknown reduction: {self.reduction}")
+            return SubsequenceMSELoss(reduction=reduction)
 
+    def get_optimizer_cls(self):
+        if self.sampling_method == "sgld":
+            return SGLD
+        elif self.sampling_method == "sgnht":
+            return SGNHT
+        else:
+            raise ValueError(f"Unknown sampling method: {self.sampling_method}")
+
+    def get_optimizer_kwargs(self):
+        return {
+            "lr": self.epsilon,
+            "elasticity": self.gamma,
+            "temperature": self.temperature,
+            "bounding_box_size": self.bounding_box_size,
+            "num_samples": self.eval_dataset_size,
+        }
 
 class Sampler:
     def __init__(self, config: SamplerConfig, run: Run):
@@ -341,28 +325,17 @@ class Sampler:
             self.eval_dataset = torch.utils.data.Subset(self.full_dataset, range(self.config.eval_batch_size))
 
         self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
-        self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=False)
+        self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
 
-        self.loss_fn = self.get_loss_fn()
+        self.loss_fn = self.config.get_loss_fn()
         self.callbacks = self.get_callbacks()
 
-    @property
-    def optimizer_cls(self):
-        if self.config.sampling_method == "sgld":
-            return SGLD
-        elif self.config.sampling_method == "sgnht":
-            return SGNHT
-        else:
-            raise ValueError(f"Unknown sampling method: {self.config.sampling_method}")
+    def eval_one_batch(self, model):
+        xs, ys = next(iter(self.eval_loader))
+        xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+        y_preds = model(xs, ys)
+        return self.loss_fn(y_preds, ys)
 
-    def get_loss_fn(self):
-        reduction = "none" if "singular-fluctuation" in self.config.eval_metrics else "mean"
-
-        if self.config.eval_loss_fn == "mse":
-            return nn.MSELoss(reduction=reduction)
-        else:
-            return SubsequenceMSELoss(reduction=reduction)
-       
     def iter_eval_model(self, model):
         for xs, ys in self.eval_loader:
             xs, ys = xs.to(self.config.device), ys.to(self.config.device)
@@ -376,18 +349,27 @@ class Sampler:
         return make_transformer_cov_accumulator(self.run.model, device=self.config.device, num_evals=self.config.num_evals)
 
     def get_likelihood_metrics_callback(self):
+        loss_fn = None  # self.config.eval_method == "grad-minibatch"
+
+        if self.config.eval_method == "new-minibatch":
+            loss_fn = self.eval_one_batch
+        elif self.config.eval_method in ("fixed-minibatch", "dataset"):
+            loss_fn = self.eval_model
+
         return LikelihoodMetricsEstimator(
             self.config.num_chains, 
             self.config.num_draws,
-            self.config.eval_dataset_size,
-            self.config.temperature,
-            self.eval_model,
-            self.config.device,
+            dataset_size=self.config.eval_dataset_size,
+            temperature=self.config.temperature,
+            loss_fn=loss_fn,
+            device=self.config.device,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
         )
 
     def get_slt_callback(self):
+        assert self.config.eval_method in ("fixed-minibatch", "dataset"), "Singular fluctuation requires minibatch or dataset evals"
+
         return SLTObservablesEstimator(
             self.config.num_chains, 
             self.config.num_draws,
@@ -410,26 +392,14 @@ class Sampler:
             raise ValueError("Singular fluctuation requires likelihood-derived")
     
         return callbacks
-        
-        
-    @property
-    def optimizer_kwargs(self):
-        return {
-            "lr": self.config.epsilon,
-            "elasticity": self.config.gamma,
-            "temperature": self.config.temperature,
-            "bounding_box_size": self.config.bounding_box_size,
-            "num_samples": self.config.eval_dataset_size,
-        }
-
 
     def eval(self, model: nn.Module):
         return sample(
             model,
             self.grad_loader,
             self.loss_fn,
-            self.optimizer_cls,
-            optimizer_kwargs=self.optimizer_kwargs,
+            self.config.get_optimizer_cls(),
+            optimizer_kwargs=self.config.get_optimizer_kwargs(),
             num_draws=self.config.num_draws,
             num_chains=self.config.num_chains,
             cores=self.config.cores,
