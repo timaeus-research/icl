@@ -1,3 +1,4 @@
+from typing import Any, List, Literal, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,11 +9,11 @@ import typer
 from devinfra.utils.device import get_default_device
 from devinterp.optim.sgld import SGLD
 from devinterp.optim.sgnht import SGNHT
+from pydantic import BaseModel, model_validator, field_validator, Field
 from torch.nn import functional as F
 
 import wandb
 from icl.analysis.cov import make_transformer_cov_accumulator
-from icl.analysis.slt import ObservedOnlineLLCEstimator
 from icl.analysis.sample import estimate_slt_observables
 from icl.config import ICLConfig, get_config
 from icl.evals import ICLEvaluator
@@ -21,6 +22,83 @@ from icl.train import Run
 from icl.utils import pyvar_dict_to_latex, pyvar_dict_to_slug
 
 app = typer.Typer()
+
+class SamplerConfig(BaseModel):
+    # Sampling
+    num_chains: int
+    num_draws: int
+
+    # SGLD steps
+    sampling_method: Literal["sgld", "sgnht"]
+    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"]
+    grad_batch_size: int
+
+    # Sets the absolute scale of the SGLD steps
+    epsilon: float 
+
+    # Parametrization 1 (original)
+    gamma: Optional[float] = None
+    temperature: Optional[float] = None
+
+    # Parametrization 2 (new)
+    gradient_scale: Optional[float] = None
+    localization_scale: Optional[float] = None
+    noise_scale: float = 1.
+
+    bounding_box_size: Optional[float] = None
+
+    # SGLD evals
+    eval_method: Literal["grad-minibatch", "new-minibatch", "dataset", "validation-set"]
+    eval_batch_size: Optional[int] = None
+    eval_dataset_size: int = 8192
+    eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian"]] = Field(default_factory=lambda: ["likelihood-derived", "singular-fluctuation"])
+    eval_online: bool = False
+
+    # Covariance estimation
+    num_evals: int = 3
+
+    @field_validator('sampling_method')
+    @classmethod
+    def check_sampling_method(cls, v: str) -> str:
+        assert v == "sgld", "Only SGLD is supported for now"
+        return v
+
+    @field_validator('grad_batch_origin')
+    @classmethod
+    def check_grad_batch_origin(cls, v: str) -> str:
+        assert v  == "eval-dataset", "Only eval-dataset is supported for now"
+        return v
+
+    # Validate all fields
+    @model_validator(mode='before')
+    @classmethod
+    def check_evals(cls, data: Any) -> Any:
+        if data["eval_method"] in ["grad-minibatch", "new-minibatch"]:
+            assert "singular-fluctuation" not in data["eval_metrics"], "Singular fluctuation is not supported for minibatch evals"
+            assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
+        else:
+            assert data.get("eval_batch_size", None) is None, "Eval batch size is not supported for dataset/validation-set evals"
+
+        assert "covariance" not in data["eval_metrics"], "Covariance is not supported for now"
+        assert "hessian" not in data["eval_metrics"], "Hessian is not supported for now"
+
+        # Gradient term
+        assert (data["gradient_scale"] is None) != (data["temperature"] is None), "Exactly one of gradient_scale and temperature must be specified"
+        # TODO: convert
+        if data["temperature"] is None:
+            # data["temperature"] = 1. / np.log(data["eval_dataset_size"])
+            data["temperature"] = None
+        else:
+            data["gradient_scale"] = None        
+
+        # Localization term
+        assert (data["localization_scale"] is None) != (data["gamma"] is None), "Exactly one of localization_scale and gamma must be specified"
+
+        # TODO
+        if data["gamma"] is None:
+            data["gamma"] = None 
+        else: 
+            data["localization_scale"] = None
 
 
 def sweep_over_final_weights(
@@ -32,23 +110,16 @@ def sweep_over_final_weights(
 
     config: ICLConfig = get_config(**config)
     run = Run.create_and_restore(config)
+
+    sampler_config: SamplerConfig = SamplerConfig(**sampler_config)
     
-    # Dataset for SGLD
-    num_samples = config.eval_batch_size
-    batch_size = sampler_config.pop("batch_size", 1024)
-    eff_num_samples = sampler_config.pop("num_samples", batch_size)  # For configuring SGLD and estimating Lambdahat
-
-    run.evaluator = ICLEvaluator(
-        pretrain_dist=run.pretrain_dist,
-        true_dist=run.true_dist,
-        max_examples=config.task_config.max_examples,
-        eval_batch_size=num_samples, 
-        seed=config.task_config.true_seed,
+    # Evals
+    xs, ys = run.pretrain_dist.get_batch(
+        num_examples=run.config.task_config.max_examples,
+        batch_size=sampler_config.eval_dataset_size,
     )
-
-    xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
     dataset = torch.utils.data.TensorDataset(xs, ys)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)  # Shuffle might meant repeats
+    loader = torch.utils.data.DataLoader(dataset, batch_size=sampler_config.eval_batch_size)  # Shuffle might meant repeats
 
     # Hyperparameters for posterior sampling
     num_chains = sampler_config.pop("num_chains", 25)
