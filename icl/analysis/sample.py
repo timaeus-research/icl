@@ -15,6 +15,7 @@ import devinterp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, Field, field_validator, model_validator
 import seaborn as sns
 import sentry_sdk
 import torch
@@ -29,8 +30,9 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typer import Typer
+from icl.analysis.cov import make_transformer_cov_accumulator
 
-from icl.analysis.slt import (SLTObservablesEstimator)
+from icl.analysis.slt import (LikelihoodMetricsEstimator, SLTObservablesEstimator)
 from icl.analysis.utils import get_unique_run
 from icl.config import ICLConfig, get_config
 from icl.train import Run
@@ -172,147 +174,266 @@ def sample(
     else:
         for i in range(num_chains):
             results.append(_sample_single_chain(get_args(i)))
-
-    for callback in callbacks:
-        if hasattr(callback, "finalize"):
-            callback.finalize()
-
-
-def generate_slt_callbacks(
-        dataset: torch.utils.data.Dataset,
-        criterion: Criterion,
-        batch_size: int = 1024,
-        num_draws: int = 100,
-        num_chains: int = 10,
-        dataset_size: Optional[int] = None,
-        temperature: Union[Literal['adaptive'], float] = 'adaptive',
-        device: str = "cpu",
-        online: Union[bool, Literal['observed']] = False,
-):  
-    def losses_generator(model):
-        _loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-        for xs, ys in _loader:
-            xs, ys = xs.to(device), ys.to(device)
-            y_preds = model(xs, ys)
-            yield criterion(y_preds, ys)
-
-    slt_observables_estimator = SLTObservablesEstimator(num_chains, num_draws, dataset_size, temperature=temperature, device=device, losses_generator=losses_generator, online=bool(online))
-    # logging_callback = 
-
-    return [
-        slt_observables_estimator
-    ]
     
-
-def estimate_slt_observables(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    criterion: Criterion,
-    sampling_method: Type[torch.optim.Optimizer] = SGLD,
-    optimizer_kwargs: Optional[Dict[str, Union[float, Literal["adaptive"]]]] = None,
-    evals_kwargs: Optional[Dict[str, Any]] = None,
-    num_draws: int = 100,
-    num_chains: int = 10,
-    num_burnin_steps: int = 0,
-    num_steps_bw_draws: int = 1,
-    cores: int = 1,
-    seed: Optional[Union[int, List[int]]] = None,
-    verbose: bool = True,
-    device: str = "cpu",
-    callbacks: List[Callable] = [],
-    online: Union[bool, Literal['observed']] = False,
-):
-    dataset_size: int = optimizer_kwargs["dataset_size"]
-    
-    slt_estimator = generate_slt_callbacks(
-        dataset,
-        criterion,
-        num_draws=num_draws,
-        num_chains=num_chains,
-        dataset_size=dataset_size,
-
-        **evals_kwargs
-    )
-
-    callbacks = [llc_estimator, *callbacks]
-
-    sample(
-        model=model,
-        loader=loader,
-        criterion=criterion,
-        sampling_method=sampling_method,
-        optimizer_kwargs=optimizer_kwargs,
-        num_draws=num_draws,
-        num_chains=num_chains,
-        num_burnin_steps=num_burnin_steps,
-        num_steps_bw_draws=num_steps_bw_draws,
-        cores=cores,
-        seed=seed,
-        verbose=verbose,
-        device=device,
-        callbacks=callbacks
-    )
-
     results = {}
 
     for callback in callbacks:
-        if hasattr(callback, "sample"):
+        if hasattr(callback, "estimate"):
             results.update(callback.sample())
 
     return results
 
 
-def make_slt_evals(
-    dataset: torch.utils.data.Dataset,
-    loader: torch.utils.data.DataLoader,
-    lr: float = 1e-4,
-    noise_level: float = 1.0,
-    weight_decay: float = 0.0,
-    elasticity: float = 1.0,
-    num_draws: int = 10,
-    num_chains: int = 25,
-    num_burnin_steps: int = 0,
-    num_steps_bw_draws: int = 1,
-    cores: int = 1,
-    device: str = "cpu",
-    callbacks: List[Callable] = [],
-    dataset_size: Optional[int] = None,
-    sampling_method: Literal["sgld", "sgnht"] = "sgld",
-    **optimizer_kwargs
-):
-    
-    if sampling_method == "sgld":
-        optimizer_class = SGLD
-    elif sampling_method == "sgnht":
-        optimizer_class = SGNHT
-    else:
-        raise ValueError(f"Unknown sampling method: {sampling_method}")
 
-    optimizer_kwargs.update(dict(
-        lr=lr,
-        noise_level=noise_level,
-        weight_decay=weight_decay,
-        elasticity=elasticity,
-        temperature="adaptive",
-        dataset_size=dataset_size or len(dataset),
-    ))
+class SamplerConfig(BaseModel):
+    # Sampling
+    num_chains: int
+    num_draws: int
 
-    def eval_rlct(model: nn.Module):
-        return estimate_slt_observables(
-            model,
-            loader,
-            F.mse_loss,
-            optimizer_class,
-            optimizer_kwargs,
-            num_draws=num_draws,
-            num_chains=num_chains,
-            num_burnin_steps=num_burnin_steps,
-            num_steps_bw_draws=num_steps_bw_draws,
-            cores=cores,
-            device=device,
-            callbacks=callbacks
+    # SGLD steps
+    sampling_method: Literal["sgld", "sgnht"]  # Only SGLD is supported for now
+    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"]  # Only eval-dataset is supported for now
+    grad_batch_size: int
+
+    # Parametrization 1 (original)
+    epsilon: float 
+    gamma: float 
+    temperature: float = "auto"  # type: ignore
+
+    # Parametrization 2 (new)
+    gradient_scale: float
+    localization_scale: float
+    noise_scale: float
+
+    # Misc
+    num_burnin_steps: int = 0
+    num_steps_bw_draws: int = 1
+    bounding_box_size: Optional[float] = None
+
+    # SGLD evals
+    eval_method: Literal["grad-minibatch", "new-minibatch", "fixed-minibatch", "dataset"]
+    eval_batch_size: Optional[int] = None
+    eval_dataset_size: int = 8192
+    eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian"]] \
+        = Field(default_factory=lambda: ["likelihood-derived", "singular-fluctuation"])  # covariance and hessian are not supported for now
+    eval_online: bool = False
+    eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
+        
+    # Covariance estimation
+    num_evals: int = 3
+
+    cores: int = 1
+    device: str = "cpu"
+
+    @field_validator('sampling_method')
+    @classmethod
+    def check_sampling_method(cls, v: str) -> str:
+        assert v == "sgld", "Only SGLD is supported for now"
+        return v
+
+    @field_validator('grad_batch_origin')
+    @classmethod
+    def check_grad_batch_origin(cls, v: str) -> str:
+        assert v  == "eval-dataset", "Only eval-dataset is supported for now"
+        return v
+
+    # Validate all fields
+    @model_validator(mode='before')
+    @classmethod
+    def check_evals(cls, data: Any) -> Any:
+        if data["eval_method"] in ["grad-minibatch", "new-minibatch"]:
+            assert "singular-fluctuation" not in data["eval_metrics"], "Singular fluctuation is not supported for minibatch evals"
+            assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
+        else:
+            assert data.get("eval_batch_size", None) is None, "Eval batch size is not supported for dataset/validation-set evals"
+
+        assert "covariance" not in data["eval_metrics"], "Covariance is not supported for now"
+        assert "hessian" not in data["eval_metrics"], "Hessian is not supported for now"
+
+        # Parametrization
+        num_samples = data["eval_dataset_size"]
+
+        temperature = data.get("temperature", None)
+        gamma = data.get("gamma", None)
+        epsilon = data.get("epsilon", None)
+
+        gradient_scale = data.get("gradient_scale", None)
+        localization_scale = data.get("localization_scale", None)
+        noise_scale = data.get("noise_scale", None)
+
+        assert ((epsilon is None) and (temperature is None) and (gradient_scale is None)) or \
+            ((noise_scale is None) and (gradient_scale is None) and (localization_scale is None)), "Must choose and stick to one parametrization"
+
+        if epsilon is None:
+            data["epsilon"] = epsilon = noise_scale
+            data["temperature"] = temperature = gradient_scale * 2 * temperature / (epsilon * num_samples)
+            data["gamma"] = gamma = localization_scale * 2 / epsilon
+
+        else:
+            if temperature == "auto":
+                data["temperature"] = temperature = 1 / np.log(data["eval_dataset_size"])
+            
+            data["gradient_scale"] = gradient_scale = epsilon * temperature * num_samples / 2
+            data["localization_scale"] = localization_scale = epsilon * gamma / 2
+            data["noise_scale"] = noise_scale = epsilon
+   
+
+    def to_sampler(self, run: Run):
+        return Sampler(self, run)
+        
+
+class SubsequenceMSELoss:
+
+    def __init__(self, reduction: str = "mean") -> None:
+        self.reduction = reduction
+
+    def __call__(
+            self, 
+            y_pred: torch.Tensor,  # B K
+            y: torch.Tensor  # B K
+    ) -> torch.Tensor:
+        """
+        Compute the MSE loss between y_pred and y, but only on a random subsequence
+        of the first K' elements of y_pred and y, where K' is sampled uniformly from
+        [1, K]. 
+        
+        Always takes the mean over tokens. Reduction is applied to the batch.
+        """
+
+        # Apply random mask to y_pred & y
+        B, K = y_pred.shape
+
+        loss = torch.zeros(B if self.reduction == "none" else 1)
+
+        for i in range(B):
+            K_prime = np.random.randint(1, K + 1)
+
+            if self.reduction == "none":
+                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+            else:
+                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+
+        # Compute MSE loss
+        if self.reduction == "mean":
+            return loss / B
+        elif self.reduction == "sum":
+            return loss
+        elif self.reduction == "none":
+            return loss
+        else:
+            raise ValueError(f"Unknown reduction: {self.reduction}")
+
+
+class Sampler:
+    def __init__(self, config: SamplerConfig, run: Run):
+        self.config = config
+        self.run = run
+
+        xs, ys = run.pretrain_dist.get_batch(
+            num_examples=run.config.task_config.max_examples,
+            batch_size=self.config.eval_dataset_size,
         )
 
-    return eval_rlct
+        self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
+        self.eval_dataset = self.full_dataset
 
+        if self.config.eval_method == "fixed-minibatch":
+            self.eval_dataset = torch.utils.data.Subset(self.full_dataset, range(self.config.eval_batch_size))
+
+        self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
+        self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=False)
+
+        self.loss_fn = self.get_loss_fn()
+        self.callbacks = self.get_callbacks()
+
+    @property
+    def optimizer_cls(self):
+        if self.config.sampling_method == "sgld":
+            return SGLD
+        elif self.config.sampling_method == "sgnht":
+            return SGNHT
+        else:
+            raise ValueError(f"Unknown sampling method: {self.config.sampling_method}")
+
+    def get_loss_fn(self):
+        reduction = "none" if "singular-fluctuation" in self.config.eval_metrics else "mean"
+
+        if self.config.eval_loss_fn == "mse":
+            return nn.MSELoss(reduction=reduction)
+        else:
+            return SubsequenceMSELoss(reduction=reduction)
+       
+    def iter_eval_model(self, model):
+        for xs, ys in self.eval_loader:
+            xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+            y_preds = model(xs, ys)
+            yield self.loss_fn(y_preds, ys)
+
+    def eval_model(self, model):
+        return sum(self.iter_eval_model(model)) / self.config.eval_dataset_size
+        
+    def get_cov_callback(self):
+        return make_transformer_cov_accumulator(self.run.model, device=self.config.device, num_evals=self.config.num_evals)
+
+    def get_likelihood_metrics_callback(self):
+        return LikelihoodMetricsEstimator(
+            self.config.num_chains, 
+            self.config.num_draws,
+            self.config.eval_dataset_size,
+            self.config.temperature,
+            self.eval_model,
+            self.config.device,
+            online=self.config.eval_online,
+            include_trace=self.config.eval_online,
+        )
+
+    def get_slt_callback(self):
+        return SLTObservablesEstimator(
+            self.config.num_chains, 
+            self.config.num_draws,
+            self.config.eval_dataset_size,
+            self.iter_eval_model,
+            temperature=self.config.temperature,
+            device=self.config.device,
+            online=self.config.eval_online,
+            include_trace=self.config.eval_online,
+        )
+
+    def get_callbacks(self):
+        callbacks = []
+
+        if "likelihood-derived" in self.config.eval_metrics and "singular-fluctuation" in self.config.eval_metrics:
+            callbacks.append(self.get_slt_callback())
+        elif "likelihood-derived" in self.config.eval_metrics:
+            callbacks.append(self.get_likelihood_metrics_callback())
+        elif "singular-fluctuation" in self.config.eval_metrics:
+            raise ValueError("Singular fluctuation requires likelihood-derived")
+    
+        return callbacks
+        
+        
+    @property
+    def optimizer_kwargs(self):
+        return {
+            "lr": self.config.epsilon,
+            "elasticity": self.config.gamma,
+            "temperature": self.config.temperature,
+            "bounding_box_size": self.config.bounding_box_size,
+            "num_samples": self.config.eval_dataset_size,
+        }
+
+
+    def eval(self, model: nn.Module):
+        return sample(
+            model,
+            self.grad_loader,
+            self.loss_fn,
+            self.optimizer_cls,
+            optimizer_kwargs=self.optimizer_kwargs,
+            num_draws=self.config.num_draws,
+            num_chains=self.config.num_chains,
+            cores=self.config.cores,
+            device=self.config.device,
+            callbacks=self.callbacks,
+        )
+    

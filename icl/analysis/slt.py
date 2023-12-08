@@ -154,9 +154,9 @@ class SLTObservablesEstimator:
     """
     Estimate the WBIC, LLC, and singular fluctuation. 
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.float, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False):
-        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, device=device, online=online)
-        self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online)
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.float, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
+        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, device=device, online=online, include_trace=include_trace)
+        self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online, include_trace=include_trace)
 
     def estimate(self):
         return {
