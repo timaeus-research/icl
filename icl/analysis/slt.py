@@ -24,7 +24,7 @@ from torch import nn
 from tqdm import tqdm
 
 import wandb
-from icl.analysis.observables import get_estimator
+from icl.analysis.estimators import get_estimator
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
 from icl.train import Run
@@ -42,9 +42,11 @@ class ExpectedBatchLossEstimator:
     def estimate(self):
         return prepend_keys(self.estimator.estimate(), "batch-loss")
     
-    def __call__(self, chain: int, draw: int, loss: float):
+    def __call__(self, chain: int, draw: int, loss: torch.Tensor):
         self.estimator.update(chain, draw, loss)
 
+    def reset(self):
+        self.estimator.reset()
         
 class ExpectedLossObservableEstimator:
     def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.Tensor], device="cpu", online=False, include_trace=False):
@@ -57,6 +59,8 @@ class ExpectedLossObservableEstimator:
     def __call__(self, chain: int, draw: int, model: nn.Module):
         self.estimator.update(chain, draw, self.loss_fn(model))
 
+    def reset(self):
+        self.estimator.reset()
 
 Temperature = Union[Literal['adaptive'], float]
 
@@ -92,26 +96,33 @@ class LikelihoodMetricsEstimator:
             "llc/std": llc_std
         }
 
-    def update(self, chain: int, draw: int, loss: float):
+    def update(self, chain: int, draw: int, loss: torch.Tensor):
         self.expected_loss_estimator.update(chain, draw, loss)
 
-    def update_at(self, chain: int, draw: int, indices: Union[slice, Type[Any]], loss: torch.Tensor):
-        self.expected_loss_estimator.update_at(chain, draw, indices, loss)
+        if draw == 0:
+            self.init_loss += loss / self.num_chains   # Will yield wrong answers for llc if you call estimate before all chains have been updated
 
-    def __call__(self, chain: int, draw: int, loss: float, model: nn.Module):
+
+    def __call__(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
         if self.loss_fn is None:
             self.update(chain, draw, loss)
         else:
             _loss = self.loss_fn(model)
+            total_loss = torch.zeros(1, dtype=torch.float32).to(model.device)
 
             if isinstance(_loss, Generator):
-                for i, _l in enumerate(_loss):
-                    self.update_at(chain, draw, (i, i+1), _l)
-                    self.inc
+                n = 0
 
+                for i, _l in enumerate(_loss):
+                    total_loss += _l.sum() 
+                    n += i
+
+                self.update(chain, draw, total_loss / n)
             else:
                 self.update(chain, draw, self.loss_fn(model))
 
+    def reset(self):
+        self.expected_loss_estimator.reset()
 
 class SingularFluctuationEstimator:
     """
@@ -149,6 +160,9 @@ class SingularFluctuationEstimator:
         for _ in self.iter_update(chain, draw, model):
             pass
 
+    def reset(self):
+        self.expected_losses_estimator.reset()
+
 
 class SLTObservablesEstimator:
     """
@@ -179,4 +193,6 @@ class SLTObservablesEstimator:
     def __call__(self, chain: int, draw: int, model: nn.Module):
         self.update(chain, draw, model)
 
-
+    def reset(self):
+        self.likelihood_metrics_estimator.expected_loss_estimator.reset()
+        self.singular_fluctuation_estimator.expected_losses_estimator.reset()

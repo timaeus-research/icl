@@ -407,3 +407,6 @@ class Sampler:
             callbacks=self.callbacks,
         )
     
+    def reset(self):
+        for callback in self.callbacks:
+            callback.reset()

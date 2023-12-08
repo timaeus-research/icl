@@ -51,7 +51,7 @@ class ExpectationEstimator:
 
         self.increment(chain)
 
-    def update(self, chain: int, draw: int, observation: float):
+    def update(self, chain: int, draw: int, observation: torch.Tensor):
         self._update(chain, draw, ..., observation)
         self.increment()
 
@@ -71,6 +71,11 @@ class ExpectationEstimator:
             "mean": self.first_moment,
             "std": torch.sqrt(self.second_moment - self.first_moment ** 2),
         }
+    
+    def reset(self):
+        self.num_samples_seen = 0
+        self._first_moment.zero_()
+        self._second_moment.zero_()
 
 
 class OnlineExpectationEstimatorWithTrace:
@@ -107,7 +112,7 @@ class OnlineExpectationEstimatorWithTrace:
 
         self.increment(chain)
     
-    def update(self, chain: int, draw: int, observation: float):
+    def update(self, chain: int, draw: int, observation: torch.Tensor):
         self._update(chain, draw, ..., observation)
         self.increment(chain)
 
@@ -151,6 +156,11 @@ class OnlineExpectationEstimatorWithTrace:
             "mean": self.first_moment,
             "std": torch.sqrt(self.second_moment - self.first_moment ** 2),
         }
+
+    def reset(self):
+        self.num_samples_seen.zero_()
+        self.first_moments.zero_()
+        self.second_moments.zero_()
 
 # class OnlineExpectationEstimator:
 #     def __init__(self, num_samples: int, observable_dim: int = 1, device="cpu"):
