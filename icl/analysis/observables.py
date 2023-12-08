@@ -2,8 +2,8 @@ import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from pprint import pp
-from typing import (Callable, Dict, Iterable, Literal, Tuple, Type, TypeVar,
-                    Union)
+from typing import (Any, Callable, Dict, Iterable, Literal, Tuple, Type,
+                    TypeVar, Union)
 
 import matplotlib.pyplot as plt
 import numpy as torch
@@ -36,7 +36,7 @@ class ExpectationEstimator:
         self._first_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
         self._second_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
 
-    def _update(self, chain: int, draw: int, indices: Union[slice, Ellipsis], observation: float):
+    def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: float):
         self._first_moment[indices] += observation
         self._second_moment[indices] += observation ** 2
 
@@ -84,7 +84,7 @@ class OnlineExpectationEstimatorWithTrace:
         self.first_moments = torch.zeros((num_chains, num_draws, observable_dim), dtype=torch.float32).to(device)
         self.second_moments = torch.zeros((num_chains, num_draws, observable_dim), dtype=torch.float32).to(device)
 
-    def _update(self, chain: int, draw: int, indices: Union[slice, Ellipsis], observation: torch.Tensor):
+    def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
         if draw == 0:
             self.first_moments[chain, draw, indices] = observation
             self.second_moments[chain, draw, indices] = observation ** 2

@@ -3,8 +3,8 @@ import os
 import warnings
 from pathlib import Path
 from pprint import pp
-from typing import (Callable, Dict, Generator, Iterable, Literal, Optional,
-                    Tuple, Type, TypeVar, Union)
+from typing import (Any, Callable, Dict, Generator, Iterable, Literal,
+                    Optional, Tuple, Type, TypeVar, Union)
 
 import devinfra
 import devinterp
@@ -47,7 +47,7 @@ class ExpectedBatchLossEstimator:
 
         
 class ExpectedLossObservableEstimator:
-    def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.float], device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.Tensor], device="cpu", online=False, include_trace=False):
         self.estimator = get_estimator(num_chains, num_draws, 1, device, online=online, include_trace=include_trace)
         self.loss_fn = loss_fn
 
@@ -65,7 +65,7 @@ class LikelihoodMetricsEstimator:
     """
     Estimate the WBIC and local learning coefficient (LLC).
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.float]]=None, device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.Tensor]]=None, device="cpu", online=False, include_trace=False):
         self.loss_fn = loss_fn
         self.expected_loss_estimator = get_estimator(num_chains, num_draws, 1, device=device, online=online, include_trace=include_trace)
         self.num_chains = num_chains
@@ -95,7 +95,7 @@ class LikelihoodMetricsEstimator:
     def update(self, chain: int, draw: int, loss: float):
         self.expected_loss_estimator.update(chain, draw, loss)
 
-    def update_at(self, chain: int, draw: int, indices: Union[slice, Type[Ellipsis]], loss: torch.Tensor):
+    def update_at(self, chain: int, draw: int, indices: Union[slice, Type[Any]], loss: torch.Tensor):
         self.expected_loss_estimator.update_at(chain, draw, indices, loss)
 
     def __call__(self, chain: int, draw: int, loss: float, model: nn.Module):
@@ -117,7 +117,7 @@ class SingularFluctuationEstimator:
     """
     Estimate singular fluctuation based on individual sample losses.
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.float, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
         if online:
             warnings.warn("Online singular fluctuation estimation requires O(2n*T*C) memory, where n is the number of samples, T is the number of draws per chain, and C is the number of chains. This is not recommended for large datasets (n > 1000)")
 
@@ -154,7 +154,7 @@ class SLTObservablesEstimator:
     """
     Estimate the WBIC, LLC, and singular fluctuation. 
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.float, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
         self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, device=device, online=online, include_trace=include_trace)
         self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online, include_trace=include_trace)
 
