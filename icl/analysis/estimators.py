@@ -121,12 +121,7 @@ class OnlineExpectationEstimatorWithTrace:
 
     @property
     def least_num_samples_seen(self):
-        _least_num_samples_seen = min(self.num_samples_seen)
-
-        if _least_num_samples_seen == 0:
-            warnings.warn("No samples seen.")
-
-        return _least_num_samples_seen
+        return self.num_samples_seen.min().item()
     
     def first_moment_at(self, draw: int):
         if any(self.num_samples_seen <= draw):

@@ -3,6 +3,7 @@ from typing import Optional
 
 import torch
 import typer
+import yaml
 from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
@@ -38,11 +39,23 @@ def estimate_at_checkpoint(
         run.scheduler.load_state_dict(checkpoint["scheduler"])
 
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
-    sampler = sampler_config.to_sampler(run, log_fn=wandb.log)
+
+    print(yaml.dump(sampler_config.model_dump()))
+
+    def log_fn(data, step=None):
+        serialized = {
+            k: v.item() if isinstance(v, torch.Tensor) else v
+            for k, v in data.items()
+        }
+
+        wandb.log(serialized, step=step)
+        print(yaml.dump(serialized))
+
+    sampler = sampler_config.to_sampler(run, log_fn=log_fn)
     results = sampler.eval(run.model)
 
     # Save to wandb
-    wandb.log(results)
+    # wandb.log(results)
 
     # Save locally
     results["config"] = {
@@ -51,7 +64,7 @@ def estimate_at_checkpoint(
     }
 
     slug = "llc-" + pyvar_dict_to_slug(flatten_dict(results["config"]['run'], delimiter='_')) + pyvar_dict_to_slug(flatten_dict(results["config"]['sampler'], delimiter='_')) + f"@t={checkpoint_step}" + ".pt"
-    
+
     torch.save(results, ANALYSIS / slug)
 
 

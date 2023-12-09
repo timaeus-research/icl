@@ -58,22 +58,24 @@ PYVAR_TO_SLUGVAR = {
     "eval_method": "eval",
     "eval_loss_fn": "loss",
     "gamma": "gamma",
+    "num_training_samples": "n",
+    "batch_size": "m", 
 }
 
 def pyvar_to_mathvar(name: str):
-    return PYVAR_TO_MATHVAR[name.split(".")[-1].split("/")[-1]]
+    return PYVAR_TO_MATHVAR.get(name.split(".")[-1].split("/")[-1], name)
 
 
 def pyvar_to_slugvar(name: str):
-    return PYVAR_TO_SLUGVAR[name.split(".")[-1].split("/")[-1]]
+    return PYVAR_TO_SLUGVAR.get(name.split(".")[-1].split("/")[-1])
 
 
 def pyvar_dict_to_latex(d: dict):
-    return "$" + ", ".join([f"{pyvar_to_mathvar(k)}={v}" for k, v in d.items()]) + "$"
+    return "$" + ", ".join([f"{pyvar_to_mathvar(k)}={v}" for k, v in d.items() if v is not None and k in PYVAR_TO_MATHVAR]) + "$"
 
 
 def pyvar_dict_to_slug(d: dict):
-    return "_".join([f"{pyvar_to_slugvar(k)}{v}" for k, v in d.items()])
+    return "_".join([f"{pyvar_to_slugvar(k)}{v}" for k, v in d.items() if v is not None and k in PYVAR_TO_SLUGVAR])
 
 
 def get_locations(L: int):

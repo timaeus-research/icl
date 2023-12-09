@@ -253,7 +253,7 @@ class SamplerConfig(BaseModel):
 
         if epsilon is None:
             data["epsilon"] = epsilon = noise_scale
-            data["temperature"] = temperature = gradient_scale * 2 / (epsilon * num_samples)
+            data["temperature"] = temperature = (gradient_scale * 2 / (epsilon * num_samples)) ** -1
             data["gamma"] = gamma = localization_scale * 2 / epsilon
 
         else:
@@ -314,6 +314,7 @@ class Sampler:
         self.log_fn = log_fn
         self.grad_loss_fn = self.config.get_loss_fn(reduction="mean")
         self.eval_loss_fn = self.config.get_loss_fn(reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean")
+        self.init_loss = self.eval_model(run.model)
         self.callbacks = self.get_callbacks()
 
     def eval_one_batch(self, model):
@@ -342,9 +343,6 @@ class Sampler:
         elif self.config.eval_method in ("fixed-minibatch", "dataset"):
             loss_fn = self.eval_model
 
-        if self.log_fn is not None:
-            warnings.warn("Log function is not supported for likelihood metrics")
-
         return LikelihoodMetricsEstimator(
             self.config.num_chains, 
             self.config.num_draws,
@@ -354,6 +352,8 @@ class Sampler:
             device=self.config.device,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
+            log_fn=self.log_fn,
+            init_loss=self.init_loss
         )
 
     def get_slt_callback(self):
@@ -370,6 +370,7 @@ class Sampler:
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
+            init_loss=self.init_loss
         )
 
     def get_callbacks(self):
@@ -401,3 +402,10 @@ class Sampler:
     def reset(self):
         for callback in self.callbacks:
             callback.reset()
+
+    def update_init_loss(self, init_loss):
+        self.init_loss = init_loss
+
+        for callback in self.callbacks:
+            if hasattr(callback, "init_loss"):
+                callback.init_loss = init_loss

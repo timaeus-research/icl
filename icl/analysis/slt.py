@@ -69,13 +69,17 @@ class LikelihoodMetricsEstimator:
     """
     Estimate the WBIC and local learning coefficient (LLC).
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.Tensor]]=None, device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, init_loss: torch.Tensor, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.Tensor]]=None, device="cpu", online=False, include_trace=False, log_fn = False):
         self.loss_fn = loss_fn
         self.expected_loss_estimator = get_estimator(num_chains, num_draws, 1, device=device, online=online, include_trace=include_trace)
         self.num_chains = num_chains
         self.dataset_size = dataset_size
         self.temperature = temperature if temperature != 'adaptive' else 1. / np.log(dataset_size)
-        self.init_loss = torch.zeros(1, dtype=torch.float32).to(device)
+        self.init_loss = torch.Tensor(init_loss)
+
+        self.online = online
+        self.log_fn = log_fn
+        self.least_num_samples_seen = 0
        
     def estimate(self):
         loss_avg = self.expected_loss_estimator.first_moment
@@ -99,10 +103,6 @@ class LikelihoodMetricsEstimator:
     def update(self, chain: int, draw: int, loss: torch.Tensor):
         self.expected_loss_estimator.update(chain, draw, loss)
 
-        if draw == 0:
-            self.init_loss += loss / self.num_chains   # Will yield wrong answers for llc if you call estimate before all chains have been updated
-
-
     def __call__(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
         if self.loss_fn is None:
             self.update(chain, draw, loss)
@@ -120,6 +120,17 @@ class LikelihoodMetricsEstimator:
                 self.update(chain, draw, total_loss / n)
             else:
                 self.update(chain, draw, self.loss_fn(model))
+
+        if self.online:
+            new_least_num_samples_seen = self.expected_loss_estimator.least_num_samples_seen 
+
+            if new_least_num_samples_seen > self.least_num_samples_seen:
+                self.least_num_samples_seen = new_least_num_samples_seen
+
+                if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
+                    self.log_fn(self.estimate(), step=self.least_num_samples_seen)
+            
+
 
     def reset(self):
         self.expected_loss_estimator.reset()
@@ -168,8 +179,8 @@ class SLTObservablesEstimator:
     """
     Estimate the WBIC, LLC, and singular fluctuation. 
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False, log_fn=None):
-        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, device=device, online=online, include_trace=include_trace)
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], init_loss: torch.Tensor, temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False, log_fn=None):
+        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, init_loss=init_loss, device=device, online=online, include_trace=include_trace)
         self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online, include_trace=include_trace)
         
         self.online = online
@@ -200,7 +211,7 @@ class SLTObservablesEstimator:
             if new_least_num_samples_seen > self.least_num_samples_seen:
                 self.least_num_samples_seen = new_least_num_samples_seen
 
-                if self.log_fn is not None:
+                if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
                     self.log_fn(self.estimate(), step=self.least_num_samples_seen)
 
     def __call__(self, chain: int, draw: int, model: nn.Module):
@@ -209,3 +220,11 @@ class SLTObservablesEstimator:
     def reset(self):
         self.likelihood_metrics_estimator.expected_loss_estimator.reset()
         self.singular_fluctuation_estimator.expected_losses_estimator.reset()
+
+    @property
+    def init_loss(self):
+        return self.likelihood_metrics_estimator.init_loss
+    
+    @init_loss.setter
+    def init_loss(self, value):
+        self.likelihood_metrics_estimator.init_loss = value

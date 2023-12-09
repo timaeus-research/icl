@@ -35,10 +35,10 @@ def sweep_over_time(
     steps = steps or list(run.checkpointer.file_ids)
 
     for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
+        sampler.update_init_loss(sampler.eval_model(model))
         print(step)
         results = sampler.eval(model)
         sampler.reset()
-        
         # trace = results.pop("loss/trace")
 
         # if num_evals > 0:
