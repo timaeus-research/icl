@@ -53,8 +53,12 @@ PYVAR_TO_SLUGVAR = {
     "num_draws": "ndraws",
     "num_chains": "nchains",
     "num_samples": "n",
+    "epsilon": "eps",
+    "temperature": "temp",
+    "eval_method": "eval",
+    "eval_loss_fn": "loss",
+    "gamma": "gamma",
 }
-
 
 def pyvar_to_mathvar(name: str):
     return PYVAR_TO_MATHVAR[name.split(".")[-1].split("/")[-1]]

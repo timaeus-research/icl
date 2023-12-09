@@ -36,9 +36,9 @@ class ExpectationEstimator:
         self._first_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
         self._second_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
 
-    def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: float):
-        self._first_moment[indices] += observation
-        self._second_moment[indices] += observation ** 2
+    def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
+        self._first_moment[indices] += observation.view(-1)
+        self._second_moment[indices] += observation.view(-1) ** 2
 
     def iter_update(self, chain: int, draw: int, iterable: Iterable[torch.Tensor]):
         I = 0        
@@ -91,23 +91,23 @@ class OnlineExpectationEstimatorWithTrace:
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
         if draw == 0:
-            self.first_moments[chain, draw, indices] = observation
-            self.second_moments[chain, draw, indices] = observation ** 2
+            self.first_moments[chain, draw, indices] = observation.view(-1)
+            self.second_moments[chain, draw, indices] = observation.view(-1) ** 2
         else:
             self.first_moments[chain, draw, indices] = (
-                draw / (draw + 1) * self.first_moments[chain, draw - 1, indices] + observation / (draw + 1)
+                draw / (draw + 1) * self.first_moments[chain, draw - 1, indices] + observation.view(-1) / (draw + 1)
             )
             self.second_moments[chain, draw, indices] = (
-                draw / (draw + 1) * self.second_moments[chain, draw - 1, indices] + observation ** 2 / (draw + 1)
+                draw / (draw + 1) * self.second_moments[chain, draw - 1, indices] + observation.view(-1) ** 2 / (draw + 1)
             )
 
     def iter_update(self, chain: int, draw: int, iterable: Iterable[torch.Tensor]):
-        I = 0        
+        curr_dim = 0        
 
         for i, observation in enumerate(iterable):
-            b = observation.shape[0]
-            self._update(chain, draw, slice(I, I + b), observation)
-            I += b
+            b = observation.numel()
+            self._update(chain, draw, slice(curr_dim, curr_dim + b), observation)
+            curr_dim += b
             yield observation
 
         self.increment(chain)

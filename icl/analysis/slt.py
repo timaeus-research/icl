@@ -76,7 +76,7 @@ class LikelihoodMetricsEstimator:
         self.dataset_size = dataset_size
         self.temperature = temperature if temperature != 'adaptive' else 1. / np.log(dataset_size)
         self.init_loss = torch.zeros(1, dtype=torch.float32).to(device)
-
+       
     def estimate(self):
         loss_avg = self.expected_loss_estimator.first_moment
         loss_std = torch.sqrt(self.expected_loss_estimator.second_moment - loss_avg ** 2)
@@ -168,9 +168,13 @@ class SLTObservablesEstimator:
     """
     Estimate the WBIC, LLC, and singular fluctuation. 
     """
-    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False, log_fn=None):
         self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, device=device, online=online, include_trace=include_trace)
         self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online, include_trace=include_trace)
+        
+        self.online = online
+        self.log_fn = log_fn
+        self.least_num_samples_seen = 0
 
     def estimate(self):
         return {
@@ -189,6 +193,15 @@ class SLTObservablesEstimator:
             total_loss += batch_losses.sum()
 
         self.likelihood_metrics_estimator.update(chain, draw, total_loss / self.dataset_size)
+
+        if self.online:
+            new_least_num_samples_seen = self.likelihood_metrics_estimator.expected_loss_estimator.least_num_samples_seen 
+
+            if new_least_num_samples_seen > self.least_num_samples_seen:
+                self.least_num_samples_seen = new_least_num_samples_seen
+
+                if self.log_fn is not None:
+                    self.log_fn(self.estimate(), step=self.least_num_samples_seen)
 
     def __call__(self, chain: int, draw: int, model: nn.Module):
         self.update(chain, draw, model)

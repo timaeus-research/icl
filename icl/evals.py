@@ -1,9 +1,11 @@
 import functools
 
+import numpy as np
 import torch
 from devinfra.evals import ModelEvaluator
 from devinfra.utils.seed import set_seed
 from torch import nn
+from torch.nn import functional as F
 
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
@@ -103,7 +105,7 @@ class ICLEvaluator(ModelEvaluator):
 
         }
     
-class SubsequenceMSELoss:
+class SequenceMSELoss:
 
     def __init__(self, reduction: str = "mean") -> None:
         self.reduction = reduction
@@ -122,23 +124,58 @@ class SubsequenceMSELoss:
         """
 
         # Apply random mask to y_pred & y
-        B, K = y_pred.shape
+        B, K, _ = y_pred.shape
+
+        loss = F.mse_loss(y_pred, y, reduction="none").mean(dim=(1, 2))
+
+        # Compute MSE loss
+        if self.reduction == "mean":
+            return loss.sum() / B
+        elif self.reduction == "sum":
+            return loss.sum()
+        elif self.reduction == "none":
+            return loss
+        else:
+            raise ValueError(f"Unknown reduction: {self.reduction}")
+
+    
+class SubsequenceMSELoss:
+    def __init__(self, reduction: str = "mean") -> None:
+        self.reduction = reduction
+
+    def __call__(
+            self, 
+            y_pred: torch.Tensor,  # B K
+            y: torch.Tensor  # B K
+    ) -> torch.Tensor:
+        """
+        Compute the MSE loss between y_pred and y, but only on a random subsequence
+        of the first K' elements of y_pred and y, where K' is sampled uniformly from
+        [1, K]. 
+        
+        Always takes the mean over tokens. Reduction is applied to the batch.
+        """
+
+        # Apply random mask to y_pred & y
+        B, K, _ = y_pred.shape
 
         loss = torch.zeros(B if self.reduction == "none" else 1)
 
         for i in range(B):
             K_prime = np.random.randint(1, K + 1)
+            # K_prime = torch.randint(1, K + 1, (1,)).item()
 
             if self.reduction == "none":
-                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
             else:
-                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime], reduction="mean")
+                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
 
+        print("Loss", loss.shape)
         # Compute MSE loss
         if self.reduction == "mean":
-            return loss / B
+            return loss.sum() / B
         elif self.reduction == "sum":
-            return loss
+            return loss.sum()
         elif self.reduction == "none":
             return loss
         else:

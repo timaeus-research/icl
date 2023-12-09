@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 import typer
 from devinfra.utils.device import get_default_device
-from devinfra.utils.iterables import rm_none_vals
+from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
 import wandb
 from icl.analysis.sample import SamplerConfig
@@ -38,7 +38,7 @@ def estimate_at_checkpoint(
         run.scheduler.load_state_dict(checkpoint["scheduler"])
 
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
-    sampler = sampler_config.to_sampler(run)
+    sampler = sampler_config.to_sampler(run, log_fn=wandb.log)
     results = sampler.eval(run.model)
 
     # Save to wandb
@@ -50,7 +50,8 @@ def estimate_at_checkpoint(
         "sampler": sampler_config.model_dump(),
     }
 
-    slug = "llc-" + pyvar_dict_to_slug(results["config"]) + f"@t={checkpoint_step}" + ".pt"
+    slug = "llc-" + pyvar_dict_to_slug(flatten_dict(results["config"]['run'], delimiter='_')) + pyvar_dict_to_slug(flatten_dict(results["config"]['sampler'], delimiter='_')) + f"@t={checkpoint_step}" + ".pt"
+    
     torch.save(results, ANALYSIS / slug)
 
 
@@ -61,11 +62,8 @@ def wandb_sweep_over_final_weights():
     config = dict(wandb.config)
     sampler_config = config.pop("sampler_config")
     checkpoint_idx = config.pop("checkpoint_idx", -1)
-    title_config = sampler_config.copy()
-    del title_config["num_draws"]
-    del title_config["num_chains"]
-    del title_config["batch_size"]
-    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}:{pyvar_dict_to_slug(title_config)}"
+    title_config = {k: v for k, v in sampler_config.items() if k in ['epsilon', 'gamma', 'eval_method', 'eval_loss_fn']}
+    wandb.run.name = f"M={config['task_config']['num_tasks']}:{pyvar_dict_to_slug(title_config)}"
     wandb.run.save()
     estimate_at_checkpoint(config, sampler_config, checkpoint_idx)
     wandb.finish()

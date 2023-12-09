@@ -1,42 +1,23 @@
 import inspect
 import itertools
-import os
+import warnings
 from copy import deepcopy
-from dataclasses import dataclass
-from functools import partial
-from logging import Logger
-from pathlib import Path
-from pprint import pp
-from typing import (Any, Callable, Dict, Iterable, List, Literal, Optional,
-                    Tuple, Type, Union)
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
-import devinfra
-import devinterp
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import sentry_sdk
 import torch
-import yaml
-from devinfra.evals import Criterion
 from devinterp.optim.sgld import SGLD
 from devinterp.optim.sgnht import SGNHT
 from pydantic import BaseModel, Field, field_validator, model_validator
 from torch import nn
-from torch.multiprocessing import (Pool, cpu_count, get_context,
-                                   set_start_method)
-from torch.nn import functional as F
+from torch.multiprocessing import cpu_count, get_context
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from typer import Typer
 
 from icl.analysis.cov import make_transformer_cov_accumulator
 from icl.analysis.slt import (LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
-from icl.analysis.utils import get_unique_run
-from icl.config import ICLConfig, get_config
-from icl.evals import SubsequenceMSELoss
+from icl.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.train import Run
 
 
@@ -186,7 +167,6 @@ def sample(
     return results
 
 
-
 class SamplerConfig(BaseModel):
     # Sampling
     num_chains: int
@@ -200,7 +180,7 @@ class SamplerConfig(BaseModel):
     # Parametrization 1 (original)
     epsilon: float 
     gamma: float 
-    temperature: float = "auto"  # type: ignore
+    temperature: float = "auto"
 
     # Parametrization 2 (new)
     gradient_scale: float
@@ -222,7 +202,7 @@ class SamplerConfig(BaseModel):
     eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
         
     # Covariance estimation
-    num_evals: int = 3
+    num_evals: Optional[int] = None
 
     cores: int = 1
     device: str = "cpu"
@@ -244,10 +224,15 @@ class SamplerConfig(BaseModel):
     @classmethod
     def check_evals(cls, data: Any) -> Any:
         if data["eval_method"] in ["grad-minibatch", "new-minibatch"]:
-            assert "singular-fluctuation" not in data["eval_metrics"], "Singular fluctuation is not supported for minibatch evals"
+            if "singular-fluctuation" in data["eval_metrics"]:
+                warnings.warn("Singular fluctuation should not be trusted with minibatch evals")
+
+            assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
+        elif data["eval_method"] == "fixed-minibatch":
             assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
         else:
-            assert data.get("eval_batch_size", None) is None, "Eval batch size is not supported for dataset/validation-set evals"
+            if data.get("eval_batch_size", None) is not None: 
+                warnings.warn("Eval batch size is provided but will be ignored for dataset evals")
 
         assert "covariance" not in data["eval_metrics"], "Covariance is not supported for now"
         assert "hessian" not in data["eval_metrics"], "Hessian is not supported for now"
@@ -263,12 +248,12 @@ class SamplerConfig(BaseModel):
         localization_scale = data.get("localization_scale", None)
         noise_scale = data.get("noise_scale", None)
 
-        assert ((epsilon is None) and (temperature is None) and (gradient_scale is None)) or \
-            ((noise_scale is None) and (gradient_scale is None) and (localization_scale is None)), "Must choose and stick to one parametrization"
+        assert ((epsilon is None) and (temperature is None or temperature == "auto") and (gamma is None)) or \
+            ((noise_scale is None) and (gradient_scale is None) and (localization_scale is None)), f"Must choose and stick to one parametrization, received: epsilon={epsilon}, temperature={temperature}, gamma={gamma}, gradient_scale={gradient_scale}, localization_scale={localization_scale}, noise_scale={noise_scale}"
 
         if epsilon is None:
             data["epsilon"] = epsilon = noise_scale
-            data["temperature"] = temperature = gradient_scale * 2 * temperature / (epsilon * num_samples)
+            data["temperature"] = temperature = gradient_scale * 2 / (epsilon * num_samples)
             data["gamma"] = gamma = localization_scale * 2 / epsilon
 
         else:
@@ -279,15 +264,14 @@ class SamplerConfig(BaseModel):
             data["localization_scale"] = localization_scale = epsilon * gamma / 2
             data["noise_scale"] = noise_scale = epsilon
    
+        return data
 
-    def to_sampler(self, run: Run):
-        return Sampler(self, run)
+    def to_sampler(self, run: Run, log_fn: Optional[Callable] = None):
+        return Sampler(self, run, log_fn=log_fn)
         
-    def get_loss_fn(self):
-        reduction = "none" if "singular-fluctuation" in self.eval_metrics else "mean"
-
+    def get_loss_fn(self, reduction: str = "mean"):
         if self.eval_loss_fn == "mse":
-            return nn.MSELoss(reduction=reduction)
+            return SequenceMSELoss(reduction=reduction)
         else:
             return SubsequenceMSELoss(reduction=reduction)
 
@@ -309,7 +293,7 @@ class SamplerConfig(BaseModel):
         }
 
 class Sampler:
-    def __init__(self, config: SamplerConfig, run: Run):
+    def __init__(self, config: SamplerConfig, run: Run, log_fn: Optional[Callable] = None):
         self.config = config
         self.run = run
 
@@ -327,20 +311,22 @@ class Sampler:
         self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
         self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
 
-        self.loss_fn = self.config.get_loss_fn()
+        self.log_fn = log_fn
+        self.grad_loss_fn = self.config.get_loss_fn(reduction="mean")
+        self.eval_loss_fn = self.config.get_loss_fn(reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean")
         self.callbacks = self.get_callbacks()
 
     def eval_one_batch(self, model):
         xs, ys = next(iter(self.eval_loader))
         xs, ys = xs.to(self.config.device), ys.to(self.config.device)
         y_preds = model(xs, ys)
-        return self.loss_fn(y_preds, ys)
+        return self.eval_loss_fn(y_preds, ys)
 
     def iter_eval_model(self, model):
         for xs, ys in self.eval_loader:
             xs, ys = xs.to(self.config.device), ys.to(self.config.device)
             y_preds = model(xs, ys)
-            yield self.loss_fn(y_preds, ys)
+            yield self.eval_loss_fn(y_preds, ys)
 
     def eval_model(self, model):
         return sum(self.iter_eval_model(model)) / self.config.eval_dataset_size
@@ -356,6 +342,9 @@ class Sampler:
         elif self.config.eval_method in ("fixed-minibatch", "dataset"):
             loss_fn = self.eval_model
 
+        if self.log_fn is not None:
+            warnings.warn("Log function is not supported for likelihood metrics")
+
         return LikelihoodMetricsEstimator(
             self.config.num_chains, 
             self.config.num_draws,
@@ -368,7 +357,8 @@ class Sampler:
         )
 
     def get_slt_callback(self):
-        assert self.config.eval_method in ("fixed-minibatch", "dataset"), "Singular fluctuation requires minibatch or dataset evals"
+        if self.config.eval_method not in ("fixed-minibatch", "dataset"):
+            warnings.warn("Singular fluctuation should not be trusted with minibatch evals")
 
         return SLTObservablesEstimator(
             self.config.num_chains, 
@@ -379,6 +369,7 @@ class Sampler:
             device=self.config.device,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
+            log_fn=self.log_fn,
         )
 
     def get_callbacks(self):
@@ -397,7 +388,7 @@ class Sampler:
         return sample(
             model,
             self.grad_loader,
-            self.loss_fn,
+            self.grad_loss_fn,
             self.config.get_optimizer_cls(),
             optimizer_kwargs=self.config.get_optimizer_kwargs(),
             num_draws=self.config.num_draws,
