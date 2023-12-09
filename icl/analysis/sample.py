@@ -162,7 +162,7 @@ def sample(
 
     for callback in callbacks:
         if hasattr(callback, "estimate"):
-            results.update(callback.sample())
+            results.update(callback.estimate())
 
     return results
 
