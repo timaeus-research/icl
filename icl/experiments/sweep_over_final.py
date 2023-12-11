@@ -7,6 +7,7 @@ import typer
 import yaml
 from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import flatten_dict, rm_none_vals
+from pydantic import BaseModel
 
 import wandb
 from icl.analysis.health import ChainHealthException
