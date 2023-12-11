@@ -4,22 +4,40 @@ command: ["python", "icl/experiments/sweep_over_time.py", "wandb"]
 project: icl
 entity: devinterp
 parameters:
-  analysis_config:
+  sampler_config:
     parameters: 
-      gamma:
-        value: 1.
-      num_draws:
-        value: 1000
-      lr: 
-        value: 0.0003
       num_chains:
         value: 25
-      batch_size: 
+      num_draws:
+        value: 1000
+      sampling_method:
+        value: sgld
+      grad_batch_origin:
+        value: "eval-dataset"
+      grad_batch_size:
         value: 1024
-      num_samples:
-        value: 1024  # Note this doesn't match eval_batch_size
-      num_evals:
-        value: 0
+      # 
+      gradient_scale:
+        value: 0.0510248155  # epsilon n \beta  / 2
+      localization_scale:
+        value: 0.00015  # epsilon / 2
+      noise_scale:
+        value: 0.0003   # epsilon
+      # 
+      eval_method:
+        value: "dataset"   
+      eval_batch_size:
+        value: 1024
+      eval_dataset_size:
+        values: [1024, 2048, 4096, 8192, 16384, 32768, 1048576] 
+      eval_metrics:
+        value: ["likelihood-derived"]
+      eval_online:
+        value: True
+      eval_loss_fn:
+        value: "mse"
+        # values: ["subsequence-mse", "mse"]
+
   task_config: 
     parameters:
       task_size:
