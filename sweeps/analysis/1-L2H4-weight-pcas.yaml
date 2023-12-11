@@ -1,4 +1,4 @@
-name: L2H4-llcs-over-time
+name: L2H4-weight-pcas
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -25,9 +25,9 @@ parameters:
         value: 0.0003   # epsilon
       # 
       eval_method:
-        value: ['fixed-minibatch']      
+        value: ['grad-minibatch']      
       eval_batch_size:
-        value: 8192
+        value: 1092
       eval_dataset_size:
         value: 1048576
       eval_metrics:

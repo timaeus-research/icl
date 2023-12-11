@@ -77,3 +77,6 @@ parameters:
     parameters:
       lr:
         value: 0.01
+
+  step:
+    values: [10204, 499999]
