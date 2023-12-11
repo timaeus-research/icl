@@ -130,7 +130,7 @@ class SequenceMSELoss:
 
         # Compute MSE loss
         if self.reduction == "mean":
-            return loss.sum() / B
+            return loss.mean()
         elif self.reduction == "sum":
             return loss.sum()
         elif self.reduction == "none":

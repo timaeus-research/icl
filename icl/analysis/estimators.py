@@ -36,9 +36,15 @@ class ExpectationEstimator:
         self._first_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
         self._second_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
 
+    @staticmethod
+    def flatten(matrix):
+        if isinstance(matrix, torch.Tensor):
+            return matrix.view(-1).detach()
+        return matrix
+
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
-        self._first_moment[indices] += observation.view(-1)
-        self._second_moment[indices] += observation.view(-1) ** 2
+        self._first_moment[indices] += self.flatten(observation)
+        self._second_moment[indices] += self.flatten(observation) ** 2
 
     def iter_update(self, chain: int, draw: int, iterable: Iterable[torch.Tensor]):
         I = 0        
@@ -68,8 +74,8 @@ class ExpectationEstimator:
     
     def estimate(self):
         return {
-            "mean": self.first_moment,
-            "std": torch.sqrt(self.second_moment - self.first_moment ** 2),
+            "mean": self.first_moment.detach(),
+            "std": torch.sqrt(self.second_moment - self.first_moment ** 2).detach(),
         }
     
     def reset(self):
@@ -91,15 +97,22 @@ class OnlineExpectationEstimatorWithTrace:
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
         if draw == 0:
-            self.first_moments[chain, draw, indices] = observation.view(-1)
-            self.second_moments[chain, draw, indices] = observation.view(-1) ** 2
+            self.first_moments[chain, draw, indices] = self.flatten(observation)
+            self.second_moments[chain, draw, indices] = self.flatten(observation) ** 2
         else:
             self.first_moments[chain, draw, indices] = (
-                draw / (draw + 1) * self.first_moments[chain, draw - 1, indices] + observation.view(-1) / (draw + 1)
+                draw / (draw + 1) * self.first_moments[chain, draw - 1, indices] + self.flatten(observation) / (draw + 1)
             )
             self.second_moments[chain, draw, indices] = (
-                draw / (draw + 1) * self.second_moments[chain, draw - 1, indices] + observation.view(-1) ** 2 / (draw + 1)
+                draw / (draw + 1) * self.second_moments[chain, draw - 1, indices] + self.flatten(observation) ** 2 / (draw + 1)
             )
+
+    @staticmethod
+    def flatten(matrix):
+        if isinstance(matrix, torch.Tensor):
+            return matrix.view(-1).detach()
+        
+        return matrix
 
     def iter_update(self, chain: int, draw: int, iterable: Iterable[torch.Tensor]):
         curr_dim = 0        
@@ -145,12 +158,26 @@ class OnlineExpectationEstimatorWithTrace:
     
     def estimate(self):
         return {
-            "trace": self.first_moments,
-            **{f"chain-{i}/mean": self.first_moments[i, self.least_num_samples_seen-1] for i in range(self.num_chains)},
-            **{f"chain-{i}/std": torch.sqrt(self.second_moments[i, self.least_num_samples_seen-1] - self.first_moments[i, self.num_samples_seen[i]-1] ** 2) for i in range(self.num_chains)},
-            "mean": self.first_moment,
-            "std": torch.sqrt(self.second_moment - self.first_moment ** 2),
+            "trace": self.first_moments.detach(),
+            **{f"chain-{i}/mean": self.first_moments[i, self.least_num_samples_seen-1].detach() for i in range(self.num_chains)},
+            **{f"chain-{i}/std": torch.sqrt(self.second_moments[i, self.least_num_samples_seen-1] - self.first_moments[i, self.num_samples_seen[i]-1] ** 2).detach() for i in range(self.num_chains)},
+            "mean": self.first_moment.detach(),
+            "std": torch.sqrt(self.second_moment - self.first_moment ** 2).detach(),
         }
+    
+    def estimates(self):
+        _estimates = []
+
+        for chain in range(self.num_chains):
+            for draw in range(self.num_samples_seen[chain]):
+                _estimates.append({
+                    "chain": chain,
+                    "draw": draw,
+                    "mean": self.first_moments[chain, draw].detach().numpy(),
+                    "std": (torch.sqrt(self.second_moments[chain, draw] - self.first_moments[chain, draw] ** 2).detach()).numpy(),
+                })
+        
+        return pd.DataFrame(_estimates)
 
     def reset(self):
         self.num_samples_seen.zero_()
@@ -237,3 +264,4 @@ def get_estimator(num_chains: int, num_draws: int, observable_dim: int = 1, devi
         # return OnlineExpectationEstimator(num_chains * num_draws, observable_dim, device) 
     
     return ExpectationEstimator(num_chains * num_draws, observable_dim, device)
+

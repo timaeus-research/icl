@@ -15,8 +15,10 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
-from icl.analysis.slt import (LikelihoodMetricsEstimator,
+from icl.analysis.slt import (ExpectedBatchLossEstimator,
+                              LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
+from icl.analysis.weights import WeightsTrace
 from icl.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.train import Run
 
@@ -61,10 +63,10 @@ def sample_single_chain(
         torch.manual_seed(seed)
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
-
     model.train()
+    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
-    for i, (xs, ys) in  tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose):
+    for i, (xs, ys) in  pbar:
         optimizer.zero_grad()
         xs, ys = xs.to(device), ys.to(device)
         y_preds = model(xs, ys)
@@ -72,6 +74,8 @@ def sample_single_chain(
 
         loss.backward()
         optimizer.step()
+
+        pbar.set_postfix(loss=loss.item())
 
         if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
             draw = (i - num_burnin_steps) // num_steps_bw_draws
@@ -178,14 +182,14 @@ class SamplerConfig(BaseModel):
     grad_batch_size: int
 
     # Parametrization 1 (original)
-    epsilon: float 
-    gamma: float 
+    epsilon: float = None
+    gamma: float = None
     temperature: float = "auto"
 
     # Parametrization 2 (new)
-    gradient_scale: float
-    localization_scale: float
-    noise_scale: float
+    gradient_scale: float = None 
+    localization_scale: float = None
+    noise_scale: float = None
 
     # Misc
     num_burnin_steps: int = 0
@@ -196,7 +200,7 @@ class SamplerConfig(BaseModel):
     eval_method: Literal["grad-minibatch", "new-minibatch", "fixed-minibatch", "dataset"]
     eval_batch_size: Optional[int] = None
     eval_dataset_size: int = 8192
-    eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian"]] \
+    eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian", "batch-loss", "weights"]] \
         = Field(default_factory=lambda: ["likelihood-derived", "singular-fluctuation"])  # covariance and hessian are not supported for now
     eval_online: bool = False
     eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
@@ -302,6 +306,9 @@ class Sampler:
             batch_size=self.config.eval_dataset_size,
         )
 
+        xs.to(self.config.device)
+        ys.to(self.config.device)
+
         self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
         self.eval_dataset = self.full_dataset
 
@@ -315,22 +322,29 @@ class Sampler:
         self.grad_loss_fn = self.config.get_loss_fn(reduction="mean")
         self.eval_loss_fn = self.config.get_loss_fn(reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean")
         self.init_loss = self.eval_model(run.model)
-        self.callbacks = self.get_callbacks()
+        self._callbacks = self.get_callbacks()
 
     def eval_one_batch(self, model):
         xs, ys = next(iter(self.eval_loader))
         xs, ys = xs.to(self.config.device), ys.to(self.config.device)
         y_preds = model(xs, ys)
-        return self.eval_loss_fn(y_preds, ys)
+        return self.eval_loss_fn(y_preds, ys).detach()
 
     def iter_eval_model(self, model):
         for xs, ys in self.eval_loader:
             xs, ys = xs.to(self.config.device), ys.to(self.config.device)
             y_preds = model(xs, ys)
-            yield self.eval_loss_fn(y_preds, ys)
+            yield self.eval_loss_fn(y_preds, ys).detach()
 
     def eval_model(self, model):
-        return sum(self.iter_eval_model(model)) / self.config.eval_dataset_size
+        loss = torch.zeros(1, device=self.config.device)
+
+        for xs, ys in self.eval_loader:
+            xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+            y_preds = model(xs, ys)
+            loss += self.eval_loss_fn(y_preds, ys).detach().mean() * xs.shape[0]
+
+        return (loss / self.config.eval_dataset_size).detach()
         
     def get_cov_callback(self):
         return make_transformer_cov_accumulator(self.run.model, device=self.config.device, num_evals=self.config.num_evals)
@@ -372,20 +386,41 @@ class Sampler:
             log_fn=self.log_fn,
             init_loss=self.init_loss
         )
+    
+    def get_batch_loss_callback(self):
+        return ExpectedBatchLossEstimator(
+            self.config.num_chains, 
+            self.config.num_draws, 
+            self.config.device,
+            online=True,
+            include_trace=True
+        )
+
+    def get_weights_callback(self):
+        return WeightsTrace(
+            self.config.num_chains, 
+            self.config.num_draws, 
+            self.run.model, 
+            self.config.device,
+        )
 
     def get_callbacks(self):
-        callbacks = []
+        callbacks = {}
 
         if "likelihood-derived" in self.config.eval_metrics and "singular-fluctuation" in self.config.eval_metrics:
-            callbacks.append(self.get_slt_callback())
+            callbacks['slt'] = self.get_slt_callback()
         elif "likelihood-derived" in self.config.eval_metrics:
-            callbacks.append(self.get_likelihood_metrics_callback())
+            callbacks['likelihood'] = self.get_likelihood_metrics_callback()
         elif "singular-fluctuation" in self.config.eval_metrics:
             raise ValueError("Singular fluctuation requires likelihood-derived")
+        if "batch-loss" in self.config.eval_metrics:
+            callbacks['batch-loss'] = self.get_batch_loss_callback()
+        if "weights" in self.config.eval_metrics:
+            callbacks['weights'] = self.get_weights_callback()
     
         return callbacks
 
-    def eval(self, model: nn.Module):
+    def eval(self, model: nn.Module, seed=None):
         return sample(
             model,
             self.grad_loader,
@@ -397,6 +432,7 @@ class Sampler:
             cores=self.config.cores,
             device=self.config.device,
             callbacks=self.callbacks,
+            seed=seed
         )
     
     def reset(self):
@@ -409,3 +445,35 @@ class Sampler:
         for callback in self.callbacks:
             if hasattr(callback, "init_loss"):
                 callback.init_loss = init_loss
+
+    @property
+    def callbacks(self):
+        return list(self._callbacks.values())
+    
+    @property
+    def batch_loss(self):
+        if 'batch-loss' not in self._callbacks:
+            raise ValueError("Batch loss not enabled in config")
+
+        return self._callbacks['batch-loss']
+    
+    @property
+    def weights(self):
+        if 'weights' not in self._callbacks:
+            raise ValueError("Weights not enabled in config")
+        
+        return self._callbacks['weights']
+    
+    @property
+    def slt(self):
+        if 'slt' not in self._callbacks:
+            raise ValueError("SLT not enabled in config")
+        
+        return self._callbacks['slt']
+    
+    @property
+    def likelihood(self):
+        if 'likelihood' not in self._callbacks:
+            raise ValueError("Likelihood not enabled in config")
+        
+        return self._callbacks['likelihood']

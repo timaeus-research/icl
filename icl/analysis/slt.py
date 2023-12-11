@@ -37,25 +37,40 @@ def prepend_keys(d: Dict, prefix: str):
 
 class ExpectedBatchLossEstimator:
     def __init__(self, num_chains: int, num_draws: int, device="cpu", online=False, include_trace=False):
+        self.online = online
         self.estimator = get_estimator(num_chains, num_draws, 1, device, online=online, include_trace=include_trace)
 
     def estimate(self):
         return prepend_keys(self.estimator.estimate(), "batch-loss")
+    
+    def estimates(self):
+        if not self.online:
+            raise NotImplementedError("Cannot get estimates for offline estimator.")
+
+        return self.estimator.estimates()
     
     def __call__(self, chain: int, draw: int, loss: torch.Tensor):
         self.estimator.update(chain, draw, loss)
 
     def reset(self):
         self.estimator.reset()
+
         
 class ExpectedLossObservableEstimator:
     def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.Tensor], device="cpu", online=False, include_trace=False):
+        self.online = online
         self.estimator = get_estimator(num_chains, num_draws, 1, device, online=online, include_trace=include_trace)
         self.loss_fn = loss_fn
 
     def estimate(self):
         return prepend_keys(self.estimator.estimate(), "loss")
 
+    def estimates(self):
+        if not self.online:
+            raise NotImplementedError("Cannot get estimates for offline estimator.")
+
+        return self.estimator.estimates()
+    
     def __call__(self, chain: int, draw: int, model: nn.Module):
         self.estimator.update(chain, draw, self.loss_fn(model))
 
@@ -75,30 +90,52 @@ class LikelihoodMetricsEstimator:
         self.num_chains = num_chains
         self.dataset_size = dataset_size
         self.temperature = temperature if temperature != 'adaptive' else 1. / np.log(dataset_size)
-        self.init_loss = torch.Tensor(init_loss)
+        self.init_loss = torch.Tensor(init_loss).to(device)
 
         self.online = online
         self.log_fn = log_fn
         self.least_num_samples_seen = 0
        
-    def estimate(self):
-        loss_avg = self.expected_loss_estimator.first_moment
-        loss_std = torch.sqrt(self.expected_loss_estimator.second_moment - loss_avg ** 2)
+    @staticmethod
+    def _estimate(first_moment, second_moment, init_loss, dataset_size, temperature):
+        loss_avg = first_moment
+        loss_std = torch.sqrt(second_moment - loss_avg ** 2)
 
-        wbic = loss_avg * self.dataset_size
-        wbic_std = loss_std * self.dataset_size
+        wbic = loss_avg * dataset_size
+        wbic_std = loss_std * dataset_size
 
-        llc = (wbic - self.init_loss * self.dataset_size) / self.temperature
-        llc_std = wbic_std / self.temperature 
+        llc = (wbic - init_loss * dataset_size) / temperature
+        llc_std = wbic_std / temperature 
 
         return {
-            "loss/mean": loss_avg,
-            "loss/std": loss_std,
-            "wbic/mean": wbic,
-            "wbic/std": wbic_std,
-            "llc/mean": llc,
-            "llc/std": llc_std
+            "loss/mean": loss_avg.detach(),
+            "loss/std": loss_std.detach(),
+            "wbic/mean": wbic.detach(),
+            "wbic/std": wbic_std.detach(),
+            "llc/mean": llc.detach(),
+            "llc/std": llc_std.detach()
         }
+
+    def estimate(self):
+        return self._estimate(self.expected_loss_estimator.first_moment, self.expected_loss_estimator.second_moment, self.init_loss, self.dataset_size, self.temperature)
+
+    def estimates(self):
+        if not self.online:
+            raise NotImplementedError("Cannot get estimates for offline estimator.")
+    
+        _estimates = []
+
+        for chain in range(self.num_chains):
+            for draw in range(self.expected_loss_estimator.num_draws):  
+                first_moment = self.expected_loss_estimator.first_moments[chain, draw]
+                second_moment = self.expected_loss_estimator.second_moments[chain, draw]                
+                _estimate = self._estimate(first_moment, second_moment, self.init_loss, self.dataset_size, self.temperature)
+                _estimate = {k: v.item() for k, v in _estimate.items()}
+                _estimate['chain'] = chain
+                _estimate['draw'] = draw
+                _estimates.append(_estimate)
+        
+        return pd.DataFrame(_estimates)
 
     def update(self, chain: int, draw: int, loss: torch.Tensor):
         self.expected_loss_estimator.update(chain, draw, loss)
@@ -160,8 +197,8 @@ class SingularFluctuationEstimator:
         singular_fluctuation_std = self.temperature * functional_variance_std / 2
 
         return {
-            "singular_fluctuation/mean": singular_fluctuation,
-            "singular_fluctuation/std": singular_fluctuation_std
+            "singular_fluctuation/mean": singular_fluctuation.detach(),
+            "singular_fluctuation/std": singular_fluctuation_std.detach()
         }
 
     def iter_update(self, chain: int, draw: int, model: nn.Module):
