@@ -38,10 +38,15 @@ parameters:
         value: "mse"
 
   plotting_config:
-    include_loss_trace: True
-    include_llc_trace: True
-    num_components: 3
-    num_points: 10
+    parameters:
+      include_loss_trace: 
+        value: True
+      include_llc_trace: 
+        value: True
+      num_components: 
+        value: 3
+      num_points: 
+        value: 10
 
   task_config: 
     parameters:
