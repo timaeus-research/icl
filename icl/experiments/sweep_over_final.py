@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Optional
 
 import torch
@@ -8,6 +9,7 @@ from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
 import wandb
+from icl.analysis.health import ChainHealthException
 from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
@@ -68,7 +70,14 @@ def estimate_at_checkpoint(
         print(yaml.dump(serialized))
 
     sampler = sampler_config.to_sampler(run, log_fn=log_fn)
-    results = sampler.eval(run.model)
+
+    try:
+        results = sampler.eval(run.model)
+    except ChainHealthException as e:
+        warnings.warn(f"Chain failed to converge: {e}")
+        wandb.log({"error": e.message})
+        wandb.finish(0)  # Mark it as a success so the sweep continues
+        return
 
     plotting_config: PlottingConfig = PlottingConfig(**plotting_config)
 

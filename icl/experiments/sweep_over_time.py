@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import List, Optional
 
 import typer
@@ -6,6 +7,7 @@ from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import rm_none_vals
 
 import wandb
+from icl.analysis.health import ChainHealthException
 from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
@@ -37,8 +39,13 @@ def sweep_over_time(
     for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
         sampler.update_init_loss(sampler.eval_model(model))
         print(step)
-        results = sampler.eval(model)
         sampler.reset()
+
+        try:
+            results = sampler.eval(run.model)
+        except ChainHealthException as e:
+            warnings.warn(f"Chain failed to converge: {e}")
+
         # trace = results.pop("loss/trace")
 
         # if num_evals > 0:
