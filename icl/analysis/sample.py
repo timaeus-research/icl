@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
+from icl.analysis.health import ChainHealthException
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
@@ -66,6 +67,7 @@ def sample_single_chain(
     model.train()
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
+    # try:
     for i, (xs, ys) in  pbar:
         optimizer.zero_grad()
         xs, ys = xs.to(device), ys.to(device)
@@ -84,6 +86,8 @@ def sample_single_chain(
             with torch.no_grad():
                 for callback in callbacks:
                     call_with(callback, **locals())  # Cursed but we'll fix it later
+    # except ChainHealthException as e:
+    #     warnings.warn(f"Chain {chain} failed to converge: {e}")
 
 
 def _sample_single_chain(kwargs):

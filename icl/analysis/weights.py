@@ -18,10 +18,6 @@ class WeightsTrace:
             self.weights[chain, draw, i:i+p_numel] = p.detach().view(-1)
             i += p_numel
 
-            # Check if nans or very large
-            if torch.isnan(p).any() or torch.isinf(p).any():
-                raise ValueError(f"NaNs/Infs in weights: {n}\n{p}")
-
     def __call__(self, chain: int, draw: int, model):
         self.update(chain=chain, draw=draw, model=model)
 
