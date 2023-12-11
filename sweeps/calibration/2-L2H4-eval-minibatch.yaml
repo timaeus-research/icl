@@ -15,7 +15,7 @@ parameters:
       grad_batch_origin:
         value: "eval-dataset"
       grad_batch_size:
-        value: 1024
+        values: [256, 512, 1024, 2048, 4096, 8192]
       # 
       gradient_scale:
         value: 0.0510248155  # epsilon n \beta  / 2
@@ -27,7 +27,7 @@ parameters:
       eval_method:
         values: ['grad-minibatch', 'new-minibatch']      
       eval_batch_size:
-        value: 1024
+        value: null
       eval_dataset_size:
         value: 1048576
       eval_metrics:

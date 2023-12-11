@@ -231,7 +231,15 @@ class SamplerConfig(BaseModel):
             if "singular-fluctuation" in data["eval_metrics"]:
                 warnings.warn("Singular fluctuation should not be trusted with minibatch evals")
 
-            assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
+            assert (
+                (data.get("eval_batch_size", None) == data.get("grad_batch_size", None)) 
+                or ((data.get("eval_batch_size", None) is None) != (data.get("grad_batch_size", None) is None))
+            ), "Eval batch size must match grad batch size for minibatch evals"
+            assert bool(data.get("eval_batch_size", None)) != bool(data.get("grad_batch_size", None)), "Eval batch size or grad batch size is required for minibatch evals"
+
+            data["eval_batch_size"] = data.get("eval_batch_size", data["grad_batch_size"])
+            data["grad_batch_size"] = data.get("grad_batch_size", data["eval_batch_size"])
+
         elif data["eval_method"] == "fixed-minibatch":
             assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
         else:
