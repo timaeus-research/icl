@@ -29,7 +29,7 @@ parameters:
       eval_batch_size:
         value: 1024
       eval_dataset_size:
-        values: 16384
+        value: 16384
       eval_metrics:
         value: ["likelihood-derived", "batch-loss", "weights"]
       eval_online:
@@ -50,7 +50,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+        values: [1, 2, 32, 64, 1048576]
       noise_variance:
         value: 0.125
       embed_size:
@@ -75,3 +75,5 @@ parameters:
         value: 0.01
   eval_batch_size:
     value: 1048576
+  step:
+    values: [0, 473, 1056, 10204, 26279, 61224, 81632, 102040, 183673, 224489, 275510, 326530, 408163, 499999]
