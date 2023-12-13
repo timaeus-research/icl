@@ -25,7 +25,7 @@ parameters:
         value: 0.0003   # epsilon
       # 
       eval_method:
-        value: ['grad-minibatch']      
+        value: 'grad-minibatch'
       eval_batch_size:
         value: 1092
       eval_dataset_size:
