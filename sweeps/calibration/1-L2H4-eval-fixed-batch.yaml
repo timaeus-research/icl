@@ -31,7 +31,7 @@ parameters:
       eval_dataset_size:
         value: 1048576
       eval_metrics:
-        value: ["likelihood-derived"]
+        value: ["likelihood-derived", "batch-loss"]
       eval_online:
         value: True
       eval_loss_fn:

@@ -87,12 +87,12 @@ def estimate_at_checkpoint(
         likelihoods = sampler.likelihood.estimates()
 
         fig = plot_loss_trace(batch_losses, likelihoods)
-        wandb.log({"loss_trace": fig})
+        wandb.log({"loss_trace": wandb.Image(fig)})
 
     if plotting_config.include_weights_pca:
         xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
         fig = plot_weights_trace(run.model, sampler.weights.deltas(), xs, ys, device=device, **plotting_config.dict())
-        wandb.log({"weights_trace": fig})
+        wandb.log({"weights_trace": wandb.Image(fig)}) # TODO: Alternative plotly figure
 
     # Save locally
     results["config"] = {

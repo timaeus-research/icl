@@ -325,7 +325,7 @@ class Sampler:
         self.eval_dataset = self.full_dataset
 
         if self.config.eval_method == "fixed-minibatch":
-            self.eval_dataset = torch.utils.data.Subset(self.full_dataset, range(self.config.eval_batch_size))
+            self.eval_dataset = torch.utils.data.TensorDataset(xs[:self.config.eval_batch_size], ys[:self.config.eval_batch_size])
 
         self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
         self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
