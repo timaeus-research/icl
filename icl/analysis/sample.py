@@ -239,7 +239,7 @@ class SamplerConfig(BaseModel):
                 (data.get("eval_batch_size", None) == data.get("grad_batch_size", None)) 
                 or ((data.get("eval_batch_size", None) is None) != (data.get("grad_batch_size", None) is None))
             ), "Eval batch size must match grad batch size for minibatch evals"
-            assert bool(data.get("eval_batch_size", None)) != bool(data.get("grad_batch_size", None)), "Eval batch size or grad batch size is required for minibatch evals"
+            assert not bool(data.get("eval_batch_size", None)) and not bool(data.get("grad_batch_size", None)), "Eval batch size or grad batch size is required for minibatch evals"
 
             data["eval_batch_size"] = data.get("eval_batch_size", data["grad_batch_size"])
             data["grad_batch_size"] = data.get("grad_batch_size", data["eval_batch_size"])

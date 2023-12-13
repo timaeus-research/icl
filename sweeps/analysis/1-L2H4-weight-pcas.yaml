@@ -27,7 +27,7 @@ parameters:
       eval_method:
         value: 'grad-minibatch'
       eval_batch_size:
-        value: 1092
+        value: 1024
       eval_dataset_size:
         value: 1048576
       eval_metrics:
