@@ -13,7 +13,7 @@ parameters:
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "grad-minibatch"  # Or something else
+        value: "eval-dataset"  # Or something else
       grad_batch_size:
         value: 1024
       # 

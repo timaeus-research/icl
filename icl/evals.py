@@ -85,9 +85,13 @@ class ICLEvaluator(ModelEvaluator):
         # compute model predictions and loss on fixed batch from T_pretrain
         pretrain_model_preds = model(self.pretrain_xs, self.pretrain_ys)
         pretrain_model_losses = mse(self.pretrain_ys, pretrain_model_preds, axis=(0,2))
+        pretrain_model_subsequence_losses = SubsequenceMSELoss()(self.pretrain_ys, pretrain_model_preds)
+
+
         # compute model predictions and loss on fixed batch from T_true
         true_model_preds = model(self.true_xs, self.true_ys)
         true_model_losses = mse(self.true_ys, true_model_preds, axis=(0,2))
+        true_model_subsequence_losses = SubsequenceMSELoss()(self.true_ys, true_model_preds)
         # compute and return various metrics based on above
 
         def get_token_losses_dict(losses: torch.Tensor, label: str):
@@ -95,10 +99,12 @@ class ICLEvaluator(ModelEvaluator):
 
         return {
             "pretrain/mse": pretrain_model_losses.mean().item(),
+            "pretrain/mse_subsequence": pretrain_model_subsequence_losses.mean().item(),
             "pretrain/delta_dmmse": mse(pretrain_model_preds, self.pretrain_dmmse_preds),
             "pretrain/delta_ridge": mse(pretrain_model_preds, self.pretrain_ridge_preds),
             **get_token_losses_dict(pretrain_model_losses, "pretrain"),
             "true/mse": true_model_losses.mean().item(),
+            "true/mse_subsequence": true_model_subsequence_losses.mean().item(),
             "true/delta_dmmse": mse(true_model_preds, self.true_dmmse_preds),
             "true/delta_ridge": mse(true_model_preds, self.true_ridge_preds),
             **get_token_losses_dict(true_model_losses, "true"),
@@ -159,7 +165,7 @@ class SubsequenceMSELoss:
         # Apply random mask to y_pred & y
         B, K, _ = y_pred.shape
 
-        loss = torch.zeros(B if self.reduction == "none" else 1)
+        loss = torch.zeros(B if self.reduction == "none" else 1).to(y_pred.device)
 
         for i in range(B):
             K_prime = np.random.randint(1, K + 1)
@@ -170,7 +176,6 @@ class SubsequenceMSELoss:
             else:
                 loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
 
-        print("Loss", loss.shape)
         # Compute MSE loss
         if self.reduction == "mean":
             return loss.sum() / B

@@ -91,7 +91,7 @@ def estimate_at_checkpoint(
 
     if plotting_config.include_weights_pca:
         xs, ys = run.evaluator.pretrain_xs, run.evaluator.pretrain_ys
-        fig = plot_weights_trace(run.model, sampler.weights.deltas(), xs, ys, device=device, **plotting_config.dict())
+        fig = plot_weights_trace(run.model, sampler.weights.deltas(), xs, ys, device=device, num_components=plotting_config.num_components, num_points=plotting_config.num_points)
         wandb.log({"weights_trace": wandb.Image(fig)}) # TODO: Alternative plotly figure
 
     # Save locally

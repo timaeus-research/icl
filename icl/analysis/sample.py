@@ -242,8 +242,8 @@ class SamplerConfig(BaseModel):
 
             # assert not bool(data.get("eval_batch_size", None)) and not bool(data.get("grad_batch_size", None)), "Eval batch size or grad batch size is required for minibatch evals"
 
-            data["eval_batch_size"] = data.get("eval_batch_size", data["grad_batch_size"])
-            data["grad_batch_size"] = data.get("grad_batch_size", data["eval_batch_size"])
+            data["eval_batch_size"] = data.get("eval_batch_size", None) or data["grad_batch_size"]
+            data["grad_batch_size"] = data.get("grad_batch_size", None) or data["eval_batch_size"]
 
         elif data["eval_method"] == "fixed-minibatch":
             assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
@@ -326,7 +326,8 @@ class Sampler:
         self.eval_dataset = self.full_dataset
 
         if self.config.eval_method == "fixed-minibatch":
-            self.eval_dataset = torch.utils.data.TensorDataset(xs[:self.config.eval_batch_size], ys[:self.config.eval_batch_size])
+            self.eval_dataset = torch.utils.data.TensorDataset(xs[:self.config.eval_batch_size, :, :], ys[:self.config.eval_batch_size, :, :])
+            print(self.eval_dataset[0][0].shape, self.eval_dataset[0][1].shape)
 
         self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
         self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
