@@ -27,4 +27,3 @@ def get_default_device(device=None):
 
 
 DEVICE = get_default_device()
-XLA = DEVICE.type == "xla"
