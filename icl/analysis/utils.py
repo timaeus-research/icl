@@ -60,6 +60,10 @@ def wandb_run_to_df(run):
     history_df = run.history()
     config_dict = get_config(**run.config).model_dump()
 
+    for k, v in run.config.items():
+        if k not in config_dict:
+            config_dict[k] = v
+
     del config_dict["logger_config"]
     del config_dict["checkpointer_config"]
 
