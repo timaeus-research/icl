@@ -1,11 +1,9 @@
 import os
 import warnings
-from typing import Callable, Dict, List, Literal, Optional, Tuple
+from typing import Callable, List, Literal, Optional
 
-import devinfra
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 import torch
 import typer
 from devinfra.utils.device import get_default_device
@@ -15,11 +13,7 @@ from torch.multiprocessing import cpu_count
 from tqdm import tqdm
 
 import wandb
-from icl.analysis.cov import (WithinHeadCovarianceCallback,
-                              make_transformer_cov_accumulator)
-from icl.analysis.llc import make_slt_evals
-from icl.analysis.utils import (get_sweep_configs, get_unique_config,
-                                split_attn_weights)
+from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, ICLTaskConfig, get_config
 from icl.experiments.utils import *
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
@@ -35,6 +29,7 @@ def iter_models(model, checkpointer, verbose=False):
     for file_id in tqdm(checkpointer.file_ids, desc="Iterating over checkpoints", disable=not verbose):
         model.load_state_dict(checkpointer.load_file(file_id)["model"])
         yield model
+
 
 def get_ws(
         num_ws: int, 
@@ -54,6 +49,7 @@ def get_ws(
         return task_dist.sample_tasks(num_ws)
     else:
         raise ValueError(f"Unknown ws_source: {ws_source}")
+
 
 def get_xs(
         num_xs: int,

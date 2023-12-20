@@ -1,0 +1,82 @@
+name: L2H4-eval-dataset-size
+method: grid
+command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
+project: icl-llc
+entity: devinterp
+parameters:
+  sampler_config:
+    parameters: 
+      num_chains:
+        value: 25
+      num_draws:
+        value: 1000
+      sampling_method:
+        value: sgld
+      grad_batch_origin:
+        value: "eval-dataset"
+      grad_batch_size:
+        value: 1024
+      # 
+      gradient_scale:
+        value: 0.0510248155  # epsilon n \beta  / 2
+      localization_scale:
+        value: 0.00015  # epsilon / 2
+      noise_scale:
+        value: 0.0003   # epsilon
+      # 
+      eval_method:
+        value: "dataset"   
+      eval_batch_size:
+        value: 1024
+      eval_dataset_size:
+        values: [1024, 2048, 4096, 8192, 16384, 32768, 1048576] 
+      eval_metrics:
+        value: ["likelihood-derived", "batch-loss"]
+      eval_online:
+        value: True
+      eval_loss_fn:
+        value: "mse"
+        # values: ["subsequence-mse", "mse"]
+
+  plotting_config:
+    parameters:
+      include_loss_trace: 
+        value: True
+      include_weights_pca: 
+        value: False
+
+  task_config: 
+    parameters:
+      task_size:
+        value: 4
+      max_examples:
+        value: 8
+      num_tasks:
+        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+        values: [1, 2, 4, 8, 16, 32, 64, 1024, 1048576]
+      noise_variance:
+        value: 0.125
+      embed_size:
+        value: 64
+      mlp_size:
+        value: 64
+      num_heads:
+        value: 4
+      num_layers:
+        value: 2 #[2, 4]
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: 1
+      true_seed:
+        value: 2
+      sampling_seed:
+        value: 3
+
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.01
+
+  step:
+    values: [10204, 499999]

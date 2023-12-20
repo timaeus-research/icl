@@ -1,4 +1,5 @@
 
+import functools
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -59,6 +60,10 @@ def wandb_run_to_df(run):
     history_df = run.history()
     config_dict = get_config(**run.config).model_dump()
 
+    for k, v in run.config.items():
+        if k not in config_dict:
+            config_dict[k] = v
+
     del config_dict["logger_config"]
     del config_dict["checkpointer_config"]
 
@@ -114,4 +119,35 @@ def split_attn_weights(W: torch.Tensor, num_heads: int, embed_dim: int, head_siz
 
     for h in range(num_heads):
         yield tuple(W_split[:, h, i*head_size:(i+1)*head_size] for i in range(3))
+
+
+def get_weights(model, paths):
+    for path in paths:
+        full_path = path.split(".")
+        layer = model
+
+        for p in full_path:
+            layer = getattr(layer, p)
+
+        yield layer.weight.view((-1,))
+
+        if layer.bias is not None:
+            yield layer.bias.view((-1,))
+
+
+def log_on_update(callback, monitor, log_fn):
+    @functools.wraps(callback.update)
+    def update(*args, **kwargs):
+        callback.update(*args, **kwargs)
+        result = monitor(callback, *args, **kwargs)
+
+        if result:
+            log_fn(result)
+    
+        return result
+    
+    callback.update = update
+    return callback
+    
+    
 
