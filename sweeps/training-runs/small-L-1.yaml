@@ -1,0 +1,39 @@
+name: small-model-sweep
+method: grid
+command: ["python", "-m", "icl"]
+project: icl
+entity: devinterp
+parameters:
+  task_config: 
+    parameters:
+      task_size:
+        value: 4
+      max_examples:
+        value: 8
+      num_tasks:
+        values: [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536]
+        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+      noise_variance:
+        value: 0.125
+      embed_size:
+        value: 64
+      mlp_size:
+        value: 64
+      num_heads:
+        value: 4
+      num_layers:
+        values: [1, 2, 4]
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: 1
+      true_seed:
+        value: 2
+      sampling_seed:
+        value: 3
+  optimizer_config:
+    parameters:
+      lr:
+        values: [0.0003, 0.001, 0.003]
+  eval_batch_size:
+    value: 2048

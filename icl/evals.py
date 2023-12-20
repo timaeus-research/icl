@@ -1,9 +1,11 @@
 import functools
 
+import numpy as np
 import torch
 from devinfra.evals import ModelEvaluator
 from devinfra.utils.seed import set_seed
 from torch import nn
+from torch.nn import functional as F
 
 from icl.baselines import dmmse_predictor, ridge_predictor
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
@@ -83,9 +85,13 @@ class ICLEvaluator(ModelEvaluator):
         # compute model predictions and loss on fixed batch from T_pretrain
         pretrain_model_preds = model(self.pretrain_xs, self.pretrain_ys)
         pretrain_model_losses = mse(self.pretrain_ys, pretrain_model_preds, axis=(0,2))
+        pretrain_model_subsequence_losses = SubsequenceMSELoss()(self.pretrain_ys, pretrain_model_preds)
+
+
         # compute model predictions and loss on fixed batch from T_true
         true_model_preds = model(self.true_xs, self.true_ys)
         true_model_losses = mse(self.true_ys, true_model_preds, axis=(0,2))
+        true_model_subsequence_losses = SubsequenceMSELoss()(self.true_ys, true_model_preds)
         # compute and return various metrics based on above
 
         def get_token_losses_dict(losses: torch.Tensor, label: str):
@@ -93,12 +99,89 @@ class ICLEvaluator(ModelEvaluator):
 
         return {
             "pretrain/mse": pretrain_model_losses.mean().item(),
+            "pretrain/mse_subsequence": pretrain_model_subsequence_losses.mean().item(),
             "pretrain/delta_dmmse": mse(pretrain_model_preds, self.pretrain_dmmse_preds),
             "pretrain/delta_ridge": mse(pretrain_model_preds, self.pretrain_ridge_preds),
             **get_token_losses_dict(pretrain_model_losses, "pretrain"),
             "true/mse": true_model_losses.mean().item(),
+            "true/mse_subsequence": true_model_subsequence_losses.mean().item(),
             "true/delta_dmmse": mse(true_model_preds, self.true_dmmse_preds),
             "true/delta_ridge": mse(true_model_preds, self.true_ridge_preds),
             **get_token_losses_dict(true_model_losses, "true"),
 
         }
+    
+class SequenceMSELoss:
+
+    def __init__(self, reduction: str = "mean") -> None:
+        self.reduction = reduction
+
+    def __call__(
+            self, 
+            y_pred: torch.Tensor,  # B K
+            y: torch.Tensor  # B K
+    ) -> torch.Tensor:
+        """
+        Compute the MSE loss between y_pred and y, but only on a random subsequence
+        of the first K' elements of y_pred and y, where K' is sampled uniformly from
+        [1, K]. 
+        
+        Always takes the mean over tokens. Reduction is applied to the batch.
+        """
+
+        # Apply random mask to y_pred & y
+        B, K, _ = y_pred.shape
+
+        loss = F.mse_loss(y_pred, y, reduction="none").mean(dim=(1, 2))
+
+        # Compute MSE loss
+        if self.reduction == "mean":
+            return loss.mean()
+        elif self.reduction == "sum":
+            return loss.sum()
+        elif self.reduction == "none":
+            return loss
+        else:
+            raise ValueError(f"Unknown reduction: {self.reduction}")
+
+    
+class SubsequenceMSELoss:
+    def __init__(self, reduction: str = "mean") -> None:
+        self.reduction = reduction
+
+    def __call__(
+            self, 
+            y_pred: torch.Tensor,  # B K
+            y: torch.Tensor  # B K
+    ) -> torch.Tensor:
+        """
+        Compute the MSE loss between y_pred and y, but only on a random subsequence
+        of the first K' elements of y_pred and y, where K' is sampled uniformly from
+        [1, K]. 
+        
+        Always takes the mean over tokens. Reduction is applied to the batch.
+        """
+
+        # Apply random mask to y_pred & y
+        B, K, _ = y_pred.shape
+
+        loss = torch.zeros(B if self.reduction == "none" else 1).to(y_pred.device)
+
+        for i in range(B):
+            K_prime = np.random.randint(1, K + 1)
+            # K_prime = torch.randint(1, K + 1, (1,)).item()
+
+            if self.reduction == "none":
+                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
+            else:
+                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
+
+        # Compute MSE loss
+        if self.reduction == "mean":
+            return loss.sum() / B
+        elif self.reduction == "sum":
+            return loss.sum()
+        elif self.reduction == "none":
+            return loss
+        else:
+            raise ValueError(f"Unknown reduction: {self.reduction}")

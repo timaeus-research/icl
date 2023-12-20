@@ -6,7 +6,7 @@ import torch
 from scipy.sparse.linalg import eigsh
 from torch import nn
 
-from icl.analysis.sample import get_weights
+from icl.analysis.utils import get_weights
 
 
 class CovarianceCallback:
