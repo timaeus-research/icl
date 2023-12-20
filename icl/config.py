@@ -89,7 +89,6 @@ class ICLConfig(BaseModel):
     scheduler_config: Optional[SchedulerConfig] = None
 
     # Misc
-    device: str = Field(default_factory=str(DEVICE))
     criterion: CriterionLiteral = "cross_entropy"
 
     eval_batch_size: int

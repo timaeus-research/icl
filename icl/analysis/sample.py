@@ -22,7 +22,7 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
 from icl.analysis.weights import WeightsTrace
 from icl.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.train import Run
-
+from icl.setup import DEVICE
 
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
@@ -319,8 +319,8 @@ class Sampler:
             batch_size=self.config.eval_dataset_size,
         )
 
-        xs.to(self.config.device)
-        ys.to(self.config.device)
+        xs.to(DEVICE)
+        ys.to(DEVICE)
 
         self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
         self.eval_dataset = self.full_dataset
@@ -340,28 +340,28 @@ class Sampler:
 
     def eval_one_batch(self, model):
         xs, ys = next(iter(self.eval_loader))
-        xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+        xs, ys = xs.to(DEVICE), ys.to(DEVICE)
         y_preds = model(xs, ys)
         return self.eval_loss_fn(y_preds, ys).detach()
 
     def iter_eval_model(self, model):
         for xs, ys in self.eval_loader:
-            xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+            xs, ys = xs.to(DEVICE), ys.to(DEVICE)
             y_preds = model(xs, ys)
             yield self.eval_loss_fn(y_preds, ys).detach()
 
     def eval_model(self, model):
-        loss = torch.zeros(1, device=self.config.device)
+        loss = torch.zeros(1, device=DEVICE)
 
         for xs, ys in self.eval_loader:
-            xs, ys = xs.to(self.config.device), ys.to(self.config.device)
+            xs, ys = xs.to(DEVICE), ys.to(DEVICE)
             y_preds = model(xs, ys)
             loss += self.eval_loss_fn(y_preds, ys).detach().mean() * xs.shape[0]
 
         return (loss / self.config.eval_dataset_size).detach()
         
     def get_cov_callback(self):
-        return make_transformer_cov_accumulator(self.run.model, device=self.config.device, num_evals=self.config.num_evals)
+        return make_transformer_cov_accumulator(self.run.model, device=DEVICE, num_evals=self.config.num_evals)
 
     def get_likelihood_metrics_callback(self):
         loss_fn = None  # self.config.eval_method == "grad-minibatch"
@@ -377,7 +377,7 @@ class Sampler:
             dataset_size=self.config.eval_dataset_size,
             temperature=self.config.temperature,
             loss_fn=loss_fn,
-            device=self.config.device,
+            device=DEVICE,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -394,7 +394,7 @@ class Sampler:
             self.config.eval_dataset_size,
             self.iter_eval_model,
             temperature=self.config.temperature,
-            device=self.config.device,
+            device=DEVICE,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -405,7 +405,7 @@ class Sampler:
         return ExpectedBatchLossEstimator(
             self.config.num_chains, 
             self.config.num_draws, 
-            self.config.device,
+            DEVICE,
             online=True,
             include_trace=True
         )
@@ -415,7 +415,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.run.model, 
-            self.config.device,
+            DEVICE,
         )
 
     def get_callbacks(self):
@@ -444,7 +444,7 @@ class Sampler:
             num_draws=self.config.num_draws,
             num_chains=self.config.num_chains,
             cores=self.config.cores,
-            device=self.config.device,
+            device=DEVICE,
             callbacks=self.callbacks,
             seed=seed
         )
