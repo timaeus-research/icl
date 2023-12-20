@@ -14,7 +14,6 @@ import torch
 import typer
 import yaml
 from devinfra.evals import RepeatEvaluator
-from devinfra.utils.device import get_default_device
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from tqdm import tqdm
@@ -23,6 +22,7 @@ import wandb
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
 from icl.train import Run
+from icl.setup import DEVICE
 
 app = typer.Typer()
 

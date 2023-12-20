@@ -5,7 +5,6 @@ from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
 from devinfra.monitoring import expand_steps_config_
 from devinfra.optim import OptimizerConfig, SchedulerConfig
-from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
@@ -13,6 +12,7 @@ from pydantic import BaseModel, Field, model_validator
 
 import wandb
 from icl.model import InContextRegressionTransformer
+from icl.setup import DEVICE
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
@@ -89,7 +89,7 @@ class ICLConfig(BaseModel):
     scheduler_config: Optional[SchedulerConfig] = None
 
     # Misc
-    device: str = Field(default_factory=get_default_device)
+    device: str = Field(default_factory=str(DEVICE))
     criterion: CriterionLiteral = "cross_entropy"
 
     eval_batch_size: int

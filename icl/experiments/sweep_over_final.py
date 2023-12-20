@@ -5,7 +5,6 @@ from typing import Optional
 import torch
 import typer
 import yaml
-from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import flatten_dict, rm_none_vals
 from pydantic import BaseModel
 
@@ -18,6 +17,7 @@ from icl.experiments.utils import *
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
 from icl.train import Run
 from icl.utils import pyvar_dict_to_slug
+from icl.setup import DEVICE
 
 app = typer.Typer()
 
@@ -40,7 +40,7 @@ def estimate_at_checkpoint(
     assert step is None or checkpoint_idx is None, "Can only specify one of step or checkpoint_idx"
 
     cores = int(os.environ.get("CORES", 1))
-    device = str(get_default_device())
+    device = str(DEVICE)
 
     config["device"] = device
     config: ICLConfig = get_config(**config)

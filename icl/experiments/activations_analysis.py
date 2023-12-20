@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import typer
-from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import rm_none_vals
 from devinterp.mechinterp.hooks import hook
 from torch.multiprocessing import cpu_count
@@ -16,6 +15,7 @@ import wandb
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, ICLTaskConfig, get_config
 from icl.experiments.utils import *
+from icl.setup import DEVICE
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution, apply_transformations)
 from icl.train import Run
@@ -386,12 +386,12 @@ def activations_over_time(
         ws_source: Literal["pretrain", "true"] = "pretrain",
         xs_source: Literal["gaussian"] = "gaussian",
         seed: Optional[int] = None,
-        device: Optional[str]=None, 
+        device: str=str(DEVICE), 
         cores: Optional[int]=None, 
         steps: Optional[list] = None,
     ):
     cores = cores or int(os.environ.get("CORES", cpu_count() // 2))
-    device = device or get_default_device()
+    device = device
 
     run = Run(config)
     print(run.config.to_slug(delimiter="-"))

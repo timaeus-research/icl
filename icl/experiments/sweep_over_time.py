@@ -3,7 +3,6 @@ import warnings
 from typing import List, Optional
 
 import typer
-from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import rm_none_vals
 
 import wandb
@@ -12,6 +11,7 @@ from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.experiments.utils import *
+from icl.setup import DEVICE
 from icl.train import Run
 
 app = typer.Typer()
@@ -24,7 +24,7 @@ def sweep_over_time(
     use_wandb: bool = False,
 ):      
     cores = int(os.environ.get("CORES", 1))
-    device = str(get_default_device())
+    device = str(DEVICE)
 
     config["device"] = device
     config: ICLConfig = get_config(**config)

@@ -1,33 +1,13 @@
-import itertools
-import os
 import warnings
-from pathlib import Path
-from pprint import pp
-from typing import (Any, Callable, Dict, Generator, Iterable, Literal,
-                    Optional, Tuple, Type, TypeVar, Union)
+from typing import (Callable, Dict, Generator, Literal, Optional, Union)
 
-import devinfra
-import devinterp
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import sentry_sdk
 import torch
 import typer
-import yaml
-from devinfra.evals import RepeatEvaluator
-from devinfra.utils.device import get_default_device
-from dotenv import load_dotenv
-from pydantic import BaseModel
 from torch import nn
-from tqdm import tqdm
 
-import wandb
 from icl.analysis.estimators import get_estimator
-from icl.analysis.utils import get_sweep_configs
-from icl.config import ICLConfig, get_config
-from icl.train import Run
 
 app = typer.Typer()
 

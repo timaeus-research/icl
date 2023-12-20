@@ -8,11 +8,9 @@ import sentry_sdk
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-FIGURES=Path("figures")
-ANALYSIS = Path("analysis")
+from icl.constants import FIGURES, ANALYSIS
+from icl.setup import DEVICE
 
-
-DEVICE = devinfra.utils.device.get_default_device()
 K=3  # Num cov components
 
 
