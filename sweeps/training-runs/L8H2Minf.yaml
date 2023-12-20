@@ -1,0 +1,46 @@
+name: L2H4Minf
+method: grid
+command: ["python", "-m", "icl"]
+project: icl
+entity: devinterp
+parameters:
+  task_config: 
+    parameters:
+      task_size:
+        value: 8
+      max_examples:
+        value: 16
+      num_tasks:
+        value: 'inf'
+      noise_variance:
+        value: 0.25
+      embed_size:
+        value: 128
+      mlp_size:
+        value: 128
+      num_heads:
+        value: 2
+      num_layers:
+        value: 8 
+      model_seed:
+        values: [0, 1, 2, 3, 4]
+      pretrain_seed:
+        values: null
+      true_seed:
+        value: null
+      sampling_seed:
+        value: null
+  logger_config:
+    parameters:
+      checkpoint_steps:
+        parameters:
+          log_space: 
+            value: 100
+          linear_space: 
+            value: 100
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.003
+  eval_batch_size:
+    value: 1024

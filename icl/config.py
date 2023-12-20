@@ -33,6 +33,7 @@ class ICLTaskConfig(BaseModel):
     true_seed: int = 2
     sampling_seed: int = 3
     layer_norm: bool = True
+    include_output: bool = False # whether to include the output in the context
 
     def model_factory(self):
         if self.model_seed is not None:
@@ -46,6 +47,7 @@ class ICLTaskConfig(BaseModel):
             num_heads=self.num_heads,
             num_layers=self.num_layers,
             layer_norm=self.layer_norm,
+            include_output=self.include_output,
         )
 
     def pretrain_dist_factory(self):
@@ -172,6 +174,9 @@ class ICLConfig(BaseModel):
             # For compatibility with old configs
             if task_config_dict.get('layer_norm', False):
                 del task_config_dict['layer_norm']
+
+            if not task_config_dict.get('include_output', False):
+                del task_config_dict['include_output']
 
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]

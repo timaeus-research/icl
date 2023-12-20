@@ -38,6 +38,7 @@ class DTransformer(nn.Module):
         num_layers,
         device='cpu',
         layer_norm=True,
+        include_output=False,
     ):
         super().__init__()
         self.token_embedding = nn.Linear(
@@ -60,6 +61,7 @@ class DTransformer(nn.Module):
                 num_heads=num_heads,
                 device=device,
                 layer_norm=layer_norm,
+                include_output=include_output,
             )
             for _ in range(num_layers)
         ])
@@ -125,12 +127,14 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         num_heads,
         device='cpu',
         layer_norm=True,
+        include_output=False,
     ):
         super().__init__()
         self.attention = MultiHeadedCausalSelfAttention(
             embed_size=embed_size,
             max_tokens=max_tokens,
             num_heads=num_heads,
+            include_output=include_output,
             device=device,
         )
         self.compute = nn.Sequential(
@@ -164,6 +168,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         max_tokens,
         num_heads,
         device='cpu',
+        include_output=False,
     ):
         super().__init__()
         # validate dimensions
@@ -186,6 +191,16 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         self.register_buffer('causal_mask', causal_mask)
         # precompute attention normalisation factor
         self.attention_scale = self.head_size ** 0.5
+
+        self.include_output = include_output
+
+        if self.include_output:
+            self.output = nn.Linear(
+                in_features=embed_size,
+                out_features=embed_size,
+                bias=False,
+                device=device,
+            )
 
     def forward(self, x):
         # unpack dimensions
@@ -216,5 +231,8 @@ class MultiHeadedCausalSelfAttention(nn.Module):
             .contiguous()       # -> (make underlying memory match view)
             .view(B, T, C)      # -> B T C
         )
+
+        if self.include_output:
+            y = self.output(y)
         
         return y
