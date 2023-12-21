@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 3
+        value: 25
       num_draws:
         value: 1000
       sampling_method:
@@ -49,7 +49,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        value: 1048576 # 'inf'
+        values: [1, 2, 32, 64, 1048576] # 'inf'
       noise_variance:
         value: 0.125
       embed_size:

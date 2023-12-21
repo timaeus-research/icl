@@ -66,7 +66,7 @@ class LikelihoodMetricsEstimator:
     """
     def __init__(self, num_chains: int, num_draws: int, dataset_size: int, init_loss: torch.Tensor, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.Tensor]]=None, device="cpu", online=False, include_trace=False, log_fn = False):
         self.loss_fn = loss_fn
-        self.loss_dim = len(init_loss)
+        self.loss_dim = init_loss.shape[0] if len(init_loss.shape) > 0 else 1
         self.expected_loss_estimator = get_estimator(num_chains, num_draws, self.loss_dim, device=device, online=online, include_trace=include_trace)
         self.num_chains = num_chains
         self.dataset_size = dataset_size

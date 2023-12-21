@@ -187,8 +187,8 @@ class SubsequenceMSELoss:
 
         if self.context_reduction == 'mean':
             mean_reduction_dims.append(1)
-            raise ValueError(f"Only mean reduction supported for context")
         elif self.context_reduction == 'sum':
+            raise ValueError(f"Only mean reduction supported for context")
             sum_reduction_dims.append(1)
         elif self.context_reduction != 'none':
             raise ValueError(f"Unknown reduction: {self.context_reduction}")      
@@ -219,7 +219,7 @@ class SubsequenceMSELoss:
 
         for i in range(B):
             k = np.random.randint(1, K + 1)
-            loss[i] = F.mse_loss(y_pred[i, :K], y[i, :k]).mean(dim=(1, 2))
+            loss[i] = F.mse_loss(y_pred[i, :k], y[i, :k], reduction='mean')
 
         if self.batch_reduction == 'mean':
             loss = loss.mean()

@@ -21,8 +21,8 @@ from tqdm import tqdm
 import wandb
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
-from icl.train import Run
 from icl.initialize import DEVICE
+from icl.train import Run
 
 app = typer.Typer()
 
@@ -61,7 +61,7 @@ class ExpectationEstimator:
         self._update(chain, draw, ..., observation)
         self.increment()
 
-    def increment(self):
+    def increment(self, chain=None):
         self.num_samples_seen += 1
     
     @property

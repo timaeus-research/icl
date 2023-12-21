@@ -197,8 +197,6 @@ def sample(
         seed (Optional[Union[int, List[int]]]): Random seed(s) for sampling.
         optimizer_kwargs (Optional[Dict[str, Union[float, Literal['adaptive']]]]): Keyword arguments for the optimizer.
     """
-    model.to('cpu')  # Will be moved separately in each thread
-
     if cores == "auto":
         cores = min(4, cpu_count())
 
@@ -255,13 +253,13 @@ def sample(
 
 class SamplerConfig(BaseModel):
     # Sampling
-    num_chains: int
-    num_draws: int
+    num_chains: int = 1000
+    num_draws: int = 25
 
     # SGLD steps
-    sampling_method: Literal["sgld", "sgnht"]  # Only SGLD is supported for now
-    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"]  # Only eval-dataset is supported for now
-    grad_batch_size: int
+    sampling_method: Literal["sgld", "sgnht"] = "sgld" # Only SGLD is supported for now
+    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"] = 'eval-dataset'  # Only eval-dataset is supported for now
+    grad_batch_size: int = 1024
 
     # Parametrization 1 (original)
     epsilon: float = None
@@ -279,11 +277,11 @@ class SamplerConfig(BaseModel):
     bounding_box_size: Optional[float] = None
 
     # SGLD evals
-    eval_method: Literal["grad-minibatch", "new-minibatch", "fixed-minibatch", "dataset"]
-    eval_batch_size: Optional[int] = None
+    eval_method: Literal["grad-minibatch", "new-minibatch", "fixed-minibatch", "dataset"] = 'grad-minibatch'
+    eval_batch_size: Optional[int] = None 
     eval_dataset_size: int = 8192
     eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian", "batch-loss", "weights"]] \
-        = Field(default_factory=lambda: ["likelihood-derived", "singular-fluctuation"])  # covariance and hessian are not supported for now
+        = Field(default_factory=lambda: ["likelihood-derived"])  # covariance and hessian are not supported for now
     eval_online: bool = False
     eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
 
@@ -294,7 +292,7 @@ class SamplerConfig(BaseModel):
 
     cores: int = 1
     device: str = "cpu"
-    per_token: bool = False
+    per_token: bool = True
 
     @field_validator('sampling_method')
     @classmethod
@@ -312,8 +310,8 @@ class SamplerConfig(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def check_evals(cls, data: Any) -> Any:
-        if data["eval_method"] in ["grad-minibatch", "new-minibatch"]:
-            if "singular-fluctuation" in data["eval_metrics"]:
+        if data.get("eval_method", "grad-minibatch") in ["grad-minibatch", "new-minibatch"]:
+            if "singular-fluctuation" in data.get("eval_metrics", []):
                 warnings.warn("Singular fluctuation should not be trusted with minibatch evals")
 
             assert (
@@ -323,8 +321,8 @@ class SamplerConfig(BaseModel):
 
             # assert not bool(data.get("eval_batch_size", None)) and not bool(data.get("grad_batch_size", None)), "Eval batch size or grad batch size is required for minibatch evals"
 
-            data["eval_batch_size"] = data.get("eval_batch_size", None) or data["grad_batch_size"]
-            data["grad_batch_size"] = data.get("grad_batch_size", None) or data["eval_batch_size"]
+            data["eval_batch_size"] = data.get("eval_batch_size", None) or data.get("grad_batch_size", 1024)
+            data["grad_batch_size"] = data.get("grad_batch_size", None) or data.get("eval_batch_size", 1024)
 
         elif data["eval_method"] == "fixed-minibatch":
             assert data.get("eval_batch_size", None) is not None, "Eval batch size is required for minibatch evals"
@@ -332,11 +330,11 @@ class SamplerConfig(BaseModel):
             if data.get("eval_batch_size", None) is not None: 
                 warnings.warn("Eval batch size is provided but will be ignored for dataset evals")
 
-        assert "covariance" not in data["eval_metrics"], "Covariance is not supported for now"
-        assert "hessian" not in data["eval_metrics"], "Hessian is not supported for now"
+        assert "covariance" not in data.get("eval_metrics", []), "Covariance is not supported for now"
+        assert "hessian" not in data.get("eval_metrics", []), "Hessian is not supported for now"
 
         # Parametrization
-        num_samples = data["eval_dataset_size"]
+        num_samples = data.get("eval_dataset_size", 2**20)
 
         temperature = data.get("temperature", None)
         gamma = data.get("gamma", None)
@@ -356,7 +354,7 @@ class SamplerConfig(BaseModel):
 
         else:
             if temperature == "auto":
-                data["temperature"] = temperature = 1 / np.log(data["eval_dataset_size"])
+                data["temperature"] = temperature = 1 / np.log(num_samples)
             
             data["gradient_scale"] = gradient_scale = epsilon * temperature * num_samples / 2
             data["localization_scale"] = localization_scale = epsilon * gamma / 2
@@ -371,7 +369,7 @@ class SamplerConfig(BaseModel):
         if variant == "mse":
             return SequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
         else:
-            return SubsequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
+            return SubsequenceMSELoss(batch_reduction=batch_reduction, context_reduction="mean")
 
     def get_optimizer_cls(self):
         if self.sampling_method == "sgld":
