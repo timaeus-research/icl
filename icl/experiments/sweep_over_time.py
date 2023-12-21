@@ -12,7 +12,7 @@ from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.experiments.utils import *
-from icl.setup import DEVICE
+from icl.initialize import DEVICE, prepare_experiments, stdlogger
 from icl.train import Run
 
 app = typer.Typer()
@@ -27,15 +27,20 @@ def sweep_over_time(
     cores = int(os.environ.get("CORES", 1))
     device = str(DEVICE)
 
+    stdlogger.info("Retrieving & restoring training run...")
     config["device"] = device
     config: ICLConfig = get_config(**config)
     run = Run.create_and_restore(config)
 
+    stdlogger.info("Configuring sampler...")
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
     sampler = sampler_config.to_sampler(run)
 
     # Iterate over checkpoints
     steps = steps or list(run.checkpointer.file_ids)
+
+    if not steps:
+        raise ValueError("No checkpoints found")
 
     def log_fn(data, step=None):
         def process_tensor(a):
@@ -52,7 +57,7 @@ def sweep_over_time(
         wandb.log(serialized, step=step)
 
 
-    for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
+    for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
         sampler.update_init_loss(sampler.eval_model(model))
         print(step)
         sampler.reset()
@@ -75,7 +80,7 @@ def wandb_sweep_over_time():
     sampler_config = config.pop("sampler_config")
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     wandb.run.save()
-    sweep_over_time(get_config(**config), sampler_config, use_wandb=True)
+    sweep_over_time(config, sampler_config, use_wandb=True)
     wandb.finish()
 
 

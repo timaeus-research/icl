@@ -133,14 +133,14 @@ class SequenceMSELoss:
             mean_reduction_dims.append(0)
         elif self.batch_reduction == 'sum':
             sum_reduction_dims.append(0)
-        else:
+        elif self.batch_reduction != 'none':
             raise ValueError(f"Unknown reduction: {self.batch_reduction}")
 
         if self.context_reduction == 'mean':
             mean_reduction_dims.append(1)
         elif self.context_reduction == 'sum':
             sum_reduction_dims.append(1)
-        else:
+        elif self.context_reduction != 'none':
             raise ValueError(f"Unknown reduction: {self.context_reduction}")      
 
         mean_reduction_dims.append(2)

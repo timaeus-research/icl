@@ -15,9 +15,10 @@ from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.experiments.utils import *
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
-from icl.setup import DEVICE
+from icl.initialize import DEVICE
 from icl.train import Run
 from icl.utils import pyvar_dict_to_slug
+from icl.initialize import prepare_experiments
 
 app = typer.Typer()
 

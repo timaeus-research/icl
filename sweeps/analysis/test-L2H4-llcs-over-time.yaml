@@ -13,7 +13,7 @@ parameters:
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "grad-minibatch"
+        value: "eval-dataset"
       grad_batch_size:
         value: 1024
       # 
@@ -25,7 +25,7 @@ parameters:
         value: 0.0003   # epsilon
       # 
       eval_method:
-        value: "dataset"   
+        value: "grad-minibatch"   
       eval_batch_size:
         value: 1024
       eval_dataset_size:
@@ -39,6 +39,8 @@ parameters:
       per_token:
         value: true
         # values: ["subsequence-mse", "mse"]
+      num_init_loss_batches:
+        value: 8
 
   task_config: 
     parameters:
@@ -47,7 +49,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        value: 'inf'
+        value: 1048576 # 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -61,14 +63,14 @@ parameters:
       model_seed:
         value: 0
       pretrain_seed:
-        value: null
+        value: 1
       true_seed:
-        value: null
+        value: 2
       sampling_seed:
-        value: null
+        value: 3
   optimizer_config:
     parameters:
       lr:
-        value: 0.0003
+        value:  0.01 #0.0003
   eval_batch_size:
-    value: 1048576
+    value: 1024

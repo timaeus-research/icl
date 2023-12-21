@@ -8,11 +8,12 @@ from devinfra.optim import OptimizerConfig, SchedulerConfig
 from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (BaseModel, Field, ValidationError, field_validator,
+                      model_validator)
 
 import wandb
 from icl.model import InContextRegressionTransformer
-from icl.setup import DEVICE
+from icl.initialize import DEVICE
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
@@ -22,7 +23,7 @@ class ICLTaskConfig(BaseModel):
 
     task_size: int = 8 # D, dimensions of linear regression task
     max_examples: int = 16 # K, in-context examples (thus max_context = 2*K)
-    num_tasks: Union[int, Literal[math.inf]]     # M, task-diversity of pre-train dist
+    num_tasks: Union[int, float, str]     # M, task-diversity of pre-train dist
     noise_variance: float = 0.25 # sigma^2 i.e. y = wx + N(0, sigma^2)
     embed_size: int = 128 # d_e = d_mid (in Phuong notation)
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
@@ -84,6 +85,10 @@ class ICLTaskConfig(BaseModel):
     def process_int_or_inf(cls, v: Union[Literal["inf"], int]) -> int:
         if v == "inf":
             return math.inf
+        if isinstance(v, str):
+            raise ValidationError(f"Invalid value for num_tasks: {v}")
+        if isinstance(v, float) and not v == math.inf:
+            raise ValidationError(f"Invalid value for num_tasks: {v}")
         return v
 
 

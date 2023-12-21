@@ -21,9 +21,11 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               SLTObservablesEstimator)
 from icl.analysis.weights import WeightsTrace
 from icl.evals import SequenceMSELoss, SubsequenceMSELoss
-from icl.setup import DEVICE
+from icl.initialize import DEVICE, XLA
 from icl.train import Run
 
+if XLA:
+    import torch_xla.core.xla_model as xm
 
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
@@ -75,10 +77,11 @@ def sample_single_chain(
         y_preds = model(xs, ys)
         loss = criterion(y_preds, ys)
 
-        loss.mean().backward()
+        mean_loss = loss.mean()
+        mean_loss.backward()
         optimizer.step()
 
-        pbar.set_postfix(loss=loss.item())
+        pbar.set_postfix(loss=mean_loss.item())
 
         if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
             draw = (i - num_burnin_steps) // num_steps_bw_draws
@@ -208,6 +211,8 @@ class SamplerConfig(BaseModel):
         = Field(default_factory=lambda: ["likelihood-derived", "singular-fluctuation"])  # covariance and hessian are not supported for now
     eval_online: bool = False
     eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
+
+    num_init_loss_batches: Optional[int] = None
         
     # Covariance estimation
     num_evals: Optional[int] = None
@@ -287,8 +292,8 @@ class SamplerConfig(BaseModel):
     def to_sampler(self, run: Run, log_fn: Optional[Callable] = None):
         return Sampler(self, run, log_fn=log_fn)
         
-    def get_loss_fn(self, batch_reduction: str = "mean", context_reduction: str = "mean"):
-        if self.eval_loss_fn == "mse":
+    def get_loss_fn(self, variant="mse", batch_reduction: str = "mean", context_reduction: str = "mean"):
+        if variant == "mse":
             return SequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
         else:
             return SubsequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
@@ -335,9 +340,13 @@ class Sampler:
 
         self.log_fn = log_fn
         context_reduction = "none" if self.config.per_token else "mean"
-        self.grad_loss_fn = self.config.get_loss_fn(batch_reduction="mean", context_reduction=context_reduction)
-        self.eval_loss_fn = self.config.get_loss_fn(batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", context_reduction=context_reduction)
-        self.init_loss = self.eval_model(run.model)
+        self.grad_loss_fn = self.config.get_loss_fn(self.config.eval_loss_fn, batch_reduction="mean", context_reduction=context_reduction)
+        self.eval_loss_fn = self.config.get_loss_fn(
+            self.config.eval_loss_fn if not self.config.per_token else 'mse', 
+            batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", 
+            context_reduction=context_reduction
+        )
+        self.init_loss = self.eval_model(run.model, max_num_batches=self.config.num_init_loss_batches, verbose=True)
         self._callbacks = self.get_callbacks()
 
     def eval_one_batch(self, model):
@@ -352,13 +361,21 @@ class Sampler:
             y_preds = model(xs, ys)
             yield self.eval_loss_fn(y_preds, ys).detach()
 
-    def eval_model(self, model):
-        loss = torch.zeros(1, device=DEVICE)
+    def eval_model(self, model, max_num_batches: Optional[int] = None, verbose=False):
+        loss = None
 
-        for xs, ys in self.eval_loader:
+        for i, (xs, ys) in tqdm(enumerate(self.eval_loader), desc="Evaluating init loss", total = (max_num_batches or len(self.eval_loader)), disable=not verbose):
             xs, ys = xs.to(DEVICE), ys.to(DEVICE)
             y_preds = model(xs, ys)
-            loss += self.eval_loss_fn(y_preds, ys).detach().mean() * xs.shape[0]
+            _loss = self.eval_loss_fn(y_preds, ys)
+
+            loss = loss if loss is not None else torch.zeros_like(_loss)
+            loss += _loss.detach() * xs.shape[0]
+            if max_num_batches and max_num_batches <= i:
+                break
+
+        if loss is None:
+            raise ValueError("No batches in eval loader")
 
         return (loss / self.config.eval_dataset_size).detach()
         

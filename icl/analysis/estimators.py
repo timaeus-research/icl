@@ -22,7 +22,7 @@ import wandb
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
 from icl.train import Run
-from icl.setup import DEVICE
+from icl.initialize import DEVICE
 
 app = typer.Typer()
 
