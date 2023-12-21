@@ -26,6 +26,8 @@ from icl.train import Run
 
 if XLA:
     import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+    import torch_xla.distributed.xla_multiprocessing as xmp
 
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
@@ -70,7 +72,6 @@ def sample_single_chain(
     model.train()
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
-    # try:
     for i, (xs, ys) in  pbar:
         optimizer.zero_grad()
         xs, ys = xs.to(device), ys.to(device)
@@ -89,12 +90,74 @@ def sample_single_chain(
             with torch.no_grad():
                 for callback in callbacks:
                     call_with(callback, **locals())  # Cursed but we'll fix it later
-    # except ChainHealthException as e:
-    #     warnings.warn(f"Chain {chain} failed to converge: {e}")
+  
+
+def sample_single_chain_xla(
+    ref_model: nn.Module,
+    loader: DataLoader,
+    criterion: Callable,
+    num_draws=100,
+    num_burnin_steps=0,
+    num_steps_bw_draws=1,
+    sampling_method: Type[torch.optim.Optimizer] = SGLD,
+    optimizer_kwargs: Optional[Dict] = None,
+    chain: int = 0,
+    seed: Optional[int] = None,
+    verbose=True,
+    device: Union[str, torch.device] = torch.device("xla"),
+    callbacks: List[Callable] = [],
+):
+    # Initialize new model and optimizer for this chain
+    model = deepcopy(ref_model).to(device)
+
+    optimizer_kwargs = optimizer_kwargs or {}
+    optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
+
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
+    model.train()
+
+    para_loader = pl.ParallelLoader(loader, [device])
+    loader = para_loader.per_device_loader(device)
+
+    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+
+    for i, (xs, ys) in  pbar:
+        optimizer.zero_grad()
+        xs, ys = xs.to(device), ys.to(device)
+        y_preds = model(xs, ys)
+        loss = criterion(y_preds, ys)
+
+        mean_loss = loss.mean()
+        mean_loss.backward()
+
+        xm.optimizer_step(optimizer)
+        xm.mark_step()
+
+        pbar.set_postfix(loss=mean_loss.item())
+
+        if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+            draw = (i - num_burnin_steps) // num_steps_bw_draws
+
+            with torch.no_grad():
+                for callback in callbacks:
+                    call_with(callback, **locals())  # Cursed but we'll fix it later
+        
+                xm.mark_step()
 
 
 def _sample_single_chain(kwargs):
+    if kwargs.get('device', torch.device('cpu')).type == "xla":
+        return sample_single_chain_xla(**kwargs)
+    
     return sample_single_chain(**kwargs)
+
+
+def _sample_single_chain_worker(index, num_chains, get_args):
+    """ Worker function for multiprocessing """
+    return _sample_single_chain(get_args(index % num_chains))
 
 
 def sample(
@@ -107,7 +170,7 @@ def sample(
     num_chains: int = 10,
     num_burnin_steps: int = 0,
     num_steps_bw_draws: int = 1,
-    cores: int = 1,
+    cores: Union[int, Literal['auto']] = 1,
     seed: Optional[Union[int, List[int]]] = None,
     device: torch.device = torch.device("cpu"),
     verbose: bool = True,
@@ -129,9 +192,12 @@ def sample(
         seed (Optional[Union[int, List[int]]]): Random seed(s) for sampling.
         optimizer_kwargs (Optional[Dict[str, Union[float, Literal['adaptive']]]]): Keyword arguments for the optimizer.
     """
-    if cores is None:
+    if cores == "auto":
         cores = min(4, cpu_count())
 
+        if XLA:
+            cores = xm.xrt_world_size()
+    
     if seed is not None:
         if isinstance(seed, int):
             seeds = [seed + i for i in range(num_chains)]
@@ -161,7 +227,9 @@ def sample(
 
     results = []
 
-    if cores > 1:
+    if XLA:
+        xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+    elif cores > 1:
         ctx = get_context("spawn")
         with ctx.Pool(cores) as pool:
             results = pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
