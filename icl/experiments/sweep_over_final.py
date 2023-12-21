@@ -15,9 +15,9 @@ from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.experiments.utils import *
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
+from icl.setup import DEVICE
 from icl.train import Run
 from icl.utils import pyvar_dict_to_slug
-from icl.setup import DEVICE
 
 app = typer.Typer()
 
@@ -62,11 +62,17 @@ def estimate_at_checkpoint(
     print(yaml.dump(sampler_config.model_dump()))
 
     def log_fn(data, step=None):
-        serialized = {
-            k: v.item() if isinstance(v, torch.Tensor) else v
-            for k, v in data.items()
-        }
+        def process_tensor(a):
 
+            if len(a.shape) == 0 or a.shape == (1,):
+                return a.item()
+            return a.tolist()
+
+        serialized = flatten_dict({
+            k: process_tensor(v) if isinstance(v, torch.Tensor)  else v
+            for k, v in data.items()
+        }, flatten_lists=True)
+        
         wandb.log(serialized, step=step)
         print(yaml.dump(serialized))
 

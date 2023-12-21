@@ -2,8 +2,9 @@ import os
 import warnings
 from typing import List, Optional
 
+import torch
 import typer
-from devinfra.utils.iterables import rm_none_vals
+from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
 import wandb
 from icl.analysis.health import ChainHealthException
@@ -36,6 +37,21 @@ def sweep_over_time(
     # Iterate over checkpoints
     steps = steps or list(run.checkpointer.file_ids)
 
+    def log_fn(data, step=None):
+        def process_tensor(a):
+
+            if len(a.shape) == 0 or a.shape == (1,):
+                return a.item()
+            return a.tolist()
+
+        serialized = flatten_dict({
+            k: process_tensor(v) if isinstance(v, torch.Tensor)  else v
+            for k, v in data.items()
+        }, flatten_lists=True)
+        
+        wandb.log(serialized, step=step)
+
+
     for step, model in zip(steps, iter_models(run.model, run.checkpointer, verbose=True)):
         sampler.update_init_loss(sampler.eval_model(model))
         print(step)
@@ -43,46 +59,12 @@ def sweep_over_time(
 
         try:
             results = sampler.eval(run.model)
+
+            if use_wandb:
+                log_fn(results, step=step)
+        
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")
-
-        # trace = results.pop("loss/trace")
-
-        # if num_evals > 0:
-        #     covariances = cov_accumulator.to_eigens()
-
-        #     # original_shapes = {name: tuple(accessor(model).shape) for name, accessor in cov_accumulator.accessors.items()}
-        #     # principal_evals = {}
-        #     # principal_evecs= {}
-
-        #     for name, results in covariances.items():
-        #         evecs, evals = results["evecs"], results["evals"]
-
-        #         parts = [p.split(":")[-1].replace("/", ".") for p in name.split("-")]
-        #         obs_name = "x".join(parts)
-
-        #         if len(parts) == 1:
-        #             obs_name = "within/" + obs_name
-        #         else:
-        #             obs_name = "between/" + obs_name
-
-        #         for i in range(num_evals):
-        #             results[f"cov_eval_{i}/{obs_name}"] = evals[i]
-
-        #         # principal_evals[name] = evals[0]
-        #         # principal_evecs[name] = evecs[:, 0]
-
-        #     # slug = FIGURES / (f"cov-{config.to_slug()}@t={step}".replace(".", "_"))
-        #     # title = f"Principal covariance eigenvalues\n{config.to_latex()}"
-
-        #     # plot_evecs(evals=principal_evals, evecs=principal_evecs, shapes=original_shapes, title=title, save=slug)
-        #     # logger.log(observables, step=step)
-        #     cov_accumulator.reset()
-
-        
-        # Save to wandb
-        if use_wandb:
-            wandb.log(results, step=step)
        
 
 @app.command("wandb")
@@ -90,7 +72,7 @@ def wandb_sweep_over_time():
     wandb.init(project="icl", entity="devinterp")
     print("Initialized wandb")
     config = dict(wandb.config)
-    sampler_config = config.pop("analysis_config")
+    sampler_config = config.pop("sampler_config")
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     wandb.run.save()
     sweep_over_time(get_config(**config), sampler_config, use_wandb=True)

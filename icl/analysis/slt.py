@@ -1,5 +1,5 @@
 import warnings
-from typing import (Callable, Dict, Generator, Literal, Optional, Union)
+from typing import Callable, Dict, Generator, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -16,9 +16,9 @@ def prepend_keys(d: Dict, prefix: str):
 
 
 class ExpectedBatchLossEstimator:
-    def __init__(self, num_chains: int, num_draws: int, device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, loss_dim: int = 1, device="cpu", online=False, include_trace=False):
         self.online = online
-        self.estimator = get_estimator(num_chains, num_draws, 1, device, online=online, include_trace=include_trace)
+        self.estimator = get_estimator(num_chains, num_draws, loss_dim, device, online=online, include_trace=include_trace)
 
     def estimate(self):
         return prepend_keys(self.estimator.estimate(), "batch-loss")
@@ -37,9 +37,9 @@ class ExpectedBatchLossEstimator:
 
         
 class ExpectedLossObservableEstimator:
-    def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.Tensor], device="cpu", online=False, include_trace=False):
+    def __init__(self, num_chains: int, num_draws: int, loss_fn: Callable[[nn.Module], torch.Tensor], loss_dim: int = 1, device="cpu", online=False, include_trace=False):
         self.online = online
-        self.estimator = get_estimator(num_chains, num_draws, 1, device, online=online, include_trace=include_trace)
+        self.estimator = get_estimator(num_chains, num_draws, loss_dim, device, online=online, include_trace=include_trace)
         self.loss_fn = loss_fn
 
     def estimate(self):
@@ -66,7 +66,8 @@ class LikelihoodMetricsEstimator:
     """
     def __init__(self, num_chains: int, num_draws: int, dataset_size: int, init_loss: torch.Tensor, temperature: Temperature = 'adaptive', loss_fn: Optional[Callable[[nn.Module], torch.Tensor]]=None, device="cpu", online=False, include_trace=False, log_fn = False):
         self.loss_fn = loss_fn
-        self.expected_loss_estimator = get_estimator(num_chains, num_draws, 1, device=device, online=online, include_trace=include_trace)
+        self.loss_dim = len(self.init_loss)
+        self.expected_loss_estimator = get_estimator(num_chains, num_draws, self.loss_dim, device=device, online=online, include_trace=include_trace)
         self.num_chains = num_chains
         self.dataset_size = dataset_size
         self.temperature = temperature if temperature != 'adaptive' else 1. / np.log(dataset_size)
@@ -197,8 +198,8 @@ class SLTObservablesEstimator:
     Estimate the WBIC, LLC, and singular fluctuation. 
     """
     def __init__(self, num_chains: int, num_draws: int, dataset_size: int, losses_generator: Callable[[nn.Module], Generator[torch.Tensor, None, None]], init_loss: torch.Tensor, temperature: Temperature = 'adaptive', device="cpu", online=False, include_trace=False, log_fn=None):
-        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature, init_loss=init_loss, device=device, online=online, include_trace=include_trace)
-        self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature, device=device, online=online, include_trace=include_trace)
+        self.likelihood_metrics_estimator = LikelihoodMetricsEstimator(num_chains, num_draws, dataset_size, temperature=temperature, init_loss=init_loss, device=device, online=online, include_trace=include_trace)
+        self.singular_fluctuation_estimator = SingularFluctuationEstimator(num_chains, num_draws, dataset_size, losses_generator, temperature=temperature, device=device, online=online, include_trace=include_trace)
         
         self.online = online
         self.log_fn = log_fn

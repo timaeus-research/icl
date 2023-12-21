@@ -21,7 +21,7 @@ def get_default_device(device=None):
         import torch_xla.core.xla_model as xm
         stdlogger.info("Using TPU.")
         return xm.xla_device()
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, ImportError):
         pass
     if torch.backends.mps.is_available():
         return torch.device("mps")

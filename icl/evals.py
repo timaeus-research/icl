@@ -110,7 +110,7 @@ class ICLEvaluator(ModelEvaluator):
 
         return {
             "pretrain/mse_subsequence": pretrain_model_subsequence_losses.mean().item(),
-            **get_token_losses_dict(pretrain_model_losses, "pretrain/mse_subsequence"),
+            **get_token_losses_dict(pretrain_model_losses, "pretrain/mse_subseq"),
             **get_token_losses_dict(pretrain_model_losses, "pretrain/mse"),
             **get_token_losses_dict(pretrain_delta_dmmses, "pretrain/delta_dmmse"),
             **get_token_losses_dict(pretrain_delta_ridges, "pretrain/delta_ridge"),
@@ -122,8 +122,31 @@ class ICLEvaluator(ModelEvaluator):
         }
     
 class SequenceMSELoss:
-    def __init__(self, reduction: str = "mean") -> None:
-        self.reduction = reduction
+    def __init__(self, batch_reduction: str = "mean", context_reduction: str = "mean") -> None:
+        self.batch_reduction = batch_reduction
+        self.context_reduction = context_reduction
+
+        mean_reduction_dims = []
+        sum_reduction_dims = []
+
+        if self.batch_reduction == 'mean':
+            mean_reduction_dims.append(0)
+        elif self.batch_reduction == 'sum':
+            sum_reduction_dims.append(0)
+        else:
+            raise ValueError(f"Unknown reduction: {self.batch_reduction}")
+
+        if self.context_reduction == 'mean':
+            mean_reduction_dims.append(1)
+        elif self.context_reduction == 'sum':
+            sum_reduction_dims.append(1)
+        else:
+            raise ValueError(f"Unknown reduction: {self.context_reduction}")      
+
+        mean_reduction_dims.append(2)
+        self.mean_reduction_dims = tuple(mean_reduction_dims)
+        self.sum_reduction_dims = tuple(sum_reduction_dims)
+        
 
     def __call__(
             self, 
@@ -137,26 +160,44 @@ class SequenceMSELoss:
         
         Always takes the mean over tokens. Reduction is applied to the batch.
         """
+        loss = F.mse_loss(y_pred, y, reduction="none")
 
-        # Apply random mask to y_pred & y
-        B, K, _ = y_pred.shape
+        if self.mean_reduction_dims:
+            loss = loss.mean(dim=self.mean_reduction_dims)
+        if self.sum_reduction_dims:
+            loss = loss.sum(dim=self.sum_reduction_dims)
 
-        loss = F.mse_loss(y_pred, y, reduction="none").mean(dim=(1, 2))
-
-        # Compute MSE loss
-        if self.reduction == "mean":
-            return loss.mean()
-        elif self.reduction == "sum":
-            return loss.sum()
-        elif self.reduction == "none":
-            return loss
-        else:
-            raise ValueError(f"Unknown reduction: {self.reduction}")
+        return loss
 
     
 class SubsequenceMSELoss:
-    def __init__(self, reduction: str = "mean") -> None:
-        self.reduction = reduction
+    def __init__(self, batch_reduction: str = "mean", context_reduction: str = "mean") -> None:
+        self.batch_reduction = batch_reduction
+        self.context_reduction = context_reduction
+
+        mean_reduction_dims = []
+        sum_reduction_dims = []
+
+        if self.batch_reduction == 'mean':
+            mean_reduction_dims.append(0)
+        elif self.batch_reduction == 'sum':
+            sum_reduction_dims.append(0)
+        elif self.batch_reduction != 'none':
+            raise ValueError(f"Unknown reduction: {self.batch_reduction}")
+
+        if self.context_reduction == 'mean':
+            mean_reduction_dims.append(1)
+            raise ValueError(f"Only mean reduction supported for context")
+        elif self.context_reduction == 'sum':
+            sum_reduction_dims.append(1)
+        elif self.context_reduction != 'none':
+            raise ValueError(f"Unknown reduction: {self.context_reduction}")      
+        else:
+            raise ValueError(f"Only mean reduction supported for context")
+
+        mean_reduction_dims.append(2)
+        self.mean_reduction_dims = tuple(mean_reduction_dims)
+        self.sum_reduction_dims = tuple(sum_reduction_dims)
 
     def __call__(
             self, 
@@ -174,23 +215,15 @@ class SubsequenceMSELoss:
         # Apply random mask to y_pred & y
         B, K, _ = y_pred.shape
 
-        loss = torch.zeros(B if self.reduction == "none" else 1).to(y_pred.device)
+        loss = torch.zeros(B).to(y_pred.device)
 
         for i in range(B):
-            K_prime = np.random.randint(1, K + 1)
-            # K_prime = torch.randint(1, K + 1, (1,)).item()
+            k = np.random.randint(1, K + 1)
+            loss[i] = F.mse_loss(y_pred[i, :K], y[i, :k]).mean(dim=(1, 2))
 
-            if self.reduction == "none":
-                loss[i] = F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
-            else:
-                loss += F.mse_loss(y_pred[i, :K_prime], y[i, :K_prime]).mean()
+        if self.batch_reduction == 'mean':
+            loss = loss.mean()
+        elif self.batch_reduction == 'sum':
+            loss = loss.sum()
 
-        # Compute MSE loss
-        if self.reduction == "mean":
-            return loss.sum() / B
-        elif self.reduction == "sum":
-            return loss.sum()
-        elif self.reduction == "none":
-            return loss
-        else:
-            raise ValueError(f"Unknown reduction: {self.reduction}")
+        return loss

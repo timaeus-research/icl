@@ -21,8 +21,9 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               SLTObservablesEstimator)
 from icl.analysis.weights import WeightsTrace
 from icl.evals import SequenceMSELoss, SubsequenceMSELoss
-from icl.train import Run
 from icl.setup import DEVICE
+from icl.train import Run
+
 
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
@@ -74,14 +75,13 @@ def sample_single_chain(
         y_preds = model(xs, ys)
         loss = criterion(y_preds, ys)
 
-        loss.backward()
+        loss.mean().backward()
         optimizer.step()
 
         pbar.set_postfix(loss=loss.item())
 
         if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
             draw = (i - num_burnin_steps) // num_steps_bw_draws
-            loss = loss.item()
 
             with torch.no_grad():
                 for callback in callbacks:
@@ -214,6 +214,7 @@ class SamplerConfig(BaseModel):
 
     cores: int = 1
     device: str = "cpu"
+    per_token: bool = False
 
     @field_validator('sampling_method')
     @classmethod
@@ -286,11 +287,11 @@ class SamplerConfig(BaseModel):
     def to_sampler(self, run: Run, log_fn: Optional[Callable] = None):
         return Sampler(self, run, log_fn=log_fn)
         
-    def get_loss_fn(self, reduction: str = "mean"):
+    def get_loss_fn(self, batch_reduction: str = "mean", context_reduction: str = "mean"):
         if self.eval_loss_fn == "mse":
-            return SequenceMSELoss(reduction=reduction)
+            return SequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
         else:
-            return SubsequenceMSELoss(reduction=reduction)
+            return SubsequenceMSELoss(batch_reduction=batch_reduction, context_reduction=context_reduction)
 
     def get_optimizer_cls(self):
         if self.sampling_method == "sgld":
@@ -333,8 +334,9 @@ class Sampler:
         self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
 
         self.log_fn = log_fn
-        self.grad_loss_fn = self.config.get_loss_fn(reduction="mean")
-        self.eval_loss_fn = self.config.get_loss_fn(reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean")
+        context_reduction = "none" if self.config.per_token else "mean"
+        self.grad_loss_fn = self.config.get_loss_fn(batch_reduction="mean", context_reduction=context_reduction)
+        self.eval_loss_fn = self.config.get_loss_fn(batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", context_reduction=context_reduction)
         self.init_loss = self.eval_model(run.model)
         self._callbacks = self.get_callbacks()
 
