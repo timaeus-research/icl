@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 3
       num_draws:
         value: 1000
       sampling_method:
@@ -40,7 +40,7 @@ parameters:
         value: true
         # values: ["subsequence-mse", "mse"]
       num_init_loss_batches:
-        value: 8
+        value: 16
 
   task_config: 
     parameters:
