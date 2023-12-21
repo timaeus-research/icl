@@ -121,8 +121,8 @@ def sample_single_chain_xla(
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
 
-    # para_loader = pl.ParallelLoader(loader, [device])
-    # loader = para_loader.per_device_loader(device)
+    para_loader = pl.ParallelLoader(loader, [device])
+    loader = para_loader.per_device_loader(device)
 
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
     xm.mark_step()
@@ -136,7 +136,8 @@ def sample_single_chain_xla(
         mean_loss = loss.mean()
         mean_loss.backward()
 
-        xm.optimizer_step(optimizer)
+        optimizer.step()
+        xm.mark_step()
 
         pbar.set_postfix(loss=mean_loss.item())
 
@@ -144,11 +145,11 @@ def sample_single_chain_xla(
             draw = (i - num_burnin_steps) // num_steps_bw_draws
 
             with torch.no_grad():
-                xm.mark_step()
 
                 for callback in callbacks:
                     call_with(callback, **locals())  # Cursed but we'll fix it later
-                    xm.mark_step()
+        
+            xm.mark_step()
 
 
 
@@ -196,6 +197,8 @@ def sample(
         seed (Optional[Union[int, List[int]]]): Random seed(s) for sampling.
         optimizer_kwargs (Optional[Dict[str, Union[float, Literal['adaptive']]]]): Keyword arguments for the optimizer.
     """
+    model.to('cpu')  # Will be moved separately in each thread
+
     if cores == "auto":
         cores = min(4, cpu_count())
 
