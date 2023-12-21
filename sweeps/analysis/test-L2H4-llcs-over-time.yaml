@@ -47,7 +47,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        value: inf
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
