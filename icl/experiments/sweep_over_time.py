@@ -70,11 +70,12 @@ def sweep_over_time(
         try:
             results = sampler.eval(run.model)
 
+            if use_wandb:
+                log_fn(results, step=step)
+
             if XLA:
                 xm.mark_step()
 
-            if use_wandb:
-                log_fn(results, step=step)
         
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")

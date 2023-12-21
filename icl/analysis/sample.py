@@ -107,8 +107,10 @@ def sample_single_chain_xla(
     device: Union[str, torch.device] = torch.device("xla"),
     callbacks: List[Callable] = [],
 ):
+    xm.mark_step()
     # Initialize new model and optimizer for this chain
     model = deepcopy(ref_model).to(device)
+    xm.mark_step()
 
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
@@ -135,7 +137,6 @@ def sample_single_chain_xla(
         mean_loss.backward()
 
         xm.optimizer_step(optimizer)
-        xm.mark_step()
 
         pbar.set_postfix(loss=mean_loss.item())
 
