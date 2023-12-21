@@ -189,7 +189,7 @@ class ICLConfig(BaseModel):
             if task_config_dict.get('layer_norm', False):
                 del task_config_dict['layer_norm']
 
-            if not task_config_dict.get('include_output', False):
+            if 'include_output' in task_config_dict and not task_config_dict['include_output']:
                 del task_config_dict['include_output']
 
             task_config_hash = hash_dict(task_config_dict)[:6]
