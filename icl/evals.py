@@ -109,11 +109,12 @@ class ICLEvaluator(ModelEvaluator):
             return metrics
 
         return {
-            **get_token_losses_dict(pretrain_model_subsequence_losses, "pretrain/mse_subsequence"),
+            "pretrain/mse_subsequence": pretrain_model_subsequence_losses.mean().item(),
+            **get_token_losses_dict(pretrain_model_losses, "pretrain/mse_subsequence"),
             **get_token_losses_dict(pretrain_model_losses, "pretrain/mse"),
             **get_token_losses_dict(pretrain_delta_dmmses, "pretrain/delta_dmmse"),
             **get_token_losses_dict(pretrain_delta_ridges, "pretrain/delta_ridge"),
-            **get_token_losses_dict(true_model_subsequence_losses, "true/mse_subsequence"),
+            "true/mse_subsequence": true_model_subsequence_losses.mean().item(),
             **get_token_losses_dict(true_model_losses, "true/mse"),
             **get_token_losses_dict(true_delta_dmmses, "true/delta_dmmse"),
             **get_token_losses_dict(true_delta_ridges, "true/delta_ridge"),

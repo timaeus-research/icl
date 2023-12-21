@@ -186,10 +186,10 @@ class ICLConfig(BaseModel):
             # Watchh out with changing the task configs because it can break the hashing below. 
 
             # For compatibility with old configs
-            if task_config_dict.get('layer_norm', False):
+            if task_config_dict.get('layer_norm', False):  # Hides this from hash if True
                 del task_config_dict['layer_norm']
 
-            if 'include_output' in task_config_dict and not task_config_dict['include_output']:
+            if "include_output" in task_config_dict and not task_config_dict['include_output']:  # Hides this from hash if False
                 del task_config_dict['include_output']
 
             task_config_hash = hash_dict(task_config_dict)[:6]
