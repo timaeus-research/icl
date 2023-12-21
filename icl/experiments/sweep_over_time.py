@@ -1,7 +1,7 @@
 import os
+import time
 import warnings
 from typing import List, Optional
-import time
 
 import torch
 import typer
@@ -30,8 +30,7 @@ def sweep_over_time(
     cores = int(os.environ.get("CORES", 1))
     device = str(DEVICE)
 
-
-     if XLA:
+    if XLA:
         xm.mark_step()
 
     stdlogger.info("Retrieving & restoring training run...")
