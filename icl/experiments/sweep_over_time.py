@@ -1,6 +1,7 @@
 import os
 import warnings
 from typing import List, Optional
+import time
 
 import torch
 import typer
@@ -29,14 +30,27 @@ def sweep_over_time(
     cores = int(os.environ.get("CORES", 1))
     device = str(DEVICE)
 
+
+     if XLA:
+        xm.mark_step()
+
     stdlogger.info("Retrieving & restoring training run...")
+    start = time.perf_counter()
     config["device"] = device
     config: ICLConfig = get_config(**config)
     run = Run.create_and_restore(config)
+    end = time.perf_counter()
+    stdlogger.info("... %s seconds", start - end)
 
+    if XLA:
+        xm.mark_step()
+
+    start = end
     stdlogger.info("Configuring sampler...")
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
     sampler = sampler_config.to_sampler(run)
+    end = time.perf_counter()
+    stdlogger.info("... %s seconds", start - end)
 
     # Iterate over checkpoints
     steps = steps or list(run.checkpointer.file_ids)
@@ -63,9 +77,10 @@ def sweep_over_time(
         xm.mark_step()
 
     for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
-        sampler.update_init_loss(sampler.eval_model(model))
-        print(step)
-        sampler.reset()
+        sampler.update_init_loss(sampler.eval_model(model, sampler.config.num_init_loss_batches, verbose=True))
+        
+        if XLA:
+            xm.mark_step()
 
         try:
             results = sampler.eval(run.model)
@@ -75,11 +90,14 @@ def sweep_over_time(
 
             if XLA:
                 xm.mark_step()
-
         
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")
        
+        sampler.reset()
+
+        if XLA:
+            xm.mark_step()
 
 @app.command("wandb")
 def wandb_sweep_over_time():      
