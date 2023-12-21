@@ -121,8 +121,8 @@ def sample_single_chain_xla(
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
 
-    para_loader = pl.ParallelLoader(loader, [device])
-    loader = para_loader.per_device_loader(device)
+    # para_loader = pl.ParallelLoader(loader, [device])
+    # loader = para_loader.per_device_loader(device)
 
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
     xm.mark_step()
