@@ -1,5 +1,5 @@
 import math
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Union
 
 from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
@@ -8,7 +8,7 @@ from devinfra.optim import OptimizerConfig, SchedulerConfig
 from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 import wandb
 from icl.model import InContextRegressionTransformer
@@ -22,7 +22,7 @@ class ICLTaskConfig(BaseModel):
 
     task_size: int = 8 # D, dimensions of linear regression task
     max_examples: int = 16 # K, in-context examples (thus max_context = 2*K)
-    num_tasks: int     # M, task-diversity of pre-train dist
+    num_tasks: Union[int, Literal[math.inf]]     # M, task-diversity of pre-train dist
     noise_variance: float = 0.25 # sigma^2 i.e. y = wx + N(0, sigma^2)
     embed_size: int = 128 # d_e = d_mid (in Phuong notation)
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
@@ -54,6 +54,14 @@ class ICLTaskConfig(BaseModel):
         if self.pretrain_seed is not None:
             set_seed(self.pretrain_seed)
 
+        if self.num_tasks == math.inf:
+            return RegressionSequenceDistribution(
+                task_distribution=GaussianTaskDistribution(
+                    task_size=self.task_size,
+                ),
+                noise_variance=self.noise_variance,
+            )
+
         return RegressionSequenceDistribution(
             task_distribution=DiscreteTaskDistribution(
                 num_tasks=self.num_tasks,
@@ -70,6 +78,13 @@ class ICLTaskConfig(BaseModel):
             ),
             noise_variance=self.noise_variance,
         )
+
+    @field_validator('num_tasks')
+    @classmethod
+    def process_int_or_inf(cls, v: Union[Literal["inf"], int]) -> int:
+        if v == "inf":
+            return math.inf
+        return v
 
 
 class ICLConfig(BaseModel):

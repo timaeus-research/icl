@@ -1,3 +1,4 @@
+import math
 from typing import Generic, TypeVar
 
 import torch
@@ -45,7 +46,6 @@ class RegressionSequenceDistribution(Generic[T]):
     task_distribution: T
 
     def __init__(self, task_distribution: T, noise_variance=0.25, device='cpu'):
-
         self.task_distribution = task_distribution
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
@@ -278,7 +278,7 @@ class GaussianTaskDistribution(TaskDistribution):
     * `device='cpu' : str(device name)`
         which device to initialise tasks on
     """
-
+    num_tasks = math.inf
 
     def sample_tasks(self, n: int):
         """
