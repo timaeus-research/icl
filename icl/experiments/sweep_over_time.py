@@ -12,11 +12,13 @@ from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.experiments.utils import *
-from icl.initialize import DEVICE, prepare_experiments, stdlogger
+from icl.initialize import DEVICE, XLA, prepare_experiments, stdlogger
 from icl.train import Run
 
 app = typer.Typer()
 
+if XLA:
+    import torch_xla.core.xla_model as xm
 
 def sweep_over_time(
     config: ICLConfig,
@@ -57,6 +59,9 @@ def sweep_over_time(
         wandb.log(serialized, step=step)
 
 
+    if XLA:
+        xm.mark_step()
+
     for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
         sampler.update_init_loss(sampler.eval_model(model))
         print(step)
@@ -64,6 +69,9 @@ def sweep_over_time(
 
         try:
             results = sampler.eval(run.model)
+
+            if XLA:
+                xm.mark_step()
 
             if use_wandb:
                 log_fn(results, step=step)

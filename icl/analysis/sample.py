@@ -123,6 +123,7 @@ def sample_single_chain_xla(
     loader = para_loader.per_device_loader(device)
 
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+    xm.mark_step()
 
     for i, (xs, ys) in  pbar:
         optimizer.zero_grad()
@@ -142,10 +143,12 @@ def sample_single_chain_xla(
             draw = (i - num_burnin_steps) // num_steps_bw_draws
 
             with torch.no_grad():
+                xm.mark_step()
+
                 for callback in callbacks:
                     call_with(callback, **locals())  # Cursed but we'll fix it later
-        
-                xm.mark_step()
+                    xm.mark_step()
+
 
 
 def _sample_single_chain(kwargs):
@@ -227,9 +230,9 @@ def sample(
 
     results = []
 
-    # if XLA:
-    #     xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
-    if cores > 1:
+    if XLA:
+        xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+    elif cores > 1:
         ctx = get_context("spawn")
         with ctx.Pool(cores) as pool:
             results = pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
@@ -414,7 +417,14 @@ class Sampler:
             batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", 
             context_reduction=context_reduction
         )
+        if XLA:
+            xm.mark_step()
+
         self.init_loss = self.eval_model(run.model, max_num_batches=self.config.num_init_loss_batches, verbose=True)
+
+        if XLA:
+            xm.mark_step()
+            
         self._callbacks = self.get_callbacks()
 
     def eval_one_batch(self, model):
