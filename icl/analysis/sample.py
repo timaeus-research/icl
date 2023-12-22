@@ -1,5 +1,6 @@
 import inspect
 import itertools
+import time
 import warnings
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
@@ -16,12 +17,13 @@ from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
 from icl.analysis.health import ChainHealthException
+from icl.analysis.hessians import batch_hessian
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
 from icl.analysis.weights import WeightsTrace
 from icl.evals import SequenceMSELoss, SubsequenceMSELoss
-from icl.initialize import DEVICE, XLA
+from icl.initialize import DEVICE, XLA, stdlogger
 from icl.train import Run
 
 if XLA:
@@ -58,6 +60,7 @@ def sample_single_chain(
     verbose=True,
     device: Union[str, torch.device] = torch.device("cpu"),
     callbacks: List[Callable] = [],
+    subsample: bool = False
 ):
     # Initialize new model and optimizer for this chain
     model = deepcopy(ref_model).to(device)
@@ -78,7 +81,12 @@ def sample_single_chain(
         y_preds = model(xs, ys)
         loss = criterion(y_preds, ys)
 
-        mean_loss = loss.mean()
+        if subsample:
+            k = np.random.randint(0, len(loss) + 1)
+            mean_loss = loss[:k].mean()
+        else:
+            mean_loss = loss.mean()
+
         mean_loss.backward()
         optimizer.step()
 
@@ -106,6 +114,7 @@ def sample_single_chain_xla(
     verbose=True,
     device: Union[str, torch.device] = torch.device("xla"),
     callbacks: List[Callable] = [],
+    subsample: bool = False
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
@@ -133,9 +142,13 @@ def sample_single_chain_xla(
         y_preds = model(xs, ys)
         loss = criterion(y_preds, ys)
 
-        mean_loss = loss.mean()
-        mean_loss.backward()
+        if subsample:
+            k = np.random.randint(0, len(loss) + 1)
+            mean_loss = loss[:k].mean()
+        else:
+            mean_loss = loss.mean()
 
+        mean_loss.backward()
         optimizer.step()
         xm.mark_step()
 
@@ -180,6 +193,7 @@ def sample(
     device: torch.device = torch.device("cpu"),
     verbose: bool = True,
     callbacks: List[Callable] = [],
+    subsample: bool =False
 ):
     """
     Sample model weights using a given optimizer, supporting multiple chains.
@@ -228,6 +242,7 @@ def sample(
             device=device,
             verbose=verbose,
             callbacks=callbacks,
+            subsample=subsample,
         )
 
     results = []
@@ -287,8 +302,8 @@ class SamplerConfig(BaseModel):
 
     num_init_loss_batches: Optional[int] = None
         
-    # Covariance estimation
-    num_evals: Optional[int] = None
+    # For Hessians and covariances
+    num_evals: Optional[int] = 5
 
     cores: int = 1
     device: str = "cpu"
@@ -331,7 +346,6 @@ class SamplerConfig(BaseModel):
                 warnings.warn("Eval batch size is provided but will be ignored for dataset evals")
 
         assert "covariance" not in data.get("eval_metrics", []), "Covariance is not supported for now"
-        assert "hessian" not in data.get("eval_metrics", []), "Hessian is not supported for now"
 
         # Parametrization
         num_samples = data.get("eval_dataset_size", 2**20)
@@ -413,7 +427,7 @@ class Sampler:
 
         self.log_fn = log_fn
         context_reduction = "none" if self.config.per_token else "mean"
-        self.grad_loss_fn = self.config.get_loss_fn(self.config.eval_loss_fn, batch_reduction="mean", context_reduction=context_reduction)
+        self.grad_loss_fn = self.config.get_loss_fn("mse", batch_reduction="mean", context_reduction=context_reduction)  # mse-subsequence is passed to the sample function
         self.eval_loss_fn = self.config.get_loss_fn(
             self.config.eval_loss_fn if not self.config.per_token else 'mse', 
             batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", 
@@ -451,6 +465,7 @@ class Sampler:
 
             loss = loss if loss is not None else torch.zeros_like(_loss)
             loss += _loss.detach() * xs.shape[0]
+
             if max_num_batches and max_num_batches <= i:
                 break
 
@@ -532,9 +547,26 @@ class Sampler:
             callbacks['weights'] = self.get_weights_callback()
     
         return callbacks
+    
+    def eval_hessians(self, model: nn.Module):
+        stdlogger.info("Evaluating hessians...")
+        start = time.perf_counter()
+        model.zero_grad()
+
+        xs, ys = self.full_dataset.tensors[0][:self.config.eval_batch_size], self.full_dataset.tensors[1][:self.config.eval_batch_size]
+
+        with batch_hessian(model, xs, ys) as H:
+            results = {
+                "hessian/trace": H.trace(),
+                "hessian/eigenvals": H.eigenvalues(top_n=self.config.num_evals)[0]
+            }
+
+        end = time.perf_counter()
+        stdlogger.info(f"Evaluated hessians in {end - start:.2f}s")
+        return results
 
     def eval(self, model: nn.Module, seed=None):
-        return sample(
+        results = sample(
             model,
             self.grad_loader,
             self.grad_loss_fn,
@@ -545,8 +577,14 @@ class Sampler:
             cores=self.config.cores,
             device=DEVICE,
             callbacks=self.callbacks,
-            seed=seed
+            seed=seed,
+            subsample=self.config.eval_loss_fn == "subsequence-mse"
         )
+
+        if "hessian" in self.config.eval_metrics:
+            results.update(self.eval_hessians(model))
+
+        return results
     
     def reset(self):
         for callback in self.callbacks:

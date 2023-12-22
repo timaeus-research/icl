@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import torch
 import typer
+import yaml
 from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
 import wandb
@@ -70,18 +71,17 @@ def sweep_over_time(
             for k, v in data.items()
         }, flatten_lists=True)
         
-        wandb.log(serialized, step=step)
-
-
+        if use_wandb:
+            wandb.log(serialized, step=step)
+    
+        print(yaml.dump(serialized))
 
     for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
         sampler.update_init_loss(sampler.eval_model(model, sampler.config.num_init_loss_batches, verbose=True))
 
         try:
             results = sampler.eval(run.model)
-
-            if use_wandb:
-                log_fn(results, step=step)
+            log_fn(results, step=step)
 
             if XLA:
                 xm.mark_step()
@@ -144,11 +144,17 @@ def cmd_line_sweep_over_time(
         "num_heads": num_heads,
         "embed_size": embed_size, 
     }, optimizer_config={"lr": lr}))
-    sampler_config = rm_none_vals(dict(gamma=gamma, lr=epsilon, num_draws=num_draws, num_chains=num_chains, batch_size=batch_size, 
+    sampler_config = rm_none_vals(dict(
+        gamma=gamma, 
+        lr=epsilon,
+        num_draws=num_draws,
+        num_chains=num_chains, 
+        batch_size=batch_size, 
         temperature=temperature,
         gradient_scale=gradient_scale,
         noise_scale=noise_scale,
-        localization_scale=localization_scale
+        localization_scale=localization_scale,
+        eval_metrics=['likelihood-derived', 'hessian']
     ))
     config = get_unique_config(sweep, **filters)
     config_dict = config.model_dump()
