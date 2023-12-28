@@ -21,7 +21,7 @@ from tqdm import tqdm
 import wandb
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
-from icl.initialize import DEVICE
+from icl.constants import DEVICE
 from icl.train import Run
 
 app = typer.Typer()
@@ -173,8 +173,8 @@ class OnlineExpectationEstimatorWithTrace:
                 _estimates.append({
                     "chain": chain,
                     "draw": draw,
-                    "mean": self.first_moments[chain, draw].detach().numpy(),
-                    "std": (torch.sqrt(self.second_moments[chain, draw] - self.first_moments[chain, draw] ** 2).detach()).numpy(),
+                    "mean": self.first_moments[chain, draw].detach().cpu().numpy(),
+                    "std": (torch.sqrt(self.second_moments[chain, draw] - self.first_moments[chain, draw] ** 2)).detach().cpu().numpy(),
                 })
         
         return pd.DataFrame(_estimates)

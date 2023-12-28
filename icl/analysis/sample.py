@@ -22,8 +22,9 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
 from icl.analysis.weights import WeightsTrace
-from icl.evals import SequenceMSELoss, SubsequenceMSELoss
-from icl.initialize import DEVICE, XLA, stdlogger
+from icl.constants import DEVICE, XLA
+from icl.analysis.evals import SequenceMSELoss, SubsequenceMSELoss
+from icl.monitoring import stdlogger
 from icl.train import Run
 
 if XLA:
@@ -82,8 +83,8 @@ def sample_single_chain(
         loss = criterion(y_preds, ys)
 
         if subsample:
-            k = np.random.randint(0, len(loss) + 1)
-            mean_loss = loss[:k].mean()
+            k = np.random.randint(0, loss.numel() + 1)
+            mean_loss = loss.view(-1)[:k].mean()
         else:
             mean_loss = loss.mean()
 
@@ -143,8 +144,8 @@ def sample_single_chain_xla(
         loss = criterion(y_preds, ys)
 
         if subsample:
-            k = np.random.randint(0, len(loss) + 1)
-            mean_loss = loss[:k].mean()
+            k = np.random.randint(0, loss.numel() + 1)
+            mean_loss = loss.view(-1)[:k].mean()
         else:
             mean_loss = loss.mean()
 
@@ -519,6 +520,7 @@ class Sampler:
         return ExpectedBatchLossEstimator(
             self.config.num_chains, 
             self.config.num_draws, 
+            self.loss_dim,
             DEVICE,
             online=True,
             include_trace=True
@@ -591,6 +593,7 @@ class Sampler:
             callback.reset()
 
     def update_init_loss(self, init_loss):
+        stdlogger.info("Updating init loss to %s", init_loss)
         self.init_loss = init_loss
 
         for callback in self.callbacks:
@@ -628,3 +631,7 @@ class Sampler:
             raise ValueError("Likelihood not enabled in config")
         
         return self._callbacks['likelihood']
+    
+    @property
+    def loss_dim(self):
+        return self.init_loss.numel()

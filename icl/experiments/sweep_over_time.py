@@ -14,9 +14,11 @@ from icl.analysis.health import ChainHealthException
 from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
+from icl.constants import DEVICE, XLA
 from icl.experiments.utils import *
-from icl.initialize import DEVICE, XLA, prepare_experiments, stdlogger
+from icl.monitoring import stdlogger
 from icl.train import Run
+from icl.utils import prepare_experiments
 
 app = typer.Typer()
 

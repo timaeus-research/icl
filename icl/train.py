@@ -8,8 +8,10 @@ from devinfra.utils.seed import set_seed
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
+from icl.constants import DEVICE, XLA
 
-from icl.evals import ICLEvaluator
+from icl.analysis.evals import ICLEvaluator
+from icl.utils import prepare_experiments
 
 load_dotenv()
 # in case using mps:
@@ -30,7 +32,7 @@ from devinfra.optim.schedulers import LRScheduler
 
 import wandb
 from icl.config import ICLConfig, get_config
-from icl.initialize import DEVICE, XLA, prepare_experiments, stdlogger
+from icl.monitoring import stdlogger
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)

@@ -14,6 +14,7 @@ from icl.figures.colors import PRIMARY, SECONDARY
 
 sns.set_style("whitegrid")
 
+
 def plot_loss_trace(batch_losses, likelihoods):
     fig, ax = plt.subplots(figsize=(10, 5))
 

@@ -13,7 +13,7 @@ from pydantic import (BaseModel, Field, ValidationError, field_validator,
 
 import wandb
 from icl.model import InContextRegressionTransformer
-from icl.initialize import DEVICE
+from icl.constants import DEVICE
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 

@@ -4,7 +4,7 @@ import torch_testing as tt
 
 from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
 from icl.tasks import RegressionSequenceDistribution
-from icl.baselines import dmmse_predictor, ridge_predictor
+from icl.analysis.baselines import dmmse_predictor, ridge_predictor
 
 
 def test_dmmse_predictor_first_is_uniform():

@@ -1,25 +1,7 @@
 """
-Decode-only transformer architecture retrofit for in-context linear
+Decoder-only transformer architecture retrofit for in-context linear
 regression problem.
 
-Notes maybe for the specific problem in mind:
-
-* When it comes time to train, probably I don't need to bother training the
-  model to predict the xs?
-  * The optimal output for them is zero since they are drawn IID from
-    standard normal.
-  * There may be some point in checking them since it will regularise the
-    rest of the model.
-* To be honest this task should probably have been modelled as an
-  encoder-decoder problem if we are actually trying to solve it...
-  maybe I should experiment with cross attention architectures.
-* Relatedly, maybe it's a good idea to provide the model with a hint in
-  its positional encoding that distinguishes x and y, and connects adjacent x
-  to y...
-* Though I guess the point is to study decoded-only transformers without this
-  special position information, not trained for linear regression... OK fair
-  enough. But keep these interventions in mind if we want to elicit the
-  behaviour more later.
 """
 
 
@@ -29,14 +11,46 @@ from icl.dtransformer import DTransformer
 
 
 class InContextRegressionTransformer(torch.nn.Module):
+    """
+    A transformer model specifically designed for in-context learning in a linear regression setting. 
+    This model uses a transformer architecture to make predictions based on a sequence of input-target 
+    pairs (x, y), simulating a linear regression problem with Gaussian noise on the targets.
+
+    The transformer is trained to predict the target value for a given input within the context of 
+    preceding input-target pairs. It leverages the structure of the transformer to encode and process 
+    these sequences effectively.
+
+    Parameters:
+    task_size (int): The dimensionality (D) of the input vectors (x). This defines the size of each task vector.
+    max_examples (int): The maximum number of input-target pairs (K) in the context. This sets the upper limit 
+        on the length of the context sequence the model can handle.
+    embed_size (int): The dimensionality of the residual stream in the transformer. This size is crucial for 
+        the internal representations of the transformer.
+    mlp_size (int): The width of the Multi-Layer Perceptron (MLP) layers used within the transformer. This 
+        defines the capacity and complexity of the MLP components.
+    num_heads (int): The number of attention heads in the transformer. Multiple heads allow the model to 
+        focus on different parts of the input sequence simultaneously.
+    num_layers (int): The number of layers in the transformer. Each layer consists of self-attention and 
+        MLP components.
+    device (str, optional): The device (e.g., 'cpu', 'cuda') on which the model computations are performed. 
+        Defaults to 'cpu'.
+    layer_norm (bool, optional): Flag to include or exclude layer normalization in the transformer layers. 
+        Defaults to True.
+    include_output (bool, optional): Flag to include or exclude the projection layer after attention.
+        Defaults to False.
+
+    The model is trained to minimize a loss function that incorporates the Mean Squared Error (MSE) between the 
+    predicted and actual target values across all contexts of length up to K, as described in the 
+    referenced literature.
+    """
     def __init__(
         self,
-        task_size,
-        max_examples,
-        embed_size,
-        mlp_size,
-        num_heads,
-        num_layers,
+        task_size: int,
+        max_examples: int,
+        embed_size: int,
+        mlp_size: int,
+        num_heads: int,
+        num_layers: int,
         device='cpu',
         layer_norm=True,
         include_output=False,
@@ -56,9 +70,6 @@ class InContextRegressionTransformer(torch.nn.Module):
         self.task_size = task_size
         self.max_examples = max_examples
         self.device = device
-
-        # TODO: Where else is this information stored on a given run? Is it bad juju for it 
-        # to hang around with the transformer all the time? 
         self.embed_size = embed_size
         self.mlp_size = mlp_size
         self.num_heads = num_heads
@@ -91,9 +102,7 @@ class InContextRegressionTransformer(torch.nn.Module):
         return super().to(*args, **kwargs)
 
 
-# # # Task encoding / decoding helper functions
 
-    
 def to_token_sequence(xs, ys):
     """
     Convert a regression data set into a sequence of vector tokens using a
