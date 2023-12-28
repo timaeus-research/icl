@@ -1,6 +1,6 @@
 name: large-noiseless
 method: grid
-command: ["python", "-m", "icl"]
+command: ["python", "icl/train.py"]
 project: icl
 entity: devinterp
 parameters:

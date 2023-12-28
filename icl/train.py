@@ -8,9 +8,9 @@ from devinfra.utils.seed import set_seed
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
-from icl.constants import DEVICE, XLA
 
 from icl.analysis.evals import ICLEvaluator
+from icl.constants import DEVICE, XLA
 from icl.utils import prepare_experiments
 
 load_dotenv()
@@ -32,8 +32,8 @@ from devinfra.optim.schedulers import LRScheduler
 
 import wandb
 from icl.config import ICLConfig, get_config
-from icl.monitoring import stdlogger
 from icl.model import InContextRegressionTransformer
+from icl.monitoring import stdlogger
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
@@ -366,18 +366,17 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
 
 
 def main(
-    resume: str = typer.Option(help="The id of a sweep or run to resume.")
+    resume: str = typer.Option(None, help="The id of a sweep or run to resume."),
+    verbose: bool = typer.Option(True, help="Whether to log debug information.")
 ):
-    is_debug = False
-
     if resume is None:
         config = get_config(project="icl", entity="devinterp")
-        train(config, is_debug=is_debug)
+        train(config, is_debug=verbose)
     else:
         if "run" in resume:
-            resume_run(resume, is_debug=is_debug)
+            resume_run(resume, is_debug=verbose)
         elif "sweep" in resume:
-            resume_sweep(resume, is_debug=is_debug)
+            resume_sweep(resume, is_debug=verbose)
         else:
             typer.echo("Invalid resume command.")
 
