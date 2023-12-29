@@ -1,4 +1,4 @@
-name: L2H4Minf
+name: L8H2Minf
 method: grid
 command: ["python", "icl/train.py"]
 project: icl
@@ -30,7 +30,7 @@ parameters:
         value: null
       sampling_seed:
         value: null
-  logger_config:
+  checkpointer_config:
     parameters:
       checkpoint_steps:
         parameters:

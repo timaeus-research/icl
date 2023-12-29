@@ -32,7 +32,7 @@ parameters:
         value: null
       include_output: 
         value: true
-  logger_config:
+  checkpointer_config:
     parameters:
       checkpoint_steps:
         parameters:

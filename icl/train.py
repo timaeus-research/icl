@@ -3,6 +3,7 @@ training the transformer on synthetic in-context regression task
 """
 import torch
 import typer
+import yaml
 from devinfra.utils.seed import set_seed
 # manage environment
 from dotenv import load_dotenv
@@ -151,6 +152,10 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     various metrics.
     """
     logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
+    
+    print("\n" + "=" * 36 + " CONFIG " + "=" * 36)
+    print(yaml.dump(config.model_dump()))
+    print("=" * 80 + "\n")
 
     run = Run(config)
     model = run.model
