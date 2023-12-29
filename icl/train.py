@@ -163,13 +163,16 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     logger = run.logger
 
     num_steps = config.num_steps
+    sampling_seed = config.task_config.sampling_seed
 
-    sampling_seed = config.task_config.sampling_seed if config.task_config.sampling_seed is not None else config.task_config.pretrain_seed * num_steps
+    if sampling_seed is None and config.task_config.pretrain_seed is not None:
+        sampling_seed = config.task_config.pretrain_seed * num_steps
 
     for step in tqdm.trange(num_steps, desc="Training..."):
-        set_seed(
-            sampling_seed + step
-        )  # For reproducibility if we resume training
+        if sampling_seed is not None:
+            set_seed(
+                sampling_seed + step
+            )  # For reproducibility if we resume training
 
         if XLA: xm.mark_step()
         xs, ys = pretrain_dist.get_batch(
