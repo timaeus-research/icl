@@ -12,20 +12,34 @@ from pathlib import Path
 from pprint import pp
 from typing import Any, Callable, List, Optional, Union
 
-import torch_xla
 import boto3
 import torch
+import torch_xla
 import tqdm
 import typer
-from devinterp.ops.storage import (  # Import the base class and IDType
+from devinfra.io.storage import (  # Import the base class and IDType
     BaseStorageProvider, IDType, S3StorageProvider, create_storage_provider,
     int_id_to_key, key_to_int_id)
 from dotenv import load_dotenv
 
-from icl.utils import to
-
 load_dotenv()
 app = typer.Typer()
+
+
+def move_to_(obj, device = "cpu"):
+    """
+    Moves the given object to the given device.
+    """
+
+    if isinstance(obj, (list, tuple, set)):
+        for item in obj:
+            move_to_(item, device)
+    elif isinstance(obj, dict):
+       for value in obj.values():
+           move_to_(value, device)
+    elif hasattr(obj, "to"):
+        obj.to(device)
+
 
 def get_all_file_keys(client, bucket: str, prefix: str, max_keys: Optional[int] = None):
     # Initialize an empty list to hold file ids
@@ -74,10 +88,12 @@ def _migrate(
         body = obj['Body'].read()
         stream = io.BytesIO(body)
         checkpoint = torch.load(stream, map_location=torch.device("cpu"))
-        checkpoint = to(checkpoint, device)
+        move_to_(checkpoint, device)
+        assert checkpoint["model"]["token_sequence_transformer.token_embedding.weight"].device == torch.device(device)
         stream = io.BytesIO()
         torch.save(checkpoint, stream)
         # Upload the checkpoint
+
         client.put_object(Bucket=bucket, Key=file_key, Body=stream.getvalue())
 
 
