@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import os
+from collections import OrderedDict
 
 import pandas as pd
 import seaborn as sns
@@ -152,6 +153,8 @@ def move_to_device(obj, device):
     """
     if isinstance(obj, torch.Tensor):
         return obj.to(device)
+    elif isinstance(obj, OrderedDict):  
+        return OrderedDict((k, move_to_device(v, device)) for k, v in obj.items())
     elif isinstance(obj, dict):
         return {k: move_to_device(v, device) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -168,12 +171,13 @@ def get_device(obj):
     """
     if isinstance(obj, torch.Tensor):
         return obj.device
-    elif isinstance(obj, dict):
+    elif isinstance(obj, (dict, OrderedDict)):
         return next(d for d in (get_device(v) for v in obj.values()) if d is not None)
     elif isinstance(obj, (list, tuple)):
         return next(d for d in (get_device(v) for v in obj) if d is not None)
     else:
         return None
+
 
 @contextlib.contextmanager
 def to_device(state_dicts, device='cpu'):

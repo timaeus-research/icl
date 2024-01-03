@@ -329,8 +329,10 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
-            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
-
+            
+            with to_device(state_dict(model, optimizer, scheduler), 'cpu') as state_dict_cpu:
+                checkpointer.save_file(step, state_dict_cpu)
+                
         if step in config.logger_config.logging_steps and step > last_log_step:
             stdlogger.info("Logging at step %s", step)
             model.eval()
