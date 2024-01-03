@@ -25,6 +25,8 @@ from dotenv import load_dotenv
 load_dotenv()
 app = typer.Typer()
 
+try
+
 
 def move_to_(obj, device = "cpu"):
     """
@@ -87,7 +89,7 @@ def _migrate(
         obj = client.get_object(Bucket=bucket, Key=file_key)
         body = obj['Body'].read()
         stream = io.BytesIO(body)
-        checkpoint = torch.load(stream, map_location=torch.device("cpu"))
+        checkpoint = torch.load(stream)
         move_to_(checkpoint, device)
         assert checkpoint["model"]["token_sequence_transformer.token_embedding.weight"].device == torch.device(device)
         stream = io.BytesIO()
