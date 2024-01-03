@@ -187,8 +187,11 @@ def to_device(state_dicts, device='cpu'):
 
     try:
         state_dicts = move_to_device(state_dicts, device)
+        assert get_device(state_dicts) == device, "State dicts were not moved to the specified device."
         # Yield control back to the with block
         yield state_dicts
+    except AssertionError:
+        raise 
     except Exception:
         logging.warning("Exception raised while moving state dicts to %s.", device)
     finally:
