@@ -151,12 +151,10 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     """
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
-    """
-    logging.basicConfig(level=logging.INFO if not is_debug else logging.DEBUG)
-    
-    print("\n" + "=" * 36 + " CONFIG " + "=" * 36)
-    print(yaml.dump(config.model_dump()))
-    print("=" * 80 + "\n")
+    """    
+    stdlogger.info("\n" + "=" * 36 + " CONFIG " + "=" * 36)
+    stdlogger.info(yaml.dump(config.model_dump()))
+    stdlogger.info("=" * 80 + "\n")
 
     run = Run(config)
     model = run.model
