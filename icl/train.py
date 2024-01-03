@@ -37,6 +37,7 @@ from icl.model import InContextRegressionTransformer
 from icl.monitoring import stdlogger
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
+from icl.utils import to_device
 
 if XLA:
     import torch_xla.core.xla_model as xm
@@ -200,7 +201,10 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
             if XLA: xm.mark_step()
-            checkpointer.save_file(step, state_dict(model, optimizer, scheduler))
+
+            with to_device(state_dict(model, optimizer, scheduler), 'cpu') as state_dict_cpu:
+                checkpointer.save_file(step, state_dict_cpu)
+
             if XLA: xm.mark_step()
 
         if step in config.logger_config.logging_steps:

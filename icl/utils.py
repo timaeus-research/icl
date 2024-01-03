@@ -1,13 +1,12 @@
+import contextlib
 import logging
 import os
-from dotenv import load_dotenv
-import torch 
-
 
 import pandas as pd
-
 import seaborn as sns
 import sentry_sdk
+import torch
+from dotenv import load_dotenv
 
 from icl.monitoring import stdlogger
 
@@ -144,3 +143,51 @@ def get_default_device(device=None):
 
     stdlogger.warning("No GPU found, falling back to CPU.")
     return torch.device("cpu")
+
+
+
+def move_to_device(obj, device):
+    """
+    Recursively move tensors in a nested object to the specified device.
+    """
+    if isinstance(obj, torch.Tensor):
+        return obj.to(device)
+    elif isinstance(obj, dict):
+        return {k: move_to_device(v, device) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [move_to_device(v, device) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(move_to_device(v, device) for v in obj)
+    else:
+        return obj
+
+
+def get_device(obj):
+    """
+    Recursively get the device of tensors in a nested object.
+    """
+    if isinstance(obj, torch.Tensor):
+        return obj.device
+    elif isinstance(obj, dict):
+        return next(d for d in (get_device(v) for v in obj.values()) if d is not None)
+    elif isinstance(obj, (list, tuple)):
+        return next(d for d in (get_device(v) for v in obj) if d is not None)
+    else:
+        return None
+
+@contextlib.contextmanager
+def to_device(state_dicts, device='cpu'):
+    original_device = get_device(state_dicts)
+
+    if str(device) != str(original_device):
+        logging.info("Moving state dicts to %s.", device)
+
+    try:
+        move_to_device(state_dicts, device)
+        # Yield control back to the with block
+        yield state_dicts
+    finally:
+        if str(device) != str(original_device):
+            logging.info("Moving state dicts back to %s.", original_device)
+
+        move_to_device(state_dicts, original_device)

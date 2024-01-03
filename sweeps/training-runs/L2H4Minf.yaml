@@ -30,6 +30,8 @@ parameters:
         value: null
       sampling_seed:
         value: null
+      layer_norm:
+        values: [true, false]
       include_output: 
         value: true
   checkpointer_config:
