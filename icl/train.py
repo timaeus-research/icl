@@ -37,7 +37,7 @@ from icl.model import InContextRegressionTransformer
 from icl.monitoring import stdlogger
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
-from icl.utils import to_device
+from icl.utils import temporarily_move_to
 
 if XLA:
     import torch_xla.core.xla_model as xm
@@ -152,9 +152,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
     """    
-    stdlogger.info("\n" + "=" * 36 + " CONFIG " + "=" * 36)
+    stdlogger.info("\n" + "=" * 36 + f" {config.run_name} " + "=" * 36)
     stdlogger.info(yaml.dump(config.model_dump()))
-    stdlogger.info("=" * 80 + "\n")
+    stdlogger.info("-" * 80 + "\n")
 
     run = Run(config)
     model = run.model
@@ -200,8 +200,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
             stdlogger.info("Saving checkpoint at step %s", step)
             if XLA: xm.mark_step()
 
-            with to_device(state_dict(model, optimizer, scheduler), 'cpu') as state_dict_cpu:
-                checkpointer.save_file(step, state_dict_cpu)
+            checkpoint = state_dict(model, optimizer, scheduler)
+            with temporarily_move_to(checkpoint, 'cpu'):
+                checkpointer.save_file(step, checkpoint)
 
             if XLA: xm.mark_step()
 
@@ -216,6 +217,9 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
 
     if config.is_wandb_enabled:
         wandb.finish()
+
+    stdlogger.info("\n" + "=" * 36 + f" Finished " + "=" * 36)
+    stdlogger.info("\n")
 
     return model
 
@@ -328,8 +332,9 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
         if step in config.checkpointer_config.checkpoint_steps:
             stdlogger.info("Saving checkpoint at step %s", step)
             
-            with to_device(state_dict(model, optimizer, scheduler), 'cpu') as state_dict_cpu:
-                checkpointer.save_file(step, state_dict_cpu)
+            checkpoint = state_dict(model, optimizer, scheduler)
+            with temporarily_move_to(checkpoint, 'cpu'):
+                checkpointer.save_file(step, checkpoint)
 
         if step in config.logger_config.logging_steps and step > last_log_step:
             stdlogger.info("Logging at step %s", step)

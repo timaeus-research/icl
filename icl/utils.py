@@ -146,56 +146,47 @@ def get_default_device(device=None):
 
 
 
-def move_to_device(obj, device):
-    """
-    Recursively move tensors in a nested object to the specified device.
-    """
-    if isinstance(obj, torch.Tensor):
-        return obj.to(device)
-    elif isinstance(obj, OrderedDict):  
-        return OrderedDict((k, move_to_device(v, device)) for k, v in obj.items())
-    elif isinstance(obj, dict):
-        return {k: move_to_device(v, device) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [move_to_device(v, device) for v in obj]
-    elif isinstance(obj, tuple):
-        return tuple(move_to_device(v, device) for v in obj)
-    else:
-        return obj
-
-
-def get_device(obj):
+def get_device_of(obj):
     """
     Recursively get the device of tensors in a nested object.
     """
     if isinstance(obj, torch.Tensor):
         return obj.device
     elif isinstance(obj, (dict, OrderedDict)):
-        return next(d for d in (get_device(v) for v in obj.values()) if d is not None)
+        return next(d for d in (get_device_of(v) for v in obj.values()) if d is not None)
     elif isinstance(obj, (list, tuple)):
-        return next(d for d in (get_device(v) for v in obj) if d is not None)
+        return next(d for d in (get_device_of(v) for v in obj) if d is not None)
     else:
         return None
 
 
+def move_to_(obj, device = "cpu"):
+    """
+    Moves the given object to the given device.
+    """
+
+    if isinstance(obj, (list, tuple, set)):
+        for item in obj:
+            move_to_(item, device)
+    elif isinstance(obj, dict):
+       for value in obj.values():
+           move_to_(value, device)
+    elif hasattr(obj, "to"):
+        obj.to(device)
+
+
 @contextlib.contextmanager
-def to_device(state_dicts, device='cpu'):
-    original_device = get_device(state_dicts)
+def temporarily_move_to(obj, device = "cpu"):
+    """
+    Temporarily moves the given object to the given device.
+    """
+    original_device = get_device_of(obj)
 
-    if str(device) != str(original_device):
-        stdlogger.info("Moving state dicts to %s.", device)
+    if original_device is None:
+        raise ValueError(f"Could not find device of {obj}")
 
-    try:
-        state_dicts = move_to_device(state_dicts, device)
-        assert get_device(state_dicts) == device, "State dicts were not moved to the specified device."
-        # Yield control back to the with block
-        yield state_dicts
-    except AssertionError:
-        raise 
-    except Exception:
-        logging.warning("Exception raised while moving state dicts to %s.", device)
-    finally:
-        if str(device) != str(original_device):
-            stdlogger.info("Moving state dicts back to %s.", original_device)
+    move_to_(obj, device)
 
-        state_dicts = move_to_device(state_dicts, original_device)
+    yield
+
+    move_to_(obj, original_device)
