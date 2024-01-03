@@ -25,6 +25,10 @@ from dotenv import load_dotenv
 load_dotenv()
 app = typer.Typer()
 
+try:
+    import torch_xla.core.xla_model as xm
+except (ModuleNotFoundError, ImportError):
+    pass
 
 def move_to_(obj, device = "cpu"):
     """
