@@ -74,7 +74,6 @@ class InContextRegressionTransformer(torch.nn.Module):
         self.mlp_size = mlp_size
         self.num_heads = num_heads
         self.num_layers = num_layers
-
     
     def forward(self, xs, ys):
         # input validation

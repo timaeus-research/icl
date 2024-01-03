@@ -1,4 +1,4 @@
-name: L2H4-eval-minibatch
+name: L2H4-eval-fixed-batch
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 20
       num_draws:
         value: 1000
       sampling_method:
@@ -15,19 +15,19 @@ parameters:
       grad_batch_origin:
         value: "eval-dataset"
       grad_batch_size:
-        values: [256, 512, 1024, 2048, 4096, 8192]
-      # 
+        value: 1024
+      #
       gradient_scale:
         value: 0.0510248155  # epsilon n \beta  / 2
       localization_scale:
         value: 0.00015  # epsilon / 2
       noise_scale:
         value: 0.0003   # epsilon
-      # 
+      #
       eval_method:
-        values: ['grad-minibatch', 'new-minibatch']      
+        value: 'fixed-minibatch'
       eval_batch_size:
-        value: null
+        values: [1024, 2048, 4096, 8192]
       eval_dataset_size:
         value: 1048576
       eval_metrics:
@@ -43,8 +43,12 @@ parameters:
       include_loss_trace: 
         value: True
       include_weights_pca: 
-        value: False
-        
+        value: True
+      num_components: 
+        value: 3
+      num_points: 
+        value: 10
+
   task_config: 
     parameters:
       task_size:

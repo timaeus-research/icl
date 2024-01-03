@@ -33,7 +33,7 @@ parameters:
       eval_metrics:
         value: ["likelihood-derived"]
       eval_online:
-        value: True
+        value: False
       eval_loss_fn:
         value: "mse"
         # values: ["subsequence-mse", "mse"]

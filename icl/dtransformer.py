@@ -174,6 +174,8 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         # validate dimensions
         if embed_size % num_heads:
             raise ValueError("num_heads must divide embed_size")
+        
+        self.embed_size = embed_size
         self.num_heads = num_heads
         self.head_size = embed_size // num_heads
         # batched key/query/value projections
@@ -236,3 +238,12 @@ class MultiHeadedCausalSelfAttention(nn.Module):
             y = self.output(y)
         
         return y
+
+    @property
+    def qkv(self):
+        return (
+            self.attention(torch.eye(self.embed_size, device=self.attention.weight.device))
+            .view(self.num_heads, 3 * self.head_size)
+            .split(self.head_size, dim=-1)
+        )
+    
