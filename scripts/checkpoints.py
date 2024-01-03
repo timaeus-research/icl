@@ -25,8 +25,6 @@ from dotenv import load_dotenv
 load_dotenv()
 app = typer.Typer()
 
-try
-
 
 def move_to_(obj, device = "cpu"):
     """
