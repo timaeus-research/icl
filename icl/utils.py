@@ -186,7 +186,7 @@ def to_device(state_dicts, device='cpu'):
         stdlogger.info("Moving state dicts to %s.", device)
 
     try:
-        move_to_device(state_dicts, device)
+        state_dicts = move_to_device(state_dicts, device)
         # Yield control back to the with block
         yield state_dicts
     except Exception:
@@ -195,4 +195,4 @@ def to_device(state_dicts, device='cpu'):
         if str(device) != str(original_device):
             stdlogger.info("Moving state dicts back to %s.", original_device)
 
-        move_to_device(state_dicts, original_device)
+        state_dicts = move_to_device(state_dicts, original_device)
