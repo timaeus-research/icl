@@ -37,7 +37,7 @@ from icl.model import InContextRegressionTransformer
 from icl.monitoring import stdlogger
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
-from icl.utils import move_to_device
+from icl.utils import get_device, move_to_device
 
 if XLA:
     import torch_xla.core.xla_model as xm
@@ -53,7 +53,7 @@ def state_dict(model, optimizer, scheduler) -> StateDict:
     return {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
-        "scheduler": scheduler.state_dict(),
+        "scheduler": {k: v for k,v in scheduler.state_dict().items() if not callable(v)},
     }
 
 
@@ -201,6 +201,7 @@ def train(config: ICLConfig, is_debug: bool = False) -> InContextRegressionTrans
             if XLA: xm.mark_step()
 
             checkpoint = move_to_device(state_dict(model, optimizer, scheduler), 'cpu')
+            assert str(get_device(checkpoint)) == 'cpu', "Checkpoint should be on CPU"
             checkpointer.save_file(step, checkpoint)
 
             if XLA: xm.mark_step()
@@ -332,6 +333,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
             stdlogger.info("Saving checkpoint at step %s", step)
             
             checkpoint = move_to_device(state_dict(model, optimizer, scheduler), 'cpu')
+            assert str(get_device(checkpoint)) == 'cpu', "Checkpoint should be on CPU"
             checkpointer.save_file(step, checkpoint)
 
         if step in config.logger_config.logging_steps and step > last_log_step:

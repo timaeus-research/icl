@@ -160,8 +160,10 @@ def move_to_device(obj, device):
         return [move_to_device(v, device) for v in obj]
     elif isinstance(obj, tuple):
         return tuple(move_to_device(v, device) for v in obj)
-    else:
+    elif isinstance(obj, (int, float, str, bool, type(None))):
         return obj
+    else:
+        raise ValueError(f"Unknown type: {type(obj)}")
 
 
 def get_device(obj):
