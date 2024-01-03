@@ -265,7 +265,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
     scheduler = last_checkpoint["scheduler"]
     last_checkpoint_step = scheduler.last_epoch
 
-    logging.info(
+    stdlogger.info(
         "Resuming run %s at step %s. Last logged at %s",
         run.id,
         last_checkpoint_step,
@@ -332,7 +332,7 @@ def resume_run(run, is_debug: bool = False) -> InContextRegressionTransformer:
             
             with to_device(state_dict(model, optimizer, scheduler), 'cpu') as state_dict_cpu:
                 checkpointer.save_file(step, state_dict_cpu)
-                
+
         if step in config.logger_config.logging_steps and step > last_log_step:
             stdlogger.info("Logging at step %s", step)
             model.eval()
@@ -375,7 +375,6 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
     runs = get_runs_to_continue(sweep, num_steps)
 
     for run in runs:
-        print(run)
         resume_run(run, is_debug=is_debug)
 
 

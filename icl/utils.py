@@ -107,7 +107,6 @@ def prepare_experiments():
     assert os.path.exists(FIGURES)
     assert os.path.exists(ANALYSIS)
 
-    logging.basicConfig(level=logging.INFO)
     # set_start_method('spawn')  # Required for sharing CUDA tensors
     sentry_sdk.init(
         dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
@@ -184,14 +183,16 @@ def to_device(state_dicts, device='cpu'):
     original_device = get_device(state_dicts)
 
     if str(device) != str(original_device):
-        logging.info("Moving state dicts to %s.", device)
+        stdlogger.info("Moving state dicts to %s.", device)
 
     try:
         move_to_device(state_dicts, device)
         # Yield control back to the with block
         yield state_dicts
+    except Exception:
+        logging.warning("Exception raised while moving state dicts to %s.", device)
     finally:
         if str(device) != str(original_device):
-            logging.info("Moving state dicts back to %s.", original_device)
+            stdlogger.info("Moving state dicts back to %s.", original_device)
 
         move_to_device(state_dicts, original_device)

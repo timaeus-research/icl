@@ -16,10 +16,10 @@ from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.constants import ANALYSIS, DEVICE, FIGURES, XLA
 from icl.experiments.utils import *
+from icl.figures.notation import pyvar_dict_to_slug
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
 from icl.monitoring import stdlogger
 from icl.train import Run
-from icl.figures.notation import pyvar_dict_to_slug
 from icl.utils import prepare_experiments
 
 if XLA:
@@ -149,7 +149,7 @@ def estimate_at_checkpoint(
 @app.command("wandb")
 def wandb_sweep_over_final_weights():      
     wandb.init(project="icl-llc", entity="devinterp")
-    print("Initialized wandb")
+    stdlogger.info("Initialized wandb")
     config = dict(wandb.config)
     sampler_config = config.pop("sampler_config")
     checkpoint_idx = config.pop("checkpoint_idx", None)

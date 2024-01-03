@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -17,3 +18,6 @@ if not os.path.exists(ANALYSIS):
 
 DEVICE = get_default_device()
 XLA = DEVICE.type == "xla"
+
+LOG_FILE_NAME = '/var/log/icl.log'
+LOGGING_LEVEL = logging.INFO
