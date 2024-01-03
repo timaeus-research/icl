@@ -1,6 +1,7 @@
 import logging
 
-from icl.constants import LOG_FILE_NAME, LOGGING_LEVEL
+LOG_FILE_NAME = '/var/log/icl.log'
+LOGGING_LEVEL = logging.INFO
 
 handler = logging.handlers.RotatingFileHandler(LOG_FILE_NAME, mode='a', maxBytes=5000000, backupCount=5)
 
