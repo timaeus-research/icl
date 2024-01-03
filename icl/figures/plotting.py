@@ -21,10 +21,11 @@ def plot_loss_trace(batch_losses, likelihoods):
     batch_losses['mean'] = [float(x) for x in batch_losses['mean']]
 
     #llc_callback.expected_loss_estimator.
-    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="gray", ax=ax, alpha=0.5)
+    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="tab20", ax=ax, alpha=0.5)
 
     twin_ax = ax.twinx()
-    sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=0.5, color=PRIMARY)
+    sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=1., color="black")
+    twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.2, color="black")
 
     ax.set_ylabel(r"Batch Loss. $L^{(\tau)}_m$")
     twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
