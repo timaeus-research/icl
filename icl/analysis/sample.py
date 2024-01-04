@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
+from icl.analysis.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.analysis.health import ChainHealthException
 from icl.analysis.hessians import batch_hessian
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
@@ -23,7 +24,6 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               SLTObservablesEstimator)
 from icl.analysis.weights import WeightsTrace
 from icl.constants import DEVICE, XLA
-from icl.analysis.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.monitoring import stdlogger
 from icl.train import Run
 
@@ -310,6 +310,8 @@ class SamplerConfig(BaseModel):
     device: str = "cpu"
     per_token: bool = True
 
+    init_seed: Optional[int] = None
+
     @field_validator('sampling_method')
     @classmethod
     def check_sampling_method(cls, v: str) -> str:
@@ -437,11 +439,12 @@ class Sampler:
             xm.mark_step()
 
         self.init_loss = self.eval_model(run.model, max_num_batches=self.config.num_init_loss_batches, verbose=True)
-
+        
         if XLA:
             xm.mark_step()
             
         self._callbacks = self.get_callbacks()
+        self.update_init_loss(self.init_loss)
 
     def eval_one_batch(self, model):
         xs, ys = next(iter(self.eval_loader))
@@ -449,7 +452,7 @@ class Sampler:
         y_preds = model(xs, ys)
         return self.eval_loss_fn(y_preds, ys).detach()
 
-    def iter_eval_model(self, model):
+    def iter_eval_model(self, model): 
         for xs, ys in self.eval_loader:
             xs, ys = xs.to(DEVICE), ys.to(DEVICE)
             y_preds = model(xs, ys)
@@ -598,6 +601,9 @@ class Sampler:
         for callback in self.callbacks:
             if hasattr(callback, "init_loss"):
                 callback.init_loss = init_loss
+
+        if self.config.init_seed is not None:
+            torch.manual_seed(self.config.init_seed)
 
     @property
     def callbacks(self):

@@ -383,7 +383,7 @@ def resume_sweep(sweep_id: str, is_debug: bool = False):
 
 def main(
     resume: str = typer.Option(None, help="The id of a sweep or run to resume."),
-    verbose: bool = typer.Option(True, help="Whether to log debug information.")
+    verbose: bool = typer.Option(True, help="Whether to log debug information."),
 ):
     if resume is None:
         config = get_config(project="icl", entity="devinterp")

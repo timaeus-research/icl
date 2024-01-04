@@ -8,6 +8,7 @@ import typer
 from torch import nn
 
 from icl.analysis.estimators import get_estimator
+from icl.experiments.utils import flatten_and_process
 
 app = typer.Typer()
 
@@ -111,7 +112,7 @@ class LikelihoodMetricsEstimator:
                 first_moment = self.expected_loss_estimator.first_moments[chain, draw]
                 second_moment = self.expected_loss_estimator.second_moments[chain, draw]                
                 _estimate = self._estimate(first_moment, second_moment, self.init_loss, self.dataset_size, self.temperature)
-                _estimate = {k: v.item() for k, v in _estimate.items()}
+                _estimate = flatten_and_process(_estimate)
                 _estimate['chain'] = chain
                 _estimate['draw'] = draw
                 _estimates.append(_estimate)

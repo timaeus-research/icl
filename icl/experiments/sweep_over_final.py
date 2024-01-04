@@ -89,12 +89,6 @@ def estimate_at_checkpoint(
     stdlogger.info("... %s seconds", end - start)
 
     def log_fn(data, step=None, figure=None):
-        def process_tensor(a):
-
-            if len(a.shape) == 0 or a.shape == (1,):
-                return a.item()
-            return a.tolist()
-
         if figure:
             if use_wandb:
                 wandb.log({data: wandb.Image(figure)}, step=step)
@@ -103,10 +97,7 @@ def estimate_at_checkpoint(
                 figure.savefig(path, dpi=300)
                 
         else:
-            serialized = flatten_dict({
-                k: process_tensor(v) if isinstance(v, torch.Tensor)  else v
-                for k, v in data.items()
-            }, flatten_lists=True)
+            serialized = flatten_and_process(data)
             
             if use_wandb:
                 wandb.log(serialized, step=step)

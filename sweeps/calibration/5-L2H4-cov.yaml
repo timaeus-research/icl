@@ -1,4 +1,4 @@
-name: L2H4-eval-minibatch
+name: L2H4-cov
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -7,36 +7,37 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 20
+        value: 100
       num_draws:
-        value: 1000
+        value: 1
+      num_burnin_steps:
+        values: [10, 30, 100, 300, 1000]
       sampling_method:
         value: sgld
       grad_batch_origin:
         value: "eval-dataset"
       grad_batch_size:
-        values: [256, 512, 1024, 2048, 4096, 8192]
+        value: 1024
       # 
       gradient_scale:
-        value: 0.0510248155  # epsilon n \beta  / 2
+        values: [0.00001, 0.0001, 0.001, 0.01]
       localization_scale:
-        value: 0.00015  # epsilon / 2
+        value: 0.0  # epsilon / 2
       noise_scale:
-        value: 0.0003   # epsilon
+        value: 0.0  # epsilon
       # 
       eval_method:
-        values: ['grad-minibatch', 'new-minibatch']      
+        value: 'fixed-minibatch'
       eval_batch_size:
-        value: null
+        value: 8192
       eval_dataset_size:
         value: 1048576
       eval_metrics:
-        value: ["likelihood-derived", "batch-loss"]
+        value: ["likelihood-derived", "cov", "batch-loss"]
       eval_online:
         value: True
       eval_loss_fn:
-        value: "mse"
-        # values: ["subsequence-mse", "mse"]
+        value: "mse" 
 
   plotting_config:
     parameters:
@@ -44,7 +45,7 @@ parameters:
         value: True
       include_weights_pca: 
         value: False
-        
+
   task_config: 
     parameters:
       task_size:
@@ -52,8 +53,8 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
         values: [1, 2, 64, 1024, 1048576]
+        # values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
       noise_variance:
         value: 0.125
       embed_size:
@@ -72,11 +73,13 @@ parameters:
         value: 2
       sampling_seed:
         value: 3
-
+      layer_norm:
+        values: [true, false]
+        
   optimizer_config:
     parameters:
       lr:
         value: 0.01
 
   step:
-    values: [10204, 499999]
+    values: [0, 10204, 499999]

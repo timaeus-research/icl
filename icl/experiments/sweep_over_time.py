@@ -16,6 +16,7 @@ from icl.analysis.utils import get_unique_config
 from icl.config import ICLConfig, get_config
 from icl.constants import DEVICE, XLA
 from icl.experiments.utils import *
+from icl.experiments.utils import flatten_and_process
 from icl.monitoring import stdlogger
 from icl.train import Run
 from icl.utils import prepare_experiments
@@ -62,16 +63,7 @@ def sweep_over_time(
         raise ValueError("No checkpoints found")
 
     def log_fn(data, step=None):
-        def process_tensor(a):
-
-            if len(a.shape) == 0 or a.shape == (1,):
-                return a.item()
-            return a.tolist()
-
-        serialized = flatten_dict({
-            k: process_tensor(v) if isinstance(v, torch.Tensor)  else v
-            for k, v in data.items()
-        }, flatten_lists=True)
+        serialized = flatten_and_process(data)
         
         if use_wandb:
             wandb.log(serialized, step=step)
@@ -107,12 +99,12 @@ def wandb_context(config=None):
         raise e
 
 
-
 @app.command("wandb")
 def wandb_sweep_over_time():         
     with wandb_context() as config:
         sampler_config = config.pop("sampler_config")
-        sweep_over_time(config, sampler_config, use_wandb=True)
+        steps = config.pop("steps", None)
+        sweep_over_time(config, sampler_config, steps=steps, use_wandb=True)
 
 
 @app.command("sweep")

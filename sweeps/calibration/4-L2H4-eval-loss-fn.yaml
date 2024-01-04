@@ -1,4 +1,4 @@
-name: L2H4-eval-dataset-size
+name: L2H4-eval-loss-fn
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -22,21 +22,20 @@ parameters:
       localization_scale:
         value: 0.00015  # epsilon / 2
       noise_scale:
-        value: 0.0003   # epsilon
+        value: 0.0003  # epsilon
       # 
       eval_method:
-        value: "dataset"   
+        value: 'fixed-minibatch'      
       eval_batch_size:
-        value: 1024
+        value: 8192
       eval_dataset_size:
-        values: [1024, 2048, 4096, 8192, 16384, 32768, 1048576] 
+        value: 1048576
       eval_metrics:
         value: ["likelihood-derived", "batch-loss"]
       eval_online:
         value: True
       eval_loss_fn:
-        value: "subsequence-mse"
-        # values: ["subsequence-mse", "mse"]
+        values: ["subsequence-mse", "mse"]
 
   plotting_config:
     parameters:
@@ -45,6 +44,7 @@ parameters:
       include_weights_pca: 
         value: False
 
+
   task_config: 
     parameters:
       task_size:
@@ -52,7 +52,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        value: 1048576
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -72,10 +72,10 @@ parameters:
       sampling_seed:
         value: null
       layer_norm:
-        value: true
+        values: [true, false]
       include_output: 
         value: true
-
+        
   optimizer_config:
     parameters:
       lr:

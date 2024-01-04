@@ -1,4 +1,4 @@
-name: L2H4-eps-temp-gamma
+name: L2H4-eval-minibatch
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -15,17 +15,17 @@ parameters:
       grad_batch_origin:
         value: "eval-dataset"
       grad_batch_size:
-        value: 1024
+        values: [256, 512, 1024, 2048, 4096, 8192]
       # 
       gradient_scale:
-        values: [0.00001, 0.0001, 0.0003, 0.001, 0.003, 0.01]
+        value: 0.0510248155  # epsilon n \beta  / 2
       localization_scale:
-        values: [0.00001, 0.0001, 0.0003, 0.001, 0.003, 0.01]
+        value: 0.00015  # epsilon / 2
       noise_scale:
-        values: [0.00001, 0.0001, 0.0003, 0.001, 0.003, 0.01]   # epsilon
+        value: 0.0003   # epsilon
       # 
       eval_method:
-        value: 'grad-minibatch'
+        values: ['grad-minibatch', 'new-minibatch']      
       eval_batch_size:
         value: null
       eval_dataset_size:
@@ -35,7 +35,8 @@ parameters:
       eval_online:
         value: True
       eval_loss_fn:
-        value: "mse-subsequence"
+        value: "mse"
+        # values: ["subsequence-mse", "mse"]
 
   plotting_config:
     parameters:
@@ -51,7 +52,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        value: 1048576
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -71,14 +72,15 @@ parameters:
       sampling_seed:
         value: null
       layer_norm:
-        value: true
+        values: [true, false]
       include_output: 
         value: true
-
+        
   optimizer_config:
     parameters:
       lr:
         value: 0.003
 
+
   step:
-    values: [0, 10204, 499999]
+    values: [10204, 499999]
