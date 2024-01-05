@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import devinfra
+import numpy as np
 import torch
-from devinfra.utils.iterables import flatten_dict, rm_none_vals
 from tqdm import tqdm
 
 K=3  # Num cov components
@@ -21,8 +21,38 @@ def process_tensor(a):
     return a.tolist()
 
 
-def flatten_and_process(dict_):
-    return flatten_dict({
-        k: process_tensor(v) if isinstance(v, torch.Tensor)  else v
-        for k, v in dict_.items()
-    }, flatten_lists=True)
+def flatten_and_process(dict_, delimiter='/', prefix=""):
+    flattened = {}
+    for key, value in dict_.items():
+        if isinstance(value, torch.Tensor):
+            value = process_tensor(value)
+        
+        if isinstance(value, dict):
+            flattened.update(
+                flatten_and_process(
+                    value,
+                    prefix=f"{prefix}{key}{delimiter}",
+                    delimiter=delimiter,
+                )
+            )
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                if isinstance(v, (dict, list)):
+                    flattened.update(
+                        flatten_and_process(
+                            {str(i): v},
+                            prefix=f"{prefix}{key}{delimiter}",
+                            delimiter=delimiter,
+                            flatten_lists=flatten_lists,
+                        )
+                    )
+                else:
+                    flattened[f"{prefix}{key}{delimiter}{i}"] = v
+
+            if isinstance(value[0], (int, float)):
+                flattened[f"{prefix}{key}{delimiter}mean"] = np.mean(value)
+                flattened[f"{prefix}{key}{delimiter}std"] = np.std(value)
+        else:
+            flattened[f"{prefix}{key}"] = value
+
+    return flattened

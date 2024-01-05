@@ -51,7 +51,7 @@ def estimate_at_checkpoint(
 
     if XLA:
         xm.mark_step()
-
+        
     stdlogger.info("Retrieving & restoring training run...")
     start = time.perf_counter()
     config["device"] = DEVICE
@@ -118,7 +118,7 @@ def estimate_at_checkpoint(
         batch_losses = sampler.batch_loss.estimates()
         likelihoods = sampler.likelihood.estimates()
 
-        fig = plot_loss_trace(batch_losses, likelihoods)
+        fig = plot_loss_trace(batch_losses, likelihoods, title=f"Loss Trace\n{run.config.to_latex()[:-1]}, t={step+1}$")
         log_fn("loss_trace", figure=fig)
 
     if plotting_config.include_weights_pca:
@@ -149,7 +149,7 @@ def wandb_sweep_over_final_weights():
     title_config = {k: v for k, v in sampler_config.items() if k in ['epsilon', 'gamma', 'eval_method', 'eval_loss_fn']}
     wandb.run.name = f"M={config['task_config']['num_tasks']}:{pyvar_dict_to_slug(title_config)}"
     wandb.run.save()
-    estimate_at_checkpoint(config, sampler_config, plotting_config, checkpoint_idx=checkpoint_idx, step=step)
+    estimate_at_checkpoint(config, sampler_config, plotting_config, checkpoint_idx=checkpoint_idx, step=step, use_wandb=True)
     wandb.finish()
 
 

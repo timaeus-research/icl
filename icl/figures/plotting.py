@@ -15,17 +15,24 @@ from icl.figures.colors import PRIMARY, SECONDARY
 sns.set_style("whitegrid")
 
 
-def plot_loss_trace(batch_losses, likelihoods):
+def plot_loss_trace(batch_losses, likelihoods, title=None):
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    batch_losses['mean'] = [float(x) for x in batch_losses['mean']]
-
-    #llc_callback.expected_loss_estimator.
-    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="tab20", ax=ax, alpha=0.5)
+    batch_losses['mean'] = [float(x.mean()) for x in batch_losses['mean']]  
+    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="tab20", ax=ax, alpha=0.8)
 
     twin_ax = ax.twinx()
-    sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=1., color="black")
-    twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.2, color="black")
+
+    likelihoods = likelihoods.groupby("draw").mean().reset_index()
+    likelihoods.sort_values(by="draw", inplace=True)
+
+    if "llc/mean/mean" in likelihoods.columns:
+        print(likelihoods)
+        sns.lineplot(data=likelihoods, x="draw", y="llc/mean/mean", ax=twin_ax, alpha=1., color="black")
+        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean/mean'] - likelihoods['llc/mean/std'], likelihoods['llc/mean/mean'] + likelihoods['llc/mean/std'], alpha=0.2, color="black")
+    else:
+        sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=1., color="black")
+        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.2, color="black")
 
     ax.set_ylabel(r"Batch Loss. $L^{(\tau)}_m$")
     twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
@@ -35,6 +42,10 @@ def plot_loss_trace(batch_losses, likelihoods):
 
     ax.set_xlabel(r"Draw, $\tau$")
     ax.legend().remove()
+
+    if title is not None:
+        ax.set_title(title)
+        plt.tight_layout()
 
     return fig
 
