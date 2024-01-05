@@ -77,30 +77,32 @@ def sample_single_chain(
     model.train()
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
-    for i, (xs, ys) in  pbar:
-        optimizer.zero_grad()
-        xs, ys = xs.to(device), ys.to(device)
-        y_preds = model(xs, ys)
-        loss = criterion(y_preds, ys)
+    try: 
+        for i, (xs, ys) in  pbar:
+            optimizer.zero_grad()
+            xs, ys = xs.to(device), ys.to(device)
+            y_preds = model(xs, ys)
+            loss = criterion(y_preds, ys)
 
-        if subsample:
-            k = np.random.randint(0, loss.numel() + 1)
-            mean_loss = loss.view(-1)[:k].mean()
-        else:
-            mean_loss = loss.mean()
+            if subsample:
+                k = np.random.randint(0, loss.numel() + 1)
+                mean_loss = loss.view(-1)[:k].mean()
+            else:
+                mean_loss = loss.mean()
 
-        mean_loss.backward()
-        optimizer.step()
+            mean_loss.backward()
+            optimizer.step()
 
-        pbar.set_postfix(loss=mean_loss.item())
+            pbar.set_postfix(loss=mean_loss.item())
 
-        if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-            draw = (i - num_burnin_steps) // num_steps_bw_draws
+            if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+                draw = (i - num_burnin_steps) // num_steps_bw_draws
 
-            with torch.no_grad():
-                for callback in callbacks:
-                    call_with(callback, **locals())  # Cursed but we'll fix it later
-  
+                with torch.no_grad():
+                    for callback in callbacks:
+                        call_with(callback, **locals())  # Cursed but we'll fix it later
+    except ChainHealthException as e:
+        warnings.warn(f"Chain failed to converge: {e}")
 
 def sample_single_chain_xla(
     ref_model: nn.Module,
@@ -138,34 +140,37 @@ def sample_single_chain_xla(
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
     xm.mark_step()
 
-    for i, (xs, ys) in  pbar:
-        optimizer.zero_grad()
-        xs, ys = xs.to(device), ys.to(device)
-        y_preds = model(xs, ys)
-        loss = criterion(y_preds, ys)
+    try: 
+        for i, (xs, ys) in  pbar:
+            optimizer.zero_grad()
+            xs, ys = xs.to(device), ys.to(device)
+            y_preds = model(xs, ys)
+            loss = criterion(y_preds, ys)
 
-        if subsample:
-            k = np.random.randint(0, loss.numel() + 1)
-            mean_loss = loss.view(-1)[:k].mean()
-        else:
-            mean_loss = loss.mean()
+            if subsample:
+                k = np.random.randint(0, loss.numel() + 1)
+                mean_loss = loss.view(-1)[:k].mean()
+            else:
+                mean_loss = loss.mean()
 
-        mean_loss.backward()
-        optimizer.step()
-        xm.mark_step()
-
-        pbar.set_postfix(loss=mean_loss.item())
-
-        if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-            draw = (i - num_burnin_steps) // num_steps_bw_draws
-
-            with torch.no_grad():
-
-                for callback in callbacks:
-                    call_with(callback, **locals())  # Cursed but we'll fix it later
-        
+            mean_loss.backward()
+            optimizer.step()
             xm.mark_step()
 
+            pbar.set_postfix(loss=mean_loss.item())
+
+            if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+                draw = (i - num_burnin_steps) // num_steps_bw_draws
+
+                with torch.no_grad():
+
+                    for callback in callbacks:
+                        call_with(callback, **locals())  # Cursed but we'll fix it later
+            
+                xm.mark_step()
+                
+    except ChainHealthException as e:
+        warnings.warn(f"Chain failed to converge: {e}")
 
 
 def _sample_single_chain(kwargs):
@@ -411,7 +416,7 @@ class SamplerConfig(BaseModel):
             r"\epsilon": str(self.epsilon),
             r"\beta": str(self.temperature ** -1),
             r"\gamma": str(self.gamma),
-            "eval": (self.eval_method, self.eval_method),
+            "eval": (self.eval_method, self.eval_loss_fn),
         })
 
 class Sampler:

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 import wandb
+from icl.analysis.health import ChainHealthException
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
 from icl.constants import DEVICE
@@ -43,6 +44,12 @@ class ExpectationEstimator:
         return matrix
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
+        if torch.any(torch.isnan(observation)):
+            self._first_moment[indices] = torch.nan
+            self._second_moment[indices] = torch.nan
+
+            raise ChainHealthException(f"NaNs encountered in chain {chain} at draw {draw}.")
+
         self._first_moment[indices] += self.flatten(observation)
         self._second_moment[indices] += self.flatten(observation) ** 2
 
@@ -96,6 +103,13 @@ class OnlineExpectationEstimatorWithTrace:
         self.second_moments = torch.zeros((num_chains, num_draws, observable_dim), dtype=torch.float32).to(device)
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
+        if torch.any(torch.isnan(observation)):
+            for i in range(draw, self.num_draws):
+                self.first_moments[chain, i, indices] = torch.nan
+                self.second_moments[chain, i, indices] = torch.nan
+
+            raise ChainHealthException(f"NaNs encountered in chain {chain} at draw {draw}.")
+
         if draw == 0:
             self.first_moments[chain, draw, indices] = self.flatten(observation)
             self.second_moments[chain, draw, indices] = self.flatten(observation) ** 2
