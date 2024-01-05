@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 import numpy as np
 import torch
+from devinfra.utils.iterables import dicts_to_latex
 from devinterp.optim.sgld import SGLD
 from devinterp.optim.sgnht import SGNHT
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -404,6 +405,14 @@ class SamplerConfig(BaseModel):
             "bounding_box_size": self.bounding_box_size,
             "num_samples": self.eval_dataset_size,
         }
+    
+    def to_latex(self):
+        return dicts_to_latex({
+            r"\epsilon": self.epsilon,
+            r"\beta": self.temperature ** -1,
+            r"\gamma": self.gamma,
+
+        })
 
 class Sampler:
     def __init__(self, config: SamplerConfig, run: Run, log_fn: Optional[Callable] = None):

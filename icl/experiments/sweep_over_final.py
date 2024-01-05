@@ -51,7 +51,7 @@ def estimate_at_checkpoint(
 
     if XLA:
         xm.mark_step()
-        
+
     stdlogger.info("Retrieving & restoring training run...")
     start = time.perf_counter()
     config["device"] = DEVICE
@@ -81,19 +81,12 @@ def estimate_at_checkpoint(
     if XLA:
         xm.mark_step()
 
-    start = end
-    stdlogger.info("Configuring sampler...")
-    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
-    sampler = sampler_config.to_sampler(run)
-    end = time.perf_counter()
-    stdlogger.info("... %s seconds", end - start)
-
     def log_fn(data, step=None, figure=None):
         if figure:
             if use_wandb:
                 wandb.log({data: wandb.Image(figure)}, step=step)
             else:
-                path = FIGURES / f"{data}-{run.config.to_slug()}@t={steps[checkpoint_idx]}.png"
+                path = FIGURES / f"{data}-{run.config.to_slug()}@t={step}.png"
                 figure.savefig(path, dpi=300)
                 
         else:
@@ -103,6 +96,13 @@ def estimate_at_checkpoint(
                 wandb.log(serialized, step=step)
         
             print(yaml.dump(serialized))
+
+    start = end
+    stdlogger.info("Configuring sampler...")
+    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores, log_fn=log_fn)
+    sampler = sampler_config.to_sampler(run)
+    end = time.perf_counter()
+    stdlogger.info("... %s seconds", end - start)
 
     try:
         results = sampler.eval(run.model)
@@ -118,7 +118,7 @@ def estimate_at_checkpoint(
         batch_losses = sampler.batch_loss.estimates()
         likelihoods = sampler.likelihood.estimates()
 
-        fig = plot_loss_trace(batch_losses, likelihoods, title=f"Loss Trace\n{run.config.to_latex()[:-1]}, t={step+1}$")
+        fig = plot_loss_trace(batch_losses, likelihoods, title=f"Loss Trace\n{sampler_config.to_latex()}\n{run.config.to_latex()[:-1]}, t={step+1}$")
         log_fn("loss_trace", figure=fig)
 
     if plotting_config.include_weights_pca:

@@ -27,18 +27,18 @@ def plot_loss_trace(batch_losses, likelihoods, title=None):
     likelihoods.sort_values(by="draw", inplace=True)
 
     if "llc/mean/mean" in likelihoods.columns:
-        print(likelihoods)
         sns.lineplot(data=likelihoods, x="draw", y="llc/mean/mean", ax=twin_ax, alpha=1., color="black")
         twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean/mean'] - likelihoods['llc/mean/std'], likelihoods['llc/mean/mean'] + likelihoods['llc/mean/std'], alpha=0.2, color="black")
     else:
         sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=1., color="black")
-        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.2, color="black")
+        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.1, color="black")
 
     ax.set_ylabel(r"Batch Loss. $L^{(\tau)}_m$")
-    twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
+    # twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
+    twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$")
 
-    for label in twin_ax.get_yticklabels():
-        label.set_color(PRIMARY)
+    # for label in twin_ax.get_yticklabels():
+    #     label.set_color(PRIMARY)
 
     ax.set_xlabel(r"Draw, $\tau$")
     ax.legend().remove()
