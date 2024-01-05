@@ -99,8 +99,8 @@ def estimate_at_checkpoint(
 
     start = end
     stdlogger.info("Configuring sampler...")
-    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores, log_fn=log_fn)
-    sampler = sampler_config.to_sampler(run)
+    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
+    sampler = sampler_config.to_sampler(run, log_fn=log_fn)
     end = time.perf_counter()
     stdlogger.info("... %s seconds", end - start)
 

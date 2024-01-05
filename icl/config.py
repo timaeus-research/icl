@@ -12,8 +12,8 @@ from pydantic import (BaseModel, Field, ValidationError, field_validator,
                       model_validator)
 
 import wandb
-from icl.model import InContextRegressionTransformer
 from icl.constants import DEVICE
+from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
@@ -216,6 +216,7 @@ class ICLConfig(BaseModel):
             'L': self.task_config.num_layers, 
             'H': self.task_config.num_heads, 
             'M': self.task_config.num_tasks,
+            r'\mathrm{LN}': 'T' if self.task_config.layer_norm else 'F',
         }, {
             'K': self.task_config.max_examples,
             'D': self.task_config.task_size,

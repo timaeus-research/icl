@@ -408,10 +408,10 @@ class SamplerConfig(BaseModel):
     
     def to_latex(self):
         return dicts_to_latex({
-            r"\epsilon": self.epsilon,
-            r"\beta": self.temperature ** -1,
-            r"\gamma": self.gamma,
-
+            r"\epsilon": str(self.epsilon),
+            r"\beta": str(self.temperature ** -1),
+            r"\gamma": str(self.gamma),
+            "eval": (self.eval_method, self.eval_method),
         })
 
 class Sampler:

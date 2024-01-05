@@ -18,11 +18,11 @@ parameters:
         value: 1024
       # 
       gradient_scale:
-        values: [0.00001, 0.0001, 0.001, 0.01]
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]
       localization_scale:
-        values: [0.00001, 0.0001, 0.001, 0.01]
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]
       noise_scale:
-        values: [0.00001, 0.0001, 0.001, 0.01]   # epsilon
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]   # epsilon
       # 
       eval_method:
         value: 'grad-minibatch'
