@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 20
+        value: 10
       num_draws:
         value: 1000
       sampling_method:
@@ -18,11 +18,11 @@ parameters:
         values: [256, 512, 1024, 2048, 4096, 8192]
       # 
       gradient_scale:
-        value: 0.0510248155  # epsilon n \beta  / 2
+        value: 0.00001
       localization_scale:
-        value: 0.00015  # epsilon / 2
+        value: 0.003
       noise_scale:
-        value: 0.0003   # epsilon
+        value: 0.00003 
       # 
       eval_method:
         values: ['grad-minibatch', 'new-minibatch']      
@@ -36,7 +36,6 @@ parameters:
         value: True
       eval_loss_fn:
         value: "mse"
-        # values: ["subsequence-mse", "mse"]
 
   plotting_config:
     parameters:
@@ -64,7 +63,7 @@ parameters:
       num_layers:
         value: 2
       model_seed:
-        values: [0, 1, 2, 3, 4]
+        values: [0] #, 1, 2, 3, 4]
       pretrain_seed:
         value: null
       true_seed:
@@ -83,4 +82,4 @@ parameters:
 
 
   step:
-    values: [10204, 499999]
+    values: [10101, 499999]
