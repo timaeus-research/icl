@@ -63,6 +63,7 @@ def sweep_over_time(
         raise ValueError("No checkpoints found")
 
     def log_fn(data, step=None):
+        data = {k: v for k, v in data.items() if 'trace' not in k}
         serialized = flatten_and_process(data)
         
         if use_wandb:

@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 5
+        value: 2
       num_draws:
         value: 1000
       num_burn_in:
