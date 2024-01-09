@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union, Literal
+from typing import Callable, Literal, Optional, Union
 
 import typer
 
@@ -37,36 +37,33 @@ def get_top_k_trigrams(
         k=10, 
         multiplier=2, 
         padding=10, 
-        preprocess=lambda _: 1, 
-        postprocess=lambda _: 1, 
         start=0,
         num_lines=5_000_000, 
         verbose=True,
         save_fn=None,
-        save_every=10_000
+        save_every=10_000,
+        clean_fn = None
 ):
     def _clean(table, k=k, padding=padding):
         return dict(sorted(table.items(), key=lambda x: x[1], reverse=True)[:k + padding])
     
-    def _final(table):
-        return {k: postprocess(v) for k, v in _clean(table, k, padding=0)}
-   
+    clean_fn = clean_fn or _clean
     table = {}
 
     for row, trigram in gen_trigrams(model, file_path, start=start, num_lines=num_lines, verbose=verbose):
-        table[trigram] = table.get(trigram, 0.) + preprocess(trigram)
+        table[trigram] = table.get(trigram, 0) + 1
         
         if len(table) > multiplier * k:
-            table = dict(sorted(table.items(), key=lambda x: x[1], reverse=True)[:k + padding])
+            table = clean_fn(table)
 
             if verbose:
                 print("----- Top 1000 trigrams -----")
                 preview_trigrams_dict(table, model)
 
         if save_fn is not None and row % save_every == 0:
-            save_fn(row, _final(table))
+            save_fn(row, clean_fn(table))
 
-    return _final(table)
+    return clean_fn(table)
 
 
 def get_top_k_skip_trigrams(
@@ -75,38 +72,36 @@ def get_top_k_skip_trigrams(
         k=10, 
         multiplier=2, 
         padding=10, 
-        preprocess=lambda _: 1, 
-        postprocess=lambda _: 1, 
         start=0,
         num_lines=5_000_000, 
         min_skip=10,
         max_skip=20,
         verbose=True,
         save_fn=None,
-        save_every=10_000
+        save_every=10_000,
+        clean_fn = None
 ):
     def _clean(table, k=k, padding=padding):
         return dict(sorted(table.items(), key=lambda x: x[1], reverse=True)[:k + padding])
     
-    def _final(table):
-        return {k: postprocess(v) for k, v in _clean(table, k, padding=0)}
+    clean_fn = clean_fn or _clean
 
     table = {}
 
     for row, trigram in gen_skip_trigrams(model, file_path, start=start, num_lines=num_lines, min_skip=min_skip, max_skip=max_skip, verbose=verbose):
-        table[trigram] = table.get(trigram, 0.) + preprocess(trigram)
+        table[trigram] = table.get(trigram, 0) + 1
         
         if len(table) > multiplier * k:
-            table = _clean(table)
+            table = clean_fn(table)
 
             if verbose:
                 print("----- Top 1000 trigrams -----")
                 preview_trigrams_dict(table, model)
 
         if save_fn is not None and row % save_every == 0:
-            save_fn(row, _final(table))
+            save_fn(row, clean_fn(table))
 
-    return _final(table)
+    return clean_fn(table)
 
 @app.command()
 def main(
@@ -120,10 +115,10 @@ def main(
     max_skip: int = typer.Option(20, help="Maximum skip"),
     verbose: bool = typer.Option(True, help="Verbose"),
     save_every: int = typer.Option(10_000, help="Save every"),
-    preprocess: Optional[Union[None, Literal['div_bigram', 'div_bigram_x_unigram']]] = typer.Option(None, help="Preprocess variant"),
+    process: Optional[Union[None, Literal['div_bigram', 'div_bigram_x_unigram']]] = typer.Option(None, help="Process variant"),
 ):
     def _save_fn(row, table):
-        save_to_bucket(table, f"trigrams-{start}-to-{start+num_lines}/{row+1}.pkl")
+        save_to_bucket(table, f"trigrams-{start}-to-{start+num_lines}{'-' + process if process is not None else ''}/{row+1}.pkl")
 
     vocab_size = 5_000
     bigram_freqs = get_bigrams()
@@ -131,7 +126,6 @@ def main(
     def divide_by_last_2_bigram(trigram):
         # print(translate_int_to_str(trigram), bigram_freqs[trigram[1], trigram[2]])
         return 1. / (vocab_size * bigram_freqs[trigram[1], trigram[2]])
-
 
     model = get_model(num_layers=2)
 

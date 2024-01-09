@@ -25,18 +25,19 @@ parameters:
         value: 0.00003 
       # 
       eval_method:
-        value: "dataset"   
+        value: 'grad-minibatch'
       eval_batch_size:
-        value: 1024
+        value: null
       eval_dataset_size:
-        values: [1024, 2048, 4096, 8192, 16384, 32768, 1048576] 
+        value: 1048576
       eval_metrics:
         value: ["likelihood-derived", "batch-loss"]
       eval_online:
         value: True
       eval_loss_fn:
         value: "mse"
-        # values: ["subsequence-mse", "mse"]
+      init_seed:
+        value: 0
 
   plotting_config:
     parameters:
