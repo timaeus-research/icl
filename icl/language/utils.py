@@ -1,5 +1,6 @@
 import os
 import pickle
+from pathlib import Path
 from typing import Dict, List, Union
 
 import boto3
@@ -19,13 +20,20 @@ def translate_int_to_str(token_ints: List[int], model: nn.Module):
     return tokens
 
 
-def save_to_bucket(filename, data: Union[Dict, np.ndarray]):
+def save_to_bucket(filename: Union[str, Path], data: Union[Dict, np.ndarray]):
     client = boto3.client('s3')
 
-    with open(f'/tmp/{filename}.pkl', 'wb') as f:
+    filename = str(filename)
+
+    if "/" in filename:
+        filename = filename.split("/")[-1]
+    if ".pkl" not in filename:
+        filename += ".pkl"
+
+    with open(f'/tmp/{filename}', 'wb') as f:
         pickle.dump(data, f)
 
-    with open(f'/tmp/{filename}.pkl', 'rb') as f:
-        client.upload_fileobj(f, 'devinterp', f'other/language/{filename}.pkl')
+    with open(f'/tmp/{filename}', 'rb') as f:
+        client.upload_fileobj(f, 'devinterp', f'other/language/{filename}')
 
-    os.remove(f'/tmp/{filename}.pkl')
+    os.remove(f'/tmp/{filename}')
