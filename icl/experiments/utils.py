@@ -43,7 +43,6 @@ def flatten_and_process(dict_, delimiter='/', prefix=""):
                             {str(i): v},
                             prefix=f"{prefix}{key}{delimiter}",
                             delimiter=delimiter,
-                            flatten_lists=flatten_lists,
                         )
                     )
                 else:

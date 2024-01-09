@@ -7,7 +7,7 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 5
       num_draws:
         value: 1000
       num_burn_in:
@@ -38,7 +38,6 @@ parameters:
         value: False
       eval_loss_fn:
         value: "mse"
-        # values: ["subsequence-mse", "mse"]
 
   task_config: 
     parameters:
@@ -47,7 +46,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        values: 'inf'
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -59,13 +58,17 @@ parameters:
       num_layers:
         value: 2
       model_seed:
-        value: [0, 1, 2, 3, 4]
+        values: [0, 1, 2, 3, 4]
       pretrain_seed:
         value: null
       true_seed:
         value: null
       sampling_seed:
         value: null
+      layer_norm:
+        value: true
+      include_output: 
+        value: true
 
   optimizer_config:
     parameters:
