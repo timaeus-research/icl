@@ -44,7 +44,6 @@ parameters:
       include_weights_pca: 
         value: False
 
-
   task_config: 
     parameters:
       task_size:
@@ -82,4 +81,4 @@ parameters:
         value: 0.003
 
   step:
-    values: [10101, 499999]
+    values: [0, 3247, 27072, 121212, 499999]

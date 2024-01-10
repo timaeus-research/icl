@@ -26,7 +26,7 @@ parameters:
       #   values: [0.01]   # epsilon
       #  
       gradient_scale:
-        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]
+        values: [0.001, 0.003, 0.01, 0.03, 0.1]
       localization_scale:
         values: [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.]
       noise_scale:
@@ -72,7 +72,7 @@ parameters:
       num_layers:
         value: 2
       model_seed:
-        values: [0, 1] # [0, 1, 2, 3, 4]
+        values: [0] # [0, 1, 2, 3, 4]
       pretrain_seed:
         value: null
       true_seed:
@@ -90,4 +90,4 @@ parameters:
         value: 0.003
 
   step:
-    values: [10101, 499999]
+    values: [0, 3247, 27072, 121212, 499999]
