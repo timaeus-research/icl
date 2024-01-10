@@ -9,28 +9,20 @@ parameters:
       num_chains:
         value: 10
       num_draws:
-        value: 1000
+        value: 5000
+      #  values: [1000, 10000]
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "eval-dataset"
+        value: "eval-dataset"s
       grad_batch_size:
         value: 1024
-      #
       gradient_scale:
-        values: [0.01]
+        value: 0.01
       localization_scale:
-        values: [0.0001, 0.0003, 0.001, 0.003, 0.01] # [0.01, 0.1, 1.]
+        values: 0.001
       noise_scale:
-        values: [0.01]   # epsilon
-      #  
-      # gradient_scale:
-      #   values: [0.00001, 0.00003, 0.0001, 0.0003, 0.001, 0.003, 0.01]
-      # localization_scale:
-      #   values: [0.00001, 0.00003, 0.0001, 0.0003, 0.001, 0.003, 0.01]
-      # noise_scale:
-      #   values: [0.00001, 0.00003, 0.0001, 0.0003, 0.001, 0.003, 0.01]   # epsilon
-      # 
+        values: 0.0003
       eval_method:
         value: 'grad-minibatch'
       eval_batch_size:
@@ -72,7 +64,7 @@ parameters:
       num_layers:
         value: 2
       model_seed:
-        values: [0] # [0, 1, 2, 3, 4]
+        values: [0, 1] # [0, 1, 2, 3, 4]
       pretrain_seed:
         value: null
       true_seed:
@@ -80,7 +72,7 @@ parameters:
       sampling_seed:
         value: null
       layer_norm:
-        values: [true] # [true, false]
+        value: true
       include_output: 
         value: true
 
@@ -90,4 +82,4 @@ parameters:
         value: 0.003
 
   step:
-    values: [10101, 499999]
+    values: [507, 1124, 3247, 9375, 27072, 59968, 121212, 499999]

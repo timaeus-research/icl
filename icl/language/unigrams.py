@@ -39,6 +39,7 @@ def compute_unigram_freqs(model, file_path=LANGUAGE_FILEPATH, num_lines=5_000_00
     i, last_row = 0, 0
 
     for i, (row, unigram) in enumerate(gen_unigrams(model, file_path, num_lines=num_lines, start=start, verbose=verbose)):
+        continue
         unigrams[unigram] += 1
 
         if row > 0 and row % 50_000 == 0 and row != last_row and verbose:
@@ -74,10 +75,10 @@ def main(
     print("Final probabilities")
     display_unigrams(unigrams, model, k=5000)
     
-    with open(UNIGRAMS_FILEPATH, 'wb') as file:
-        pickle.dump(unigrams, file)
+    # with open(UNIGRAMS_FILEPATH, 'wb') as file:
+    #     pickle.dump(unigrams, file)
     
-    save_to_bucket(UNIGRAMS_FILEPATH, unigrams)
+    # save_to_bucket(UNIGRAMS_FILEPATH, unigrams)
 
 
 if __name__ == "__main__":

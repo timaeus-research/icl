@@ -101,6 +101,7 @@ def sample_single_chain(
                 with torch.no_grad():
                     for callback in callbacks:
                         call_with(callback, **locals())  # Cursed but we'll fix it later
+                        
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
@@ -168,7 +169,7 @@ def sample_single_chain_xla(
                         call_with(callback, **locals())  # Cursed but we'll fix it later
             
                 xm.mark_step()
-                
+
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 

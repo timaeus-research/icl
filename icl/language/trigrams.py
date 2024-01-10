@@ -44,7 +44,7 @@ def get_top_k_trigrams(
         save_every=10_000,
         clean_fn = None
 ):
-    def _clean(table, k=k, padding=padding):
+    def _clean(table, k, padding, **kwargs):
         return dict(sorted(table.items(), key=lambda x: x[1], reverse=True)[:k + padding])
     
     clean_fn = clean_fn or _clean
@@ -63,7 +63,7 @@ def get_top_k_trigrams(
         if save_fn is not None and row % save_every == 0:
             save_fn(row, clean_fn(table))
 
-    return clean_fn(table)
+    return clean_fn(table, k=k, padding=padding)
 
 
 def get_top_k_skip_trigrams(
@@ -81,27 +81,27 @@ def get_top_k_skip_trigrams(
         save_every=10_000,
         clean_fn = None
 ):
-    def _clean(table, k=k, padding=padding):
+    def _clean(table, k, padding, num_tokens, normalize=False, **kwargs):
         return dict(sorted(table.items(), key=lambda x: x[1], reverse=True)[:k + padding])
     
     clean_fn = clean_fn or _clean
 
     table = {}
 
-    for row, trigram in gen_skip_trigrams(model, file_path, start=start, num_lines=num_lines, min_skip=min_skip, max_skip=max_skip, verbose=verbose):
+    for i, (row, trigram) in enumerate(gen_skip_trigrams(model, file_path, start=start, num_lines=num_lines, min_skip=min_skip, max_skip=max_skip, verbose=verbose)):
         table[trigram] = table.get(trigram, 0) + 1
         
         if len(table) > multiplier * k:
-            table = clean_fn(table)
+            table = clean_fn(table, k=k, padding=padding, num_tokens=i)
 
             if verbose:
                 print("----- Top 1000 trigrams -----")
                 preview_trigrams_dict(table, model)
 
         if save_fn is not None and row % save_every == 0:
-            save_fn(row, clean_fn(table))
+            save_fn(row, clean_fn(table, k=k, padding=padding, num_tokens=i))
 
-    return clean_fn(table)
+    return clean_fn(table, k=k, padding=padding, num_tokens=i)
 
 @app.command()
 def main(

@@ -1,4 +1,4 @@
-name: L2H4-weight-pcas
+name: L2H4-eps-temp-gamma
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -7,27 +7,34 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 10
       num_draws:
-        value: 1000
+        value: 5000
+      #  values: [1000, 10000]
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "eval-dataset"  # Or something else
+        value: "eval-dataset"s
       grad_batch_size:
         value: 1024
-      # 
+      #
+      # gradient_scale:
+      #   values: [0.01]
+      # localization_scale:
+      #   values: [0.0001, 0.0003, 0.001, 0.003, 0.01] # [0.01, 0.1, 1.]
+      # noise_scale:
+      #   values: [0.01]   # epsilon
+      #  
       gradient_scale:
-        value: 0.0510248155  # epsilon n \beta  / 2
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]
       localization_scale:
-        value: 0.00015  # epsilon / 2
+        values: [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.]
       noise_scale:
-        value: 0.0003   # epsilon
-      # 
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]   # epsilon
       eval_method:
         value: 'grad-minibatch'
       eval_batch_size:
-        value: 1024
+        value: null
       eval_dataset_size:
         value: 1048576
       eval_metrics:
@@ -36,6 +43,8 @@ parameters:
         value: True
       eval_loss_fn:
         value: "mse"
+      init_seed:
+        value: 0
 
   plotting_config:
     parameters:
@@ -43,10 +52,6 @@ parameters:
         value: True
       include_weights_pca: 
         value: True
-      num_components: 
-        value: 3
-      num_points: 
-        value: 10
 
   task_config: 
     parameters:
@@ -55,7 +60,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        values: [1, 32, 1048576, 2, 4, 8, 16, 64, 1024]
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -65,20 +70,24 @@ parameters:
       num_heads:
         value: 4
       num_layers:
-        value: 2 #[2, 4]
-      model_seed:
-        value: 0
-      pretrain_seed:
-        value: 1
-      true_seed:
         value: 2
+      model_seed:
+        values: [0, 1] # [0, 1, 2, 3, 4]
+      pretrain_seed:
+        value: null
+      true_seed:
+        value: null
       sampling_seed:
-        value: 3
+        value: null
+      layer_norm:
+        values: [true] # [true, false]
+      include_output: 
+        value: true
+
   optimizer_config:
     parameters:
       lr:
-        value: 0.01
-  eval_batch_size:
-    value: 1048576
+        value: 0.003
+
   step:
-    values: [0, 10204, 499999, 473, 1056, 26279, 61224, 81632, 102040, 183673, 224489, 275510, 326530, 408163]
+    values: [10101, 499999]

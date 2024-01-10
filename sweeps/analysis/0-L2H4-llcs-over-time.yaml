@@ -7,11 +7,11 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 10
       num_draws:
-        value: 1000
+        value: 2500
       num_burn_in:
-        value: 250
+        value: 1000
       sampling_method:
         value: sgld
       grad_batch_origin:
@@ -22,12 +22,12 @@ parameters:
       gradient_scale:
         value: 0.01
       localization_scale:
-        value: 0.0001
+        value: 0.001
       noise_scale:
-        value: 0.01
+        value: 
       # 
       eval_method:
-        value: "dataset"   
+        value: "grad-minibatch"   
       eval_batch_size:
         value: 1024
       eval_dataset_size:
