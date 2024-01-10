@@ -51,8 +51,7 @@ def sweep_over_time(
 
     start = end
     stdlogger.info("Configuring sampler...")
-    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
-    sampler = sampler_config.to_sampler(run)
+    
     end = time.perf_counter()
     stdlogger.info("... %s seconds", end - start)
 
@@ -71,8 +70,11 @@ def sweep_over_time(
     
         print(yaml.dump(serialized))
 
+    sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
+
     for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
-        sampler.update_init_loss(sampler.eval_model(model, sampler.config.num_init_loss_batches, verbose=True))
+        run.model = model
+        sampler = sampler_config.to_sampler(run)
 
         try:
             results = sampler.eval(run.model)
@@ -83,9 +85,6 @@ def sweep_over_time(
         
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")
-       
-        sampler.reset()
-
 
 @contextmanager
 def wandb_context(config=None):
