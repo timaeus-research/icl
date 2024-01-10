@@ -1,4 +1,4 @@
-name: L2H4-eps-temp-gamma
+name: L2H4-highlights
 method: grid
 command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
 project: icl-llc
@@ -10,19 +10,18 @@ parameters:
         value: 10
       num_draws:
         value: 5000
-      #  values: [1000, 10000]
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "eval-dataset"s
+        value: "eval-dataset"
       grad_batch_size:
         value: 1024
       gradient_scale:
         value: 0.01
       localization_scale:
-        values: 0.001
+        value: 0.001
       noise_scale:
-        values: 0.0003
+        value: 0.0003
       eval_method:
         value: 'grad-minibatch'
       eval_batch_size:

@@ -9,7 +9,7 @@ parameters:
       num_chains:
         value: 10
       num_draws:
-        value: 2500
+        value: 5000
       num_burn_in:
         value: 1000
       sampling_method:
@@ -24,12 +24,12 @@ parameters:
       localization_scale:
         value: 0.001
       noise_scale:
-        value: 
+        value: 0.0003
       # 
       eval_method:
         value: "grad-minibatch"   
       eval_batch_size:
-        value: 1024
+        value: null
       eval_dataset_size:
         value: 1048576
       eval_metrics:
@@ -38,6 +38,8 @@ parameters:
         value: False
       eval_loss_fn:
         value: "mse"
+      init_seed:
+        value: 0
 
   task_config: 
     parameters:
