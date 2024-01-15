@@ -50,21 +50,22 @@ def plot_loss_trace(batch_losses, likelihoods, title=None):
     return fig
 
 
+def plot_explained_variance(pca, title="Explained Variance", ax: Optional[plt.Axes] = None, num_pca_components=None):
+    num_pca_components = num_pca_components or len(pca.explained_variance_ratio_)
 
-def plot_explained_variance(pca, title="Explained Variance", ax: Optional[plt.Axes] = None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(15, 8))
 
-    ax.bar(range(len(pca.explained_variance_ratio_)), pca.explained_variance_ratio_)
+    ax.bar(range(num_pca_components), pca.explained_variance_ratio_[:num_pca_components])
 
-    for i, ratio in enumerate(pca.explained_variance_ratio_):
+    for i, ratio in enumerate(pca.explained_variance_ratio_[:num_pca_components]):
         ax.text(i, ratio, f"{ratio:.2f}", fontsize=12, ha='center', va='bottom')
 
     ax.set_title(title)
     ax.set_xlabel('PC')
     ax.set_ylabel('Explained Variance')
 
-    ax.set_xticks(range(len(pca.explained_variance_ratio_)), range(1, len(pca.explained_variance_ratio_) + 1))
+    ax.set_xticks(range(num_pca_components), range(1, num_pca_components + 1))
 
 
 def plot_weights_trace(model, deltas, xs, ys, device='cpu', num_components=3, num_points=10):

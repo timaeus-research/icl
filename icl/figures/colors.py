@@ -48,9 +48,10 @@ def get_transition_type(transition: Transition) -> TransitionType:
 
 
 
-def plot_transitions(axes, transitions, max_step=np.inf, limit=False, alpha=0.2):
-    types = [get_transition_type(m) for m in transitions]
-    colors = gen_transition_colors(types)
+def plot_transitions(axes, transitions, max_step=np.inf, limit=False, alpha=0.2, colors=None):
+    if colors is None:
+        types = [get_transition_type(m) for m in transitions]
+        colors = gen_transition_colors(types)
 
     min_step = min([t[0] for t in transitions])
     max_step = min(max_step, max([t[1] for t in transitions]))

@@ -10,7 +10,7 @@ def str_d_dlogt(s):
 
 
 def str_dlog_dlogt(s):
-    return r"$\delta \log" + s + r"/\delta\log t$"
+    return r"$\delta \log " + s + r"/\delta\log t$"
 
 
 PYVAR_TO_MATHVAR = {
