@@ -7,9 +7,9 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 10
+        value: 8
       num_draws:
-        value: 1000
+        value: 2000
       sampling_method:
         value: sgld
       grad_batch_origin:
@@ -18,11 +18,11 @@ parameters:
         value: 1024
       # 
       gradient_scale:
-        value: 0.00001
+        value: 0.01
       localization_scale:
-        value: 0.003
+        value: 0.001
       noise_scale:
-        value: 0.00003 
+        value: 0.0003
       # 
       eval_method:
         value: 'grad-minibatch'      
@@ -31,7 +31,7 @@ parameters:
       eval_dataset_size:
         value: 1048576
       eval_metrics:
-        value: ["likelihood-derived", "batch-loss"]
+        value: ["likelihood-derived", "batch-loss", "weights"]
       eval_online:
         value: True
       eval_loss_fn:
@@ -42,7 +42,7 @@ parameters:
       include_loss_trace: 
         value: True
       include_weights_pca: 
-        value: False
+        value: True
 
   task_config: 
     parameters:
@@ -71,7 +71,7 @@ parameters:
       sampling_seed:
         value: null
       layer_norm:
-        values: [true, false]
+        values: [true]
       include_output: 
         value: true
         
@@ -81,4 +81,4 @@ parameters:
         value: 0.003
 
   step:
-    values: [0, 3247, 27072, 121212, 499999]
+    values:  [507, 1124,  9375, 499999, 3247, 27072, 59968, 121212]

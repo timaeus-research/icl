@@ -7,30 +7,22 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 10
+        value: 5
       num_draws:
-        value: 5000
-      #  values: [1000, 10000]
+        value: 4000
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "eval-dataset"s
+        value: "eval-dataset"
       grad_batch_size:
         value: 1024
-      #
-      # gradient_scale:
-      #   values: [0.01]
-      # localization_scale:
-      #   values: [0.0001, 0.0003, 0.001, 0.003, 0.01] # [0.01, 0.1, 1.]
-      # noise_scale:
-      #   values: [0.01]   # epsilon
-      #  
       gradient_scale:
-        values: [0.001, 0.003, 0.01, 0.03, 0.1]
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03]
       localization_scale:
-        values: [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.]
+        values: [0.001, 0.01, 0.1, 1., 10., 100.]
       noise_scale:
-        values: [0.0001, 0.0003, 0.001, 0.003, 0.01]   # epsilon
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03]
+      # 
       eval_method:
         value: 'grad-minibatch'
       eval_batch_size:
@@ -90,4 +82,4 @@ parameters:
         value: 0.003
 
   step:
-    values: [0, 3247, 27072, 121212, 499999]
+    values: [507, 1124, 3247, 9375, 27072, 59968, 121212, 499999]
