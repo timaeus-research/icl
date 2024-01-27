@@ -12,46 +12,75 @@ from torch.nn import functional as F
 
 from icl.figures.colors import PRIMARY, SECONDARY
 
-sns.set_style("whitegrid")
+sns.set_style("ticks")
 
-def plot_loss_trace(batch_losses, likelihoods):
+plt.rcParams["font.family"] = "Times"
+plt.rcParams['figure.dpi'] = 300
+plt.rc('xtick', labelsize=8)
+plt.rc('ytick', labelsize=8)
+plt.rc('axes', labelsize=8)
+plt.rc('legend', fontsize=8)
+plt.rc('axes', titlesize=10)
+
+golden_ratio = (5**0.5 - 1) / 2
+
+WIDTH = 3.25
+HEIGHT = WIDTH * golden_ratio
+
+FULL_WIDTH = 2 * WIDTH + 0.25
+FULL_HEIGHT = WIDTH * golden_ratio 
+
+def plot_loss_trace(batch_losses, likelihoods, title=None):
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    batch_losses['mean'] = [float(x) for x in batch_losses['mean']]
-
-    #llc_callback.expected_loss_estimator.
-    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="gray", ax=ax, alpha=0.5)
+    batch_losses['mean'] = [float(x.mean()) for x in batch_losses['mean']]  
+    sns.lineplot(data=batch_losses, x="draw", y="mean", hue="chain", palette="tab20", ax=ax, alpha=0.8)
 
     twin_ax = ax.twinx()
-    sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=0.5, color=PRIMARY)
+
+    likelihoods = likelihoods.groupby("draw").mean().reset_index()
+    likelihoods.sort_values(by="draw", inplace=True)
+
+    if "llc/mean/mean" in likelihoods.columns:
+        sns.lineplot(data=likelihoods, x="draw", y="llc/mean/mean", ax=twin_ax, alpha=1., color="black")
+        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean/mean'] - likelihoods['llc/mean/std'], likelihoods['llc/mean/mean'] + likelihoods['llc/mean/std'], alpha=0.2, color="black")
+    else:
+        sns.lineplot(data=likelihoods, x="draw", y="llc/mean", ax=twin_ax, alpha=1., color="black")
+        twin_ax.fill_between(likelihoods['draw'], likelihoods['llc/mean'] - likelihoods['llc/std'], likelihoods['llc/mean'] + likelihoods['llc/std'], alpha=0.1, color="black")
 
     ax.set_ylabel(r"Batch Loss. $L^{(\tau)}_m$")
-    twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
+    # twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$", color=PRIMARY)
+    twin_ax.set_ylabel(r"LLC, $\hat\lambda_\tau$")
 
-    for label in twin_ax.get_yticklabels():
-        label.set_color(PRIMARY)
+    # for label in twin_ax.get_yticklabels():
+    #     label.set_color(PRIMARY)
 
     ax.set_xlabel(r"Draw, $\tau$")
     ax.legend().remove()
 
+    if title is not None:
+        ax.set_title(title)
+        plt.tight_layout()
+
     return fig
 
 
+def plot_explained_variance(pca, title="Explained Variance", ax: Optional[plt.Axes] = None, num_pca_components=None):
+    num_pca_components = num_pca_components or len(pca.explained_variance_ratio_)
 
-def plot_explained_variance(pca, title="Explained Variance", ax: Optional[plt.Axes] = None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(15, 8))
 
-    ax.bar(range(len(pca.explained_variance_ratio_)), pca.explained_variance_ratio_)
+    ax.bar(range(num_pca_components), pca.explained_variance_ratio_[:num_pca_components])
 
-    for i, ratio in enumerate(pca.explained_variance_ratio_):
+    for i, ratio in enumerate(pca.explained_variance_ratio_[:num_pca_components]):
         ax.text(i, ratio, f"{ratio:.2f}", fontsize=12, ha='center', va='bottom')
 
     ax.set_title(title)
     ax.set_xlabel('PC')
     ax.set_ylabel('Explained Variance')
 
-    ax.set_xticks(range(len(pca.explained_variance_ratio_)), range(1, len(pca.explained_variance_ratio_) + 1))
+    ax.set_xticks(range(num_pca_components), range(1, num_pca_components + 1))
 
 
 def plot_weights_trace(model, deltas, xs, ys, device='cpu', num_components=3, num_points=10):
