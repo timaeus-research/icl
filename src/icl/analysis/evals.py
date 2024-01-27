@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from icl.analysis.baselines import dmmse_predictor, ridge_predictor
-from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 

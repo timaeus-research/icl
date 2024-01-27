@@ -12,7 +12,7 @@ from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
 from tqdm import tqdm
 
 from icl.config import get_config
-from icl.train import Run
+from src.icl.regression.train import Run
 
 
 def get_run(sweep: str, **filters):

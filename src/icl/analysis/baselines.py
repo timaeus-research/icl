@@ -1,6 +1,6 @@
 import torch
 
-from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 
 _DEFAULT_MAX_BYTES = 2**28 # 256 MiB

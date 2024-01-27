@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 
 def read_requirements():
@@ -8,12 +8,12 @@ def read_requirements():
 setup(
     name="icl",
     version="0.0.0",
-    packages=["icl"],
-    # license="LICENSE",
-    description="Singular Learning Theory for In-Context Learning",
+    description="The Developmental Landscape of In-Context Learning",
     long_description=open("README.md").read(),
     install_requires=read_requirements(),
     extras_require={"dev": ["pytest", "torch_testing"]},
+    package_dir={'': 'src'},
+    packages=find_packages(where='src'),
 )
 
 

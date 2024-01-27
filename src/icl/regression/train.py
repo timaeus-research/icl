@@ -35,7 +35,7 @@ import wandb
 from icl.config import ICLConfig, get_config
 from icl.model import InContextRegressionTransformer
 from icl.monitoring import stdlogger
-from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
+from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
 from icl.utils import get_device, move_to_device
 

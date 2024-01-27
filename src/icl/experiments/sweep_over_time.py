@@ -18,7 +18,7 @@ from icl.constants import DEVICE, XLA
 from icl.experiments.utils import *
 from icl.experiments.utils import flatten_and_process
 from icl.monitoring import stdlogger
-from icl.train import Run
+from src.icl.regression.train import Run
 from icl.utils import prepare_experiments
 
 app = typer.Typer()

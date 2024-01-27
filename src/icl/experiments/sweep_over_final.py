@@ -19,7 +19,7 @@ from icl.experiments.utils import *
 from icl.figures.notation import pyvar_dict_to_slug
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
 from icl.monitoring import stdlogger
-from icl.train import Run
+from src.icl.regression.train import Run
 from icl.utils import prepare_experiments
 
 if XLA:
