@@ -4,12 +4,12 @@ training the transformer on synthetic in-context regression task
 import torch
 import typer
 import yaml
-from devinfra.utils.seed import set_seed
 # manage environment
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
 
+from devinfra.utils.seed import set_seed
 from icl.analysis.evals import ICLEvaluator
 from icl.constants import DEVICE, XLA
 from icl.utils import prepare_experiments
@@ -27,17 +27,18 @@ import numpy as np
 import sentry_sdk
 import torch.nn.functional as F
 import tqdm
+
+import wandb
 from devinfra.io.logging import MetricLogger
 from devinfra.io.storage import BaseStorageProvider
 from devinfra.optim.schedulers import LRScheduler
-
-import wandb
-from icl.config import ICLConfig, get_config
-from icl.model import InContextRegressionTransformer
 from icl.monitoring import stdlogger
-from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
-                       RegressionSequenceDistribution)
+from icl.regression.model import InContextRegressionTransformer
 from icl.utils import get_device, move_to_device
+from src.icl.regression.config import ICLConfig, get_config
+from src.icl.regression.tasks import (DiscreteTaskDistribution,
+                                      GaussianTaskDistribution,
+                                      RegressionSequenceDistribution)
 
 if XLA:
     import torch_xla.core.xla_model as xm

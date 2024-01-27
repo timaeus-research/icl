@@ -54,11 +54,46 @@ To run experiments with W&B logging you will need your associated API key stored
 
 ### Configuring and deploying training runs
 
+To run a training run, first configure a run in the [`/sweeps/training-runs`](sweeps/training-runs/) directory. The configuration for the runs featured in the paper are available in [`/sweeps/training-runs/L2H4Minf.yaml`](sweeps/training-runs/L2H4Minf.yaml).
+
+To run a training run, prepare a wandb sweep with the following command: 
+
+```
+wandb sweep sweeps/training-runs/<config_name>.yaml
+```
+
+This will generate a sweep and print the associated ID. Run the sweep with the following command:
+
+```
+wandb agent <sweep_id>
+```
 
 ### Running LLC estimation
 
+To run LLC estimation, first configure a run in the [`/sweeps/analysis`](sweeps/analysis/) or [ `sweeps/calibration`](sweeps/calibration/) directory. The configuration for the runs featured in the paper are available in [`/sweeps/llc/0-L2H4-llcs-over-time.yaml`](sweeps/llc/0-L2H4-llcs-over-time.yaml).
+
+
+To run a training run, prepare a wandb sweep with the following command: 
+
+```
+wandb sweep sweeps/analysis/<config_name>.yaml
+```
+
+This will generate a sweep and print the associated ID. Run the sweep with the following command:
+
+```
+wandb agent <sweep_id>
+```
 
 ### Support for TPU training
+
+Training on TPUs is supported out of the box. To disable TPU training, run agent with the DEVICE environment variable set to `cpu`:
+
+```
+DEVICE=cpu wandb agent <sweep_id>
+```
+
+LLC estimation is not yet supported on TPUs. Make sure to disable TPU device using the above command when running LLC estimation.
 
 
 ### Testing

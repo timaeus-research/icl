@@ -1,5 +1,6 @@
 def zero_ablated(model, include=['token_embedding', 'postn_embedding', 'unembedding.0', 'unembedding.1']):
-    from icl.model import to_token_sequence, from_predicted_token_sequence
+    from icl.regression.model import (from_predicted_token_sequence,
+                                      to_token_sequence)
     assert 'token_embedding' in include and 'unembedding.1' in include, "Must include at least token embedding and unembedding"
 
     def _zero_ablated(xs, ys):

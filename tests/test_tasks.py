@@ -1,8 +1,10 @@
 import torch
 import torch_testing as tt
 
-from icl.tasks import RegressionSequenceDistribution, SingletonTaskDistribution
-from icl.tasks import DiscreteTaskDistribution, GaussianTaskDistribution
+from icl.regression.tasks import (DiscreteTaskDistribution,
+                                  GaussianTaskDistribution,
+                                  RegressionSequenceDistribution,
+                                  SingletonTaskDistribution)
 
 
 def test_singleton_task_distribution():

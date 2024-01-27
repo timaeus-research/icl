@@ -13,7 +13,7 @@ import wandb
 from icl.analysis.health import ChainHealthException
 from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
-from icl.config import ICLConfig, get_config
+from src.icl.regression.config import ICLConfig, get_config
 from icl.constants import ANALYSIS, DEVICE, FIGURES, XLA
 from icl.experiments.utils import *
 from icl.figures.notation import pyvar_dict_to_slug

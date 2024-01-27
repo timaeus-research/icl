@@ -21,7 +21,7 @@ from tqdm import tqdm
 import wandb
 from icl.analysis.health import ChainHealthException
 from icl.analysis.utils import get_sweep_configs
-from icl.config import ICLConfig, get_config
+from src.icl.regression.config import ICLConfig, get_config
 from icl.constants import DEVICE
 from src.icl.regression.train import Run
 

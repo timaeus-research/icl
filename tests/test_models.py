@@ -1,8 +1,7 @@
 import torch
 import torch_testing as tt
 
-from icl.model import to_token_sequence, from_token_sequence
-
+from icl.regression.model import from_token_sequence, to_token_sequence
 
 # # # TEST MODELS MODULE (incomplete)
 
