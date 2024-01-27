@@ -4,15 +4,15 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 import torch
+from tqdm import tqdm
+
 from devinfra.evals import ModelEvaluator
 from devinfra.integrations.wandb import generate_config_dicts_from_path
 from devinfra.io.storage import BaseStorageProvider
 from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
                                       flatten_dict)
-from tqdm import tqdm
-
-from src.icl.regression.config import get_config
-from src.icl.regression.train import Run
+from icl.regression.config import get_config
+from icl.regression.train import Run
 
 
 def get_run(sweep: str, **filters):

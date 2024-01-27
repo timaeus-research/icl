@@ -1,6 +1,10 @@
 import math
 from typing import Any, Literal, Optional, Union
 
+from pydantic import (BaseModel, Field, ValidationError, field_validator,
+                      model_validator)
+
+import wandb
 from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
 from devinfra.monitoring import expand_steps_config_
@@ -8,14 +12,11 @@ from devinfra.optim import OptimizerConfig, SchedulerConfig
 from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
-from pydantic import (BaseModel, Field, ValidationError, field_validator,
-                      model_validator)
-
-import wandb
 from icl.constants import DEVICE
 from icl.regression.model import InContextRegressionTransformer
-from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
-                       RegressionSequenceDistribution)
+from icl.regression.tasks import (DiscreteTaskDistribution,
+                                  GaussianTaskDistribution,
+                                  RegressionSequenceDistribution)
 
 
 class ICLTaskConfig(BaseModel):

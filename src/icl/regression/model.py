@@ -7,7 +7,7 @@ regression problem.
 
 import torch
 
-from icl.dtransformer import DTransformer
+from icl.regression.dtransformer import DTransformer
 
 
 class InContextRegressionTransformer(torch.nn.Module):

@@ -10,8 +10,8 @@ from pydantic import BaseModel
 from torch import nn
 
 from devinfra.utils.seed import set_seed
-from icl.analysis.evals import ICLEvaluator
 from icl.constants import DEVICE, XLA
+from icl.regression.evals import ICLEvaluator
 from icl.utils import prepare_experiments
 
 load_dotenv()
@@ -33,12 +33,12 @@ from devinfra.io.logging import MetricLogger
 from devinfra.io.storage import BaseStorageProvider
 from devinfra.optim.schedulers import LRScheduler
 from icl.monitoring import stdlogger
+from icl.regression.config import ICLConfig, get_config
 from icl.regression.model import InContextRegressionTransformer
+from icl.regression.tasks import (DiscreteTaskDistribution,
+                                  GaussianTaskDistribution,
+                                  RegressionSequenceDistribution)
 from icl.utils import get_device, move_to_device
-from src.icl.regression.config import ICLConfig, get_config
-from src.icl.regression.tasks import (DiscreteTaskDistribution,
-                                      GaussianTaskDistribution,
-                                      RegressionSequenceDistribution)
 
 if XLA:
     import torch_xla.core.xla_model as xm
