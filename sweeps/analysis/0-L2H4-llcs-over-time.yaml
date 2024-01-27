@@ -7,8 +7,10 @@ parameters:
   sampler_config:
     parameters: 
       num_chains:
-        value: 25
+        value: 10
       num_draws:
+        value: 5000
+      num_burn_in:
         value: 1000
       sampling_method:
         value: sgld
@@ -18,25 +20,26 @@ parameters:
         value: 1024
       # 
       gradient_scale:
-        value: 0.0510248155  # epsilon n \beta  / 2
+        value: 0.01
       localization_scale:
-        value: 0.00015  # epsilon / 2
+        value: 0.001
       noise_scale:
-        value: 0.0003   # epsilon
+        value: 0.0003
       # 
       eval_method:
-        value: "dataset"   
+        value: "grad-minibatch"   
       eval_batch_size:
-        value: 1024
+        value: null
       eval_dataset_size:
-        values: [1024, 2048, 4096, 8192, 16384, 32768, 1048576] 
+        value: 1048576
       eval_metrics:
-        value: ["likelihood-derived"]
+        value: ["likelihood-derived", "batch-loss"]
       eval_online:
-        value: True
+        value: False
       eval_loss_fn:
         value: "mse"
-        # values: ["subsequence-mse", "mse"]
+      init_seed:
+        value: 0
 
   task_config: 
     parameters:
@@ -45,7 +48,7 @@ parameters:
       max_examples:
         value: 8
       num_tasks:
-        values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+        value: 'inf'
       noise_variance:
         value: 0.125
       embed_size:
@@ -55,18 +58,24 @@ parameters:
       num_heads:
         value: 4
       num_layers:
-        value: 2 #[2, 4]
-      model_seed:
-        value: 0
-      pretrain_seed:
-        value: 1
-      true_seed:
         value: 2
+      model_seed:
+        values: [0, 1, 2, 3, 4]
+      pretrain_seed:
+        value: null
+      true_seed:
+        value: null
       sampling_seed:
-        value: 3
+        value: null
+      layer_norm:
+        value: true
+      include_output: 
+        value: true
+
   optimizer_config:
     parameters:
       lr:
-        value: 0.01
+        value: 0.003
+
   eval_batch_size:
-    value: 1048576
+    value: 1024
