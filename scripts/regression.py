@@ -135,21 +135,6 @@ def get_llcs(sweep_id):
     return df
 
 
-def merge_dfs(df1, df2, inplace=True):
-    if not inplace:
-        raise NotImplementedError()
-    
-    seeds = df1["model_seed"].unique()
-    steps = df1["step"].unique()
-
-    stdlogger.info(f"Merging {len(seeds)} seeds and {len(steps)} steps")
-    for seed in seeds:
-        for step in steps:
-            for k in df2.columns:
-                if k not in df1.columns:
-                    df1.loc[(df1["model_seed"] == seed) & (df1["step"] == step), k] = df2.loc[(df2["model_seed"] == seed) & (df2["step"] == step), k]
-
-    return df1
 
 @app.command()
 def make_figures(name: str, seed: int=1, llc_sweep_id: str=LR_SWEEP_ID, val_size=1024, reeval=False):

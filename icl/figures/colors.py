@@ -1,5 +1,7 @@
+import colorsys
 from typing import List, Literal, Tuple, Union
 
+import plotly.express as px
 import numpy as np
 import seaborn as sns
 from matplotlib import patches as mpatches
@@ -51,7 +53,7 @@ def get_transition_type(transition: Transition) -> TransitionType:
 def plot_transitions(axes, transitions, max_step=np.inf, xlim=True, alpha=0.2, colors=None, labels=False):
     if colors is None:
         types = [get_transition_type(m) for m in transitions]
-        colors = gen_transition_colors(types)
+        colors = gen_LR_TRANSITION_COLORS(types)
 
     min_step = min([t[0] for t in transitions])
     max_step = min(max_step, max([t[1] for t in transitions]))
@@ -95,3 +97,59 @@ def plot_transitions(axes, transitions, max_step=np.inf, xlim=True, alpha=0.2, c
         patch_list.append(data_key)
 
     return patch_list
+
+
+def increase_saturation(rgb, saturation_factor):
+    # Convert RGB to HSV
+    hsv = colorsys.rgb_to_hsv(*rgb)
+    
+    # Increase saturation by the given factor, making sure it stays in [0, 1]
+    new_s = min(max(hsv[1] * saturation_factor, 0), 1)
+    
+    # Convert back to RGB
+    new_rgb = colorsys.hsv_to_rgb(hsv[0], new_s, hsv[2])
+    return new_rgb
+
+
+def increase_contrast(rgb, contrast_factor):
+    # Midpoint
+    midpoint = 128.0 / 255
+    
+    # Increase contrast
+    new_rgb = [(0.5 + contrast_factor * (component - 0.5)) for component in rgb]
+    
+    # Clip to the range [0, 1]
+    new_rgb = [min(max(component, 0), 1) for component in new_rgb]
+    return new_rgb
+
+
+def decrease_brightness(rgb, brightness_factor):
+    # Convert RGB to HSV
+    hsv = colorsys.rgb_to_hsv(*rgb)
+    
+    # Decrease brightness by the given factor, making sure it stays in [0, 1]
+    new_v = min(max(hsv[2] * brightness_factor, 0), 1)
+    
+    # Convert back to RGB
+    new_rgb = colorsys.hsv_to_rgb(hsv[0], hsv[1], new_v)
+    return new_rgb
+
+
+def rainbow(n):
+    return px.colors.sample_colorscale(
+        colorscale='rainbow',
+        samplepoints=n,
+        low=0.0,
+        high=1.0,
+        colortype="rgba",
+    )
+
+
+# LR_TRANSITION_TYPES = ['A', 'A', "A", "B", "B", "Other"]
+LR_TRANSITION_TYPES = ['A', 'A', "B", "B", "Other"]
+LR_TRANSITION_COLORS = gen_transition_colors(LR_TRANSITION_TYPES)
+
+del LR_TRANSITION_COLORS[2], LR_TRANSITION_TYPES[2]
+
+LR_TRANSITION_COLORS[2] = decrease_brightness(LR_TRANSITION_COLORS[2], .9)
+LR_TRANSITION_COLORS[2] = increase_saturation(LR_TRANSITION_COLORS[2], 2)
