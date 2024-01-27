@@ -11,7 +11,7 @@ from devinfra.utils.iterables import (filter_objs, find_obj, find_unique_obj,
                                       flatten_dict)
 from tqdm import tqdm
 
-from icl.config import get_config
+from src.icl.regression.config import get_config
 from src.icl.regression.train import Run
 
 

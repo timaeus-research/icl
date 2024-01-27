@@ -1,6 +1,6 @@
 #%%
 
-from icl.model import InContextRegressionTransformer
+from icl.regression.model import InContextRegressionTransformer
 
 init_transformer = InContextRegressionTransformer(task_size=8,
                                                   max_examples=16,

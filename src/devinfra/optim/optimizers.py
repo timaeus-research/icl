@@ -15,7 +15,7 @@ def optimizer_factory(parameters: Iterable[torch.nn.Parameter], optimizer_type: 
     elif optimizer_type == "AdamW":
         return torch.optim.AdamW(parameters, **kwargs)
     elif optimizer_type == "SGLD":
-        from devinterp.optim.sgld import SGLD
+        from icl.analysis.sgld import SGLD
         
         return SGLD(parameters, **kwargs)
     else:

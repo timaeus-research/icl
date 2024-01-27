@@ -7,19 +7,18 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 import numpy as np
 import torch
-from devinfra.utils.iterables import dicts_to_latex
-from devinterp.optim.sgld import SGLD
-from devinterp.optim.sgnht import SGNHT
 from pydantic import BaseModel, Field, field_validator, model_validator
 from torch import nn
 from torch.multiprocessing import cpu_count, get_context
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from devinfra.utils.iterables import dicts_to_latex
 from icl.analysis.cov import make_transformer_cov_accumulator
 from icl.analysis.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.analysis.health import ChainHealthException
 from icl.analysis.hessians import batch_hessian
+from icl.analysis.sgld import SGLD
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
@@ -398,8 +397,6 @@ class SamplerConfig(BaseModel):
     def get_optimizer_cls(self):
         if self.sampling_method == "sgld":
             return SGLD
-        elif self.sampling_method == "sgnht":
-            return SGNHT
         else:
             raise ValueError(f"Unknown sampling method: {self.sampling_method}")
 
