@@ -1,7 +1,7 @@
 """
 Just use the default aws s3 command line tool to move/copy files over.
 
-E.g.: `aws s3 cp s3://devinterp/checkpoints/icl/ s3://devinterp/backups/icl/ --recursive`
+E.g.: `aws s3 cp s3://{AWS_BUCKET_NAME}/checkpoints/icl/ s3://{AWS_BUCKET_NAME}/backups/icl/ --recursive`
 
 """
 import io

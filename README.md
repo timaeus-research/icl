@@ -5,7 +5,7 @@
 *Preliminary work. Under review by the International Conference
 on Machine Learning (ICML). Do not distribute.*
 
-## Basic usage
+## Basic setup
 
 Clone this repo and install standard dependencies, 
 
@@ -26,18 +26,15 @@ To generate figures with the provided data, open the notebooks in [`notebooks/`]
 
 ## Reproducing experiments
 
-### Checkpointing with AWS 
+### Checkpointing
 
-To run code that reads or writes snapshots to AWS you will need your AWS API keys in a local environment variable. Follow these steps:
+#### Local storage
 
-1. Log in to your AWS account and go to the
-   [security credentials page](https://us-east-1.console.aws.amazon.com/iamv2/home#/security_credentials).
-2. Set up a bucket and copy your AWS secret access key and AWS access key ID.
-3. Store them in a `.env` file in the project like so (see `.env-template`)
-   ```
-   AWS_SECRET_ACCESS_KEY=...
-   AWS_ACCESS_KEY_ID=...
-   ```
+To save checkpoints locally, set the `LOCAL_ROOT` environment variable to a local directory (see `.env-template`). 
+
+#### Using AWS 
+
+If you choose to use AWS, set the `AWS_BUCKET_NAME` variable (see `.env-template`). This assumes that you have an AWS account and that you have set up a bucket. Make sure to also set the `AWS_SECRET_ACCESS_KEY` and `AWS_ACCESS_KEY_ID` variables. 
 
 ### Monitoring with W&B
 
@@ -51,6 +48,8 @@ To run experiments with W&B logging you will need your associated API key stored
    paste your API key from step (2) when prompted.
 4. This will create a file in your home directory called `.netrc`.
    Keep that file safe.
+
+Set the `WANDB_ENTITY` env variable in `.env`.
 
 ### Configuring and deploying training runs
 

@@ -283,8 +283,6 @@ def get_config(
         "eval_batch_size": 2048,
         "checkpointer_config": {
             "checkpoint_steps": {"log_space": 50, "linear_space": 50},
-            "bucket_name": "devinterp",
-            # "local_root": "./checkpoints",
         },
         # for wandb?
         "logger_config": {

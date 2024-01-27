@@ -16,9 +16,6 @@ Notes:
   So for language this would need to be one-hot encoded.
   * TODO: Embedding had different initalisation compared to Linear, namely
     N(0,1) rather than Uniform---should I care?
-* Karpathy does a final transformation after the attention block, with
-  dropout. Is this just for dropout? Because this goes straight into the
-  MLP. So I got rid of that.
 """
 
 

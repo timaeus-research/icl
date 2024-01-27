@@ -26,7 +26,7 @@ if XLA:
     import torch_xla.core.xla_model as xm
 
 app = typer.Typer()
-
+WANDB_ENTITY = os.getenv("WANDB_ENTITY")
 class PlottingConfig(BaseModel):
     include_loss_trace: bool = True
     include_weights_pca: bool = True
@@ -139,7 +139,7 @@ def estimate_at_checkpoint(
 
 @app.command("wandb")
 def wandb_sweep_over_final_weights():      
-    wandb.init(project="icl-llc", entity="devinterp")
+    wandb.init(project="icl-llc", entity=WANDB_ENTITY)
     stdlogger.info("Initialized wandb")
     config = dict(wandb.config)
     sampler_config = config.pop("sampler_config")
