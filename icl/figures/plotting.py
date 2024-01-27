@@ -12,8 +12,23 @@ from torch.nn import functional as F
 
 from icl.figures.colors import PRIMARY, SECONDARY
 
-sns.set_style("whitegrid")
+sns.set_style("ticks")
 
+plt.rcParams["font.family"] = "Times"
+plt.rcParams['figure.dpi'] = 300
+plt.rc('xtick', labelsize=8)
+plt.rc('ytick', labelsize=8)
+plt.rc('axes', labelsize=8)
+plt.rc('legend', fontsize=8)
+plt.rc('axes', titlesize=10)
+
+golden_ratio = (5**0.5 - 1) / 2
+
+WIDTH = 3.25
+HEIGHT = WIDTH * golden_ratio
+
+FULL_WIDTH = 2 * WIDTH + 0.25
+FULL_HEIGHT = WIDTH * golden_ratio 
 
 def plot_loss_trace(batch_losses, likelihoods, title=None):
     fig, ax = plt.subplots(figsize=(10, 5))

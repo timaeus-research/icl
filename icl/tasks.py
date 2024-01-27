@@ -299,7 +299,7 @@ class GaussianTaskDistribution(TaskDistribution):
             mean=0.,
             std=1.,
             size=(n, self.task_size),
-            device=self.device,
+            device=str(self.device),
         )
         return tasks
     

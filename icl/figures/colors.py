@@ -48,7 +48,7 @@ def get_transition_type(transition: Transition) -> TransitionType:
 
 
 
-def plot_transitions(axes, transitions, max_step=np.inf, limit=False, alpha=0.2, colors=None):
+def plot_transitions(axes, transitions, max_step=np.inf, xlim=True, alpha=0.2, colors=None, labels=False):
     if colors is None:
         types = [get_transition_type(m) for m in transitions]
         colors = gen_transition_colors(types)
@@ -60,6 +60,10 @@ def plot_transitions(axes, transitions, max_step=np.inf, limit=False, alpha=0.2,
         axes = np.array([axes])
 
     for ax in axes.flatten():
+        # Labels
+        ax.set_xlabel("Training step $t$")
+        ax.set_xscale("log")
+
         for color, (start, end, label) in zip(colors, transitions):
 
             if start > max_step:
@@ -67,8 +71,21 @@ def plot_transitions(axes, transitions, max_step=np.inf, limit=False, alpha=0.2,
 
             ax.axvspan(start, min(end, max_step), alpha=alpha, label=label, color=color)
 
-        if limit:
-            ax.set_xlim(min_step, max_step)
+        # Restrict x-axis
+        if xlim:
+            if isinstance(xlim, tuple):
+                ax.set_xlim(*xlim)
+            else:
+                ax.set_xlim(min_step, max_step)
+
+        ymin, ymax = ax.get_ylim()
+
+        # Plot stage labels in the backgorund
+        if labels:
+            for i, (start, end, _) in enumerate(transitions):
+                start = max(start, ymin)
+                end = min(end, ymax)
+                ax.text(np.exp(np.log((start+1) * (end+1))/ 2), (ymin + ymax) / 2, f"$\mathbf{{{i + 1}}}$", fontsize=16, ha='center', va='center', color=colors[i], alpha=1, zorder=-1000)
 
     # Add transition legend
     patch_list = []
