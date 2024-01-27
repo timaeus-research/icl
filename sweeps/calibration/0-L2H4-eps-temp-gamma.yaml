@@ -1,0 +1,85 @@
+name: L2H4-eps-temp-gamma
+method: grid
+command: ["python", "icl/experiments/sweep_over_final.py", "wandb"]
+project: icl-llc
+entity: devinterp
+parameters:
+  sampler_config:
+    parameters: 
+      num_chains:
+        value: 5
+      num_draws:
+        value: 4000
+      sampling_method:
+        value: sgld
+      grad_batch_origin:
+        value: "eval-dataset"
+      grad_batch_size:
+        value: 1024
+      gradient_scale:
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03]
+      localization_scale:
+        values: [0.001, 0.01, 0.1, 1., 10., 100.]
+      noise_scale:
+        values: [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03]
+      # 
+      eval_method:
+        value: 'grad-minibatch'
+      eval_batch_size:
+        value: null
+      eval_dataset_size:
+        value: 1048576
+      eval_metrics:
+        value: ["likelihood-derived", "batch-loss", "weights"]
+      eval_online:
+        value: True
+      eval_loss_fn:
+        value: "mse"
+      init_seed:
+        value: 0
+
+  plotting_config:
+    parameters:
+      include_loss_trace: 
+        value: True
+      include_weights_pca: 
+        value: True
+
+  task_config: 
+    parameters:
+      task_size:
+        value: 4
+      max_examples:
+        value: 8
+      num_tasks:
+        value: 'inf'
+      noise_variance:
+        value: 0.125
+      embed_size:
+        value: 64
+      mlp_size:
+        value: 64
+      num_heads:
+        value: 4
+      num_layers:
+        value: 2
+      model_seed:
+        values: [0] # [0, 1, 2, 3, 4]
+      pretrain_seed:
+        value: null
+      true_seed:
+        value: null
+      sampling_seed:
+        value: null
+      layer_norm:
+        values: [true] # [true, false]
+      include_output: 
+        value: true
+
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.003
+
+  step:
+    values: [507, 1124, 3247, 9375, 27072, 59968, 121212, 499999]

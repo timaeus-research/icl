@@ -78,7 +78,6 @@ class WithinHeadCovarianceCallback:
             attn = next(get_weights(model, [path])).flatten() \
                 .view((self.embed_dim, self.num_heads, self.head_size * 3))
 
-            # print(attn.shape, self.first_moment.shape, self.second_moment.shape)
             for h in range(self.num_heads):
                 head = attn[:, h, :].flatten()
                 self.first_moment[l, h] += head

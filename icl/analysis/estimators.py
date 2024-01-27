@@ -14,14 +14,15 @@ import torch
 import typer
 import yaml
 from devinfra.evals import RepeatEvaluator
-from devinfra.utils.device import get_default_device
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from tqdm import tqdm
 
 import wandb
+from icl.analysis.health import ChainHealthException
 from icl.analysis.utils import get_sweep_configs
 from icl.config import ICLConfig, get_config
+from icl.constants import DEVICE
 from icl.train import Run
 
 app = typer.Typer()
@@ -43,6 +44,12 @@ class ExpectationEstimator:
         return matrix
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
+        if torch.any(torch.isnan(observation)):
+            self._first_moment[indices] = torch.nan
+            self._second_moment[indices] = torch.nan
+
+            raise ChainHealthException(f"NaNs encountered in chain {chain} at draw {draw}.")
+
         self._first_moment[indices] += self.flatten(observation)
         self._second_moment[indices] += self.flatten(observation) ** 2
 
@@ -61,7 +68,7 @@ class ExpectationEstimator:
         self._update(chain, draw, ..., observation)
         self.increment()
 
-    def increment(self):
+    def increment(self, chain=None):
         self.num_samples_seen += 1
     
     @property
@@ -96,6 +103,13 @@ class OnlineExpectationEstimatorWithTrace:
         self.second_moments = torch.zeros((num_chains, num_draws, observable_dim), dtype=torch.float32).to(device)
 
     def _update(self, chain: int, draw: int, indices: Union[slice, Any], observation: torch.Tensor):
+        if torch.any(torch.isnan(observation)):
+            for i in range(draw, self.num_draws):
+                self.first_moments[chain, i, indices] = torch.nan
+                self.second_moments[chain, i, indices] = torch.nan
+
+            raise ChainHealthException(f"NaNs encountered in chain {chain} at draw {draw}.")
+
         if draw == 0:
             self.first_moments[chain, draw, indices] = self.flatten(observation)
             self.second_moments[chain, draw, indices] = self.flatten(observation) ** 2
@@ -173,8 +187,8 @@ class OnlineExpectationEstimatorWithTrace:
                 _estimates.append({
                     "chain": chain,
                     "draw": draw,
-                    "mean": self.first_moments[chain, draw].detach().numpy(),
-                    "std": (torch.sqrt(self.second_moments[chain, draw] - self.first_moments[chain, draw] ** 2).detach()).numpy(),
+                    "mean": self.first_moments[chain, draw].detach().cpu().numpy(),
+                    "std": (torch.sqrt(self.second_moments[chain, draw] - self.first_moments[chain, draw] ** 2)).detach().cpu().numpy(),
                 })
         
         return pd.DataFrame(_estimates)

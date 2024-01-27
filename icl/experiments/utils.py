@@ -1,18 +1,10 @@
-import logging
-import os
 from pathlib import Path
 
 import devinfra
-import seaborn as sns
-import sentry_sdk
-from dotenv import load_dotenv
+import numpy as np
+import torch
 from tqdm import tqdm
 
-FIGURES=Path("figures")
-ANALYSIS = Path("analysis")
-
-
-DEVICE = devinfra.utils.device.get_default_device()
 K=3  # Num cov components
 
 
@@ -22,25 +14,44 @@ def iter_models(model, checkpointer, verbose=False):
         yield model
 
 
-def prepare_experiments():
-    load_dotenv()
-    sns.set_theme(style="whitegrid")
 
-    assert os.path.exists(FIGURES)
-    assert os.path.exists(ANALYSIS)
-
-    logging.basicConfig(level=logging.INFO)
-    # set_start_method('spawn')  # Required for sharing CUDA tensors
-    sentry_sdk.init(
-        dsn="https://92ea29f1e366cda4681fb10273e6c2a7@o4505805155074048.ingest.sentry.io/4505805162479616",
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        traces_sample_rate=1.0,
-        # Set profiles_sample_rate to 1.0 to profile 100%
-        # of sampled transactions.
-        # We recommend adjusting this value in production.
-        profiles_sample_rate=1.0,
-    )
+def process_tensor(a):
+    if len(a.shape) == 0 or a.shape == (1,):
+        return a.item()
+    return a.tolist()
 
 
+def flatten_and_process(dict_, delimiter='/', prefix=""):
+    flattened = {}
+    for key, value in dict_.items():
+        if isinstance(value, torch.Tensor):
+            value = process_tensor(value)
+        
+        if isinstance(value, dict):
+            flattened.update(
+                flatten_and_process(
+                    value,
+                    prefix=f"{prefix}{key}{delimiter}",
+                    delimiter=delimiter,
+                )
+            )
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                if isinstance(v, (dict, list)):
+                    flattened.update(
+                        flatten_and_process(
+                            {str(i): v},
+                            prefix=f"{prefix}{key}{delimiter}",
+                            delimiter=delimiter,
+                        )
+                    )
+                else:
+                    flattened[f"{prefix}{key}{delimiter}{i}"] = v
+
+            if isinstance(value[0], (int, float)):
+                flattened[f"{prefix}{key}{delimiter}mean"] = np.mean(value)
+                flattened[f"{prefix}{key}{delimiter}std"] = np.std(value)
+        else:
+            flattened[f"{prefix}{key}"] = value
+
+    return flattened

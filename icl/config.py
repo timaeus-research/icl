@@ -1,17 +1,18 @@
 import math
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Union
 
 from devinfra.evals import CriterionLiteral
 from devinfra.io import CheckpointerConfig, MetricLoggingConfig
 from devinfra.monitoring import expand_steps_config_
 from devinfra.optim import OptimizerConfig, SchedulerConfig
-from devinfra.utils.device import get_default_device
 from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
                                       nested_update)
 from devinfra.utils.seed import set_seed
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (BaseModel, Field, ValidationError, field_validator,
+                      model_validator)
 
 import wandb
+from icl.constants import DEVICE
 from icl.model import InContextRegressionTransformer
 from icl.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
                        RegressionSequenceDistribution)
@@ -22,17 +23,18 @@ class ICLTaskConfig(BaseModel):
 
     task_size: int = 8 # D, dimensions of linear regression task
     max_examples: int = 16 # K, in-context examples (thus max_context = 2*K)
-    num_tasks: int     # M, task-diversity of pre-train dist
+    num_tasks: Union[int, float, str]     # M, task-diversity of pre-train dist
     noise_variance: float = 0.25 # sigma^2 i.e. y = wx + N(0, sigma^2)
     embed_size: int = 128 # d_e = d_mid (in Phuong notation)
     mlp_size: int = 128 # two layer ReLU network with 128 nodes in hidden layer (layer sizes [d_e, mlp_size, d_e])
     num_heads: int = 2 # attention heads per layer 
     num_layers: int = 8 # each layer has one attention head and one MLP 
-    model_seed: int = 0 # random seed 
-    pretrain_seed: int = 1 
-    true_seed: int = 2
-    sampling_seed: int = 3
+    model_seed: Optional[int] = 0 # random seed 
+    pretrain_seed: Optional[int] = 1 
+    true_seed: Optional[int] = 2
+    sampling_seed: Optional[int] = 3
     layer_norm: bool = True
+    include_output: bool = False # whether to include the output in the context
 
     def model_factory(self):
         if self.model_seed is not None:
@@ -46,11 +48,20 @@ class ICLTaskConfig(BaseModel):
             num_heads=self.num_heads,
             num_layers=self.num_layers,
             layer_norm=self.layer_norm,
+            include_output=self.include_output,
         )
 
     def pretrain_dist_factory(self):
         if self.pretrain_seed is not None:
             set_seed(self.pretrain_seed)
+
+        if self.num_tasks == math.inf:
+            return RegressionSequenceDistribution(
+                task_distribution=GaussianTaskDistribution(
+                    task_size=self.task_size,
+                ),
+                noise_variance=self.noise_variance,
+            )
 
         return RegressionSequenceDistribution(
             task_distribution=DiscreteTaskDistribution(
@@ -68,6 +79,17 @@ class ICLTaskConfig(BaseModel):
             ),
             noise_variance=self.noise_variance,
         )
+
+    @field_validator('num_tasks')
+    @classmethod
+    def process_int_or_inf(cls, v: Union[Literal["inf"], int]) -> int:
+        if v == "inf":
+            return math.inf
+        if isinstance(v, str):
+            raise ValidationError(f"Invalid value for num_tasks: {v}")
+        if isinstance(v, float) and not v == math.inf:
+            raise ValidationError(f"Invalid value for num_tasks: {v}")
+        return v
 
 
 class ICLConfig(BaseModel):
@@ -87,7 +109,6 @@ class ICLConfig(BaseModel):
     scheduler_config: Optional[SchedulerConfig] = None
 
     # Misc
-    device: str = Field(default_factory=get_default_device)
     criterion: CriterionLiteral = "cross_entropy"
 
     eval_batch_size: int
@@ -170,8 +191,11 @@ class ICLConfig(BaseModel):
             # Watchh out with changing the task configs because it can break the hashing below. 
 
             # For compatibility with old configs
-            if task_config_dict.get('layer_norm', False):
+            if task_config_dict.get('layer_norm', False):  # Hides this from hash if True
                 del task_config_dict['layer_norm']
+
+            if "include_output" in task_config_dict and not task_config_dict['include_output']:  # Hides this from hash if False
+                del task_config_dict['include_output']
 
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
@@ -192,6 +216,7 @@ class ICLConfig(BaseModel):
             'L': self.task_config.num_layers, 
             'H': self.task_config.num_heads, 
             'M': self.task_config.num_tasks,
+            r'\mathrm{LN}': 'T' if self.task_config.layer_norm else 'F',
         }, {
             'K': self.task_config.max_examples,
             'D': self.task_config.task_size,

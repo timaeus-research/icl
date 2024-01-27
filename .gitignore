@@ -173,3 +173,6 @@ analysis/**
 figures/**
 
 **/nohup.out
+
+**/icl.log
+
