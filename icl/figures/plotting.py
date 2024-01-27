@@ -14,6 +14,7 @@ from icl.figures.colors import PRIMARY, SECONDARY
 
 sns.set_style("ticks")
 
+
 plt.rcParams["font.family"] = "Times"
 plt.rcParams['figure.dpi'] = 300
 plt.rc('xtick', labelsize=8)
@@ -81,6 +82,8 @@ def plot_explained_variance(pca, title="Explained Variance", ax: Optional[plt.Ax
     ax.set_ylabel('Explained Variance')
 
     ax.set_xticks(range(num_pca_components), range(1, num_pca_components + 1))
+    max_explained_variance = np.max(pca.explained_variance_ratio_[:num_pca_components])
+    ax.set_ylim(0, max_explained_variance * 1.2)
 
 
 def plot_weights_trace(model, deltas, xs, ys, device='cpu', num_components=3, num_points=10):

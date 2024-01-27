@@ -179,3 +179,5 @@ TODOS:
 - Env setup
 - TPU setup
 - Sweeps & wandb setup
+- Figures
+- Data 
