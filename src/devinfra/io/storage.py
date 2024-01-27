@@ -357,9 +357,12 @@ class CheckpointerConfig(BaseModel):
         return process_steps(v)
 
     def factory(self):
+        bucket_name = self.bucket_name or os.getenv("AWS_BUCKET_NAME")
+        local_root = self.local_root or os.getenv("LOCAL_ROOT")
+
         return create_storage_provider(
-            bucket_name=self.bucket_name,
-            local_root=self.local_root,
+            bucket_name=bucket_name,
+            local_root=local_root,
             root_dir=f"checkpoints/{self.project_dir}",
             device=self.device,
             id_to_key=int_id_to_key,

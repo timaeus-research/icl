@@ -10,6 +10,8 @@ from torch import nn
 
 from icl.constants import DEVICE
 
+AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+
 
 def translate_int_to_str(token_ints: List[int], model: nn.Module):
     t = torch.tensor([token_ints], device=DEVICE)
@@ -34,6 +36,6 @@ def save_to_bucket(filename: Union[str, Path], data: Union[Dict, np.ndarray]):
         pickle.dump(data, f)
 
     with open(f'/tmp/{filename}', 'rb') as f:
-        client.upload_fileobj(f, 'devinterp', f'other/language/{filename}')
+        client.upload_fileobj(f, AWS_BUCKET_NAME, f'other/language/{filename}')
 
     os.remove(f'/tmp/{filename}')

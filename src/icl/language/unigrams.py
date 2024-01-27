@@ -14,6 +14,8 @@ from icl.language.data import gen_samples
 from icl.language.utils import save_to_bucket, translate_int_to_str
 from icl.monitoring import stdlogger
 
+
+AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 app = typer.Typer()
 
 def display_unigrams(unigrams, model, k=1000):
@@ -55,7 +57,7 @@ def compute_unigram_freqs(model, file_path=LANGUAGE_FILEPATH, num_lines=5_000_00
 def get_unigrams(file_path=UNIGRAMS_FILEPATH):   
     if not os.path.exists(file_path): 
         client = boto3.client('s3')
-        client.download_file('devinterp', 'other/language/unigram_freq_percents.pkl', file_path)
+        client.download_file(AWS_BUCKET_NAME, 'other/language/unigram_freq_percents.pkl', file_path)
     
     with open(file_path, 'rb') as file:
         return pickle.load(file)
@@ -74,12 +76,7 @@ def main(
 
     print("Final probabilities")
     display_unigrams(unigrams, model, k=5000)
-    
-    # with open(UNIGRAMS_FILEPATH, 'wb') as file:
-    #     pickle.dump(unigrams, file)
-    
-    # save_to_bucket(UNIGRAMS_FILEPATH, unigrams)
-
+   
 
 if __name__ == "__main__":
     app()

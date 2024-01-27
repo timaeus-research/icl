@@ -21,6 +21,8 @@ from icl.regression.config import ICLConfig, get_config
 from icl.regression.train import Run
 from icl.utils import prepare_experiments
 
+WANDB_ENTITY = os.environ.get("WANDB_ENTITY")
+
 app = typer.Typer()
 
 if XLA:
@@ -88,7 +90,7 @@ def sweep_over_time(
 
 @contextmanager
 def wandb_context(config=None):
-    wandb.init(project="icl", entity="devinterp")
+    wandb.init(project="icl", entity=WANDB_ENTITY)
     config = config or dict(wandb.config)
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
     try:
