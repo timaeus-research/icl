@@ -13,17 +13,17 @@ import sentry_sdk
 import torch
 import typer
 import yaml
-from devinfra.evals import RepeatEvaluator
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from tqdm import tqdm
 
 import wandb
+from devinfra.evals import RepeatEvaluator
 from icl.analysis.health import ChainHealthException
 from icl.analysis.utils import get_sweep_configs
-from src.icl.regression.config import ICLConfig, get_config
 from icl.constants import DEVICE
-from src.icl.regression.train import Run
+from icl.regression.config import ICLConfig, get_config
+from icl.regression.train import Run
 
 app = typer.Typer()
 

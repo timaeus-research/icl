@@ -3,14 +3,15 @@ import math
 
 import numpy as np
 import torch
-from devinfra.evals import ModelEvaluator
-from devinfra.utils.seed import set_seed
 from torch import nn
 from torch.nn import functional as F
 
-from icl.analysis.baselines import dmmse_predictor, ridge_predictor
-from src.icl.regression.tasks import (DiscreteTaskDistribution, GaussianTaskDistribution,
-                       RegressionSequenceDistribution)
+from devinfra.evals import ModelEvaluator
+from devinfra.utils.seed import set_seed
+from icl.regression.baselines import dmmse_predictor, ridge_predictor
+from icl.regression.tasks import (DiscreteTaskDistribution,
+                                  GaussianTaskDistribution,
+                                  RegressionSequenceDistribution)
 
 
 def mse(y1, y2, axis=None):

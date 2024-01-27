@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 from devinfra.utils.iterables import dicts_to_latex
 from icl.analysis.cov import make_transformer_cov_accumulator
-from icl.analysis.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.analysis.health import ChainHealthException
 from icl.analysis.hessians import batch_hessian
 from icl.analysis.sgld import SGLD
@@ -25,7 +24,8 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
 from icl.analysis.weights import WeightsTrace
 from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
-from src.icl.regression.train import Run
+from icl.regression.evals import SequenceMSELoss, SubsequenceMSELoss
+from icl.regression.train import Run
 
 if XLA:
     import torch_xla.core.xla_model as xm

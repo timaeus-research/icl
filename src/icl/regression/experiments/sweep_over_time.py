@@ -7,18 +7,18 @@ from typing import List, Optional
 import torch
 import typer
 import yaml
-from devinfra.utils.iterables import flatten_dict, rm_none_vals
 
 import wandb
+from devinfra.utils.iterables import flatten_dict, rm_none_vals
 from icl.analysis.health import ChainHealthException
 from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
-from src.icl.regression.config import ICLConfig, get_config
 from icl.constants import DEVICE, XLA
 from icl.experiments.utils import *
 from icl.experiments.utils import flatten_and_process
 from icl.monitoring import stdlogger
-from src.icl.regression.train import Run
+from icl.regression.config import ICLConfig, get_config
+from icl.regression.train import Run
 from icl.utils import prepare_experiments
 
 app = typer.Typer()
