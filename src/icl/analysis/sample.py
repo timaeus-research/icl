@@ -26,7 +26,7 @@ from icl.analysis.slt import (ExpectedBatchLossEstimator,
 from icl.analysis.weights import WeightsTrace
 from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
-from icl.train import Run
+from src.icl.regression.train import Run
 
 if XLA:
     import torch_xla.core.xla_model as xm
