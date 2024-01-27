@@ -170,3 +170,12 @@ Generate activation plots for each checkpoint in a run:
  CORES=1 PYTORCH_ENABLE_MPS_FALLBACK=1 python icl/experiments/activations_analysis.py activations --sweep rlct-sweeps/L2H4-activations.yaml --num-tasks 1 
 ```
 
+
+
+---
+
+TODOS: 
+
+- Env setup
+- TPU setup
+- Sweeps & wandb setup
