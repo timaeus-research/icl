@@ -1,9 +1,10 @@
 from pathlib import Path
 
-import devinfra
 import numpy as np
 import torch
 from tqdm import tqdm
+
+import infra
 
 K=3  # Num cov components
 

@@ -5,18 +5,18 @@ from pydantic import (BaseModel, Field, ValidationError, field_validator,
                       model_validator)
 
 import wandb
-from devinfra.evals import CriterionLiteral
-from devinfra.io import CheckpointerConfig, MetricLoggingConfig
-from devinfra.monitoring import expand_steps_config_
-from devinfra.optim import OptimizerConfig, SchedulerConfig
-from devinfra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
-                                      nested_update)
-from devinfra.utils.seed import set_seed
 from icl.constants import DEVICE
 from icl.regression.model import InContextRegressionTransformer
 from icl.regression.tasks import (DiscreteTaskDistribution,
                                   GaussianTaskDistribution,
                                   RegressionSequenceDistribution)
+from infra.evals import CriterionLiteral
+from infra.io import CheckpointerConfig, MetricLoggingConfig
+from infra.monitoring import expand_steps_config_
+from infra.optim import OptimizerConfig, SchedulerConfig
+from infra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
+                                   nested_update)
+from infra.utils.seed import set_seed
 
 
 class ICLTaskConfig(BaseModel):

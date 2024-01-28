@@ -17,10 +17,11 @@ import torch
 import torch_xla
 import tqdm
 import typer
-from devinfra.io.storage import (  # Import the base class and IDType
+from dotenv import load_dotenv
+
+from infra.io.storage import (  # Import the base class and IDType
     BaseStorageProvider, IDType, S3StorageProvider, create_storage_provider,
     int_id_to_key, key_to_int_id)
-from dotenv import load_dotenv
 
 load_dotenv()
 app = typer.Typer()

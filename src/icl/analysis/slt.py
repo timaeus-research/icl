@@ -9,7 +9,7 @@ from torch import nn
 
 from icl.analysis.estimators import get_estimator
 from icl.analysis.health import ChainHealthException
-from icl.experiments.utils import flatten_and_process
+from icl.regression.experiments.utils import flatten_and_process
 
 app = typer.Typer()
 

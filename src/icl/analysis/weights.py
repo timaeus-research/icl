@@ -1,6 +1,7 @@
 import torch
-from devinfra.utils.tensors import ReturnTensor, convert_tensor
 from torch import nn
+
+from infra.utils.tensors import ReturnTensor, convert_tensor
 
 
 class WeightsTrace:

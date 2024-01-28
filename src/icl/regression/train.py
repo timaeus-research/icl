@@ -9,17 +9,15 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
 
-from devinfra.utils.seed import set_seed
 from icl.constants import DEVICE, XLA
 from icl.regression.evals import ICLEvaluator
 from icl.utils import prepare_experiments
+from infra.utils.seed import set_seed
 
 load_dotenv()
+import logging
 # in case using mps:
 import os
-
-
-import logging
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
 import numpy as np
@@ -28,9 +26,6 @@ import torch.nn.functional as F
 import tqdm
 
 import wandb
-from devinfra.io.logging import MetricLogger
-from devinfra.io.storage import BaseStorageProvider
-from devinfra.optim.schedulers import LRScheduler
 from icl.monitoring import stdlogger
 from icl.regression.config import ICLConfig, get_config
 from icl.regression.model import InContextRegressionTransformer
@@ -38,6 +33,9 @@ from icl.regression.tasks import (DiscreteTaskDistribution,
                                   GaussianTaskDistribution,
                                   RegressionSequenceDistribution)
 from icl.utils import get_device, move_to_device
+from infra.io.logging import MetricLogger
+from infra.io.storage import BaseStorageProvider
+from infra.optim.schedulers import LRScheduler
 
 WANDB_ENTITY = os.getenv("WANDB_ENTITY")
 
