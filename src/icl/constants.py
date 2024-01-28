@@ -11,7 +11,7 @@ FIGURES = PROJECT_DIR / "figures"
 SWEEPS = PROJECT_DIR / "sweeps"
 DATA = PROJECT_DIR / "data"
 CHECKPOINTS = DATA / "checkpoints"
-ANALYSIS = DATA / "analysis"
+ANALYSIS = PROJECT_DIR / "analysis"
 
 # Language
 

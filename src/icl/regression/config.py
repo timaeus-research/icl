@@ -1,8 +1,8 @@
 import math
 from typing import Any, Literal, Optional, Union
 
-from pydantic import (BaseModel, Field, ValidationError, field_validator,
-                      model_validator)
+from pydantic import (BaseModel, ConfigDict, Field, ValidationError,
+                      field_validator, model_validator)
 
 import wandb
 from icl.constants import DEVICE
@@ -36,6 +36,8 @@ class ICLTaskConfig(BaseModel):
     sampling_seed: Optional[int] = 3
     layer_norm: bool = True
     include_output: bool = False # whether to include the output in the context
+    model_config = ConfigDict(protected_namespaces=()) # here is the change
+
 
     def model_factory(self):
         if self.model_seed is not None:
