@@ -11,6 +11,7 @@ FIGURES = PROJECT_DIR / "figures"
 SWEEPS = PROJECT_DIR / "sweeps"
 DATA = PROJECT_DIR / "data"
 CHECKPOINTS = DATA / "checkpoints"
+ANALYSIS = DATA / "analysis"
 
 # Language
 
@@ -22,7 +23,7 @@ TRIGRAMS_FILEPATH = LANGUAGE_DATA / "trigram_freq_percents.pkl"
 
 # Create directories if they don't exist
 
-for d in [FIGURES, SWEEPS, DATA, LANGUAGE_DATA, CHECKPOINTS]:
+for d in [FIGURES, SWEEPS, DATA, LANGUAGE_DATA, CHECKPOINTS, ANALYSIS]:
     if not os.path.exists(d):
         os.makedirs(d)
 
