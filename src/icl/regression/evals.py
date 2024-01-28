@@ -6,12 +6,12 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from devinfra.evals import ModelEvaluator
-from devinfra.utils.seed import set_seed
 from icl.regression.baselines import dmmse_predictor, ridge_predictor
 from icl.regression.tasks import (DiscreteTaskDistribution,
                                   GaussianTaskDistribution,
                                   RegressionSequenceDistribution)
+from infra.evals import ModelEvaluator
+from infra.utils.seed import set_seed
 
 
 def mse(y1, y2, axis=None):

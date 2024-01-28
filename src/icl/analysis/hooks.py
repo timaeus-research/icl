@@ -146,11 +146,11 @@ class Hooked(nn.Module):
         Returns:
             tuple: Output of forward pass and the cache.
         """
-       ._output = self.forward(*args, **kwargs)
+        self._output = self.forward(*args, **kwargs)
         cache = self.collect_cache()
         del cache[""]
 
-        return._output, cache
+        return self._output, cache
 
     def __getattr__(self, name):
         try:
@@ -238,5 +238,5 @@ class HookedSequential(nn.Sequential):
         Returns:
             tuple: Output of forward pass and the cache.
         """
-       ._output = self.forward(*args, **kwargs)
-        return._output, self.collect_cache()
+        self._output = self.forward(*args, **kwargs)
+        return self._output, self.collect_cache()

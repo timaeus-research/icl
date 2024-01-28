@@ -170,9 +170,9 @@ cython_debug/
 
 **/.vscode/**
 analysis/**
-figures/**
 
 **/nohup.out
 
 **/icl.log
 
+**/archive/**

@@ -2,7 +2,8 @@ import math
 from typing import Generic, TypeVar
 
 import torch
-from devinfra.utils.device import DeviceOrDeviceLiteral
+
+from infra.utils.device import DeviceOrDeviceLiteral
 
 T = TypeVar('T', 'GaussianTaskDistribution', 'DiscreteTaskDistribution', 'SingletonTaskDistribution')
 

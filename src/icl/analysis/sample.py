@@ -13,7 +13,6 @@ from torch.multiprocessing import cpu_count, get_context
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from devinfra.utils.iterables import dicts_to_latex
 from icl.analysis.cov import make_transformer_cov_accumulator
 from icl.analysis.health import ChainHealthException
 from icl.analysis.hessians import batch_hessian
@@ -26,6 +25,7 @@ from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
 from icl.regression.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.regression.train import Run
+from infra.utils.iterables import dicts_to_latex
 
 if XLA:
     import torch_xla.core.xla_model as xm

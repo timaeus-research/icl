@@ -18,12 +18,12 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 import wandb
-from devinfra.evals import RepeatEvaluator
 from icl.analysis.health import ChainHealthException
 from icl.analysis.utils import get_sweep_configs
 from icl.constants import DEVICE
 from icl.regression.config import ICLConfig, get_config
 from icl.regression.train import Run
+from infra.evals import RepeatEvaluator
 
 app = typer.Typer()
 
