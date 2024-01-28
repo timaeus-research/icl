@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import warnings
 from typing import (Any, Callable, Generator, Iterable, List, Tuple, TypeVar,
                     Union)
@@ -8,6 +9,7 @@ import numpy as np
 
 T = TypeVar("T")
 
+logger = logging.getLogger(__name__)
 
 def to_tuple(x: Union[Tuple[int, ...], int]) -> Tuple[int, ...]:
     """
@@ -26,7 +28,7 @@ def int_logspace(start, stop, num, return_type="list"):
     result = set(int(i) for i in np.logspace(np.log10(start), np.log10(stop), num))
 
     if len(result) != num:
-        warnings.warn(
+        logger.debug(
             f"Number of steps in int_logspace is not {num}, got {len(result)}."
         )
 
@@ -52,7 +54,7 @@ def int_linspace(start, stop, num, return_type="list"):
     result = set(int(i) for i in np.linspace(start, stop, num))
 
     if len(result) != num:
-        warnings.warn(
+        logger.debug(
             f"Number of steps in int_linspace is not {num}, got {len(result)}."
         )
 
