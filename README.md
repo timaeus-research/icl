@@ -1,6 +1,6 @@
 # The Developmental Landscape of In-Context Leanring
 
-> [Abstract]
+> We show that in-context learning emerges in transformers in discrete developmental stages. These stages are associated with changes in the local geometry of the loss landscape, the nature and magnitude of which are revealed by essential dynamics and the local learning coefficient of singular learning theory.
 
 *Preliminary work. Under review by the International Conference
 on Machine Learning (ICML). Do not distribute.*
