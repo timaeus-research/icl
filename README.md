@@ -19,7 +19,8 @@ All the data needed to reproduce the analysis and regenerate the figures depicte
 
 To generate figures with the provided data, open the notebooks in [`notebooks/`](notebooks):
 
-- [`notebooks/main-figures.ipynb`](notebooks/main-figures.ipynb) generates the main figures in the paper. 
+- [`notebooks/main-figures-LR.ipynb`](notebooks/main-figures-LR.ipynb) generates the main regression task figures in the paper. 
+- [`notebooks/main-figures-LM.ipynb`](notebooks/main-figures-LM.ipynb) generates the main language task figures in the paper. 
 - [`notebooks/essential-dynamics.ipynb`](notebooks/essential-dynamics.ipynb) generates the essential dynamics analysis (over a larger set of checkpoints) 
 - [`notebooks/task-prior.ipynb`](notebooks/task-prior.ipynb) generates figures for a set of models trained on different task distributions that consist of a finite number of tasks. This is for figure 20, which contrasts the task prior to the "0 prediction."
 - [`notebooks/llcs.ipynb`](notebooks/llcs.ipynb) generates figures related to LLC calibration (as discussed in Appendix E.3). 
@@ -67,7 +68,7 @@ This will generate a sweep and print the associated ID. Run the sweep with the f
 wandb agent <sweep_id>
 ```
 
-### Running LLC estimation
+### Running LLC estimation (LR)
 
 To run LLC estimation, first configure a run in the [`/sweeps/analysis`](sweeps/analysis/) or [ `sweeps/calibration`](sweeps/calibration/) directory. The configuration for the runs featured in the paper are available in [`/sweeps/llc/0-L2H4-llcs-over-time.yaml`](sweeps/llc/0-L2H4-llcs-over-time.yaml).
 
@@ -83,6 +84,11 @@ This will generate a sweep and print the associated ID. Run the sweep with the f
 ```
 wandb agent <sweep_id>
 ```
+
+### Running LLC estimation (LM)
+
+To run LLC estimation, see [`notebooks/language_experiments/llc.ipynb`](notebooks/language_experiments/llc.ipynb).
+
 
 ### Support for TPU training
 
