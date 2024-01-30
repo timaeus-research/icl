@@ -50,13 +50,15 @@ class ICLEvaluator(ModelEvaluator):
         self.num_tasks = pretrain_dist.task_distribution.num_tasks
     
         # fixed evaluation batches (computed once at start of training run)
-        self.pretrain_xs, self.pretrain_ys = pretrain_dist.get_batch(
+        self.pretrain_xs, self.pretrain_ys, self.pretrain_ws = pretrain_dist.get_batch(
             num_examples=max_examples,
             batch_size=eval_batch_size,
+            return_ws=True,
         )
-        self.true_xs, self.true_ys = true_dist.get_batch(
+        self.true_xs, self.true_ys, self.true_ws = true_dist.get_batch(
             num_examples=max_examples,
             batch_size=eval_batch_size,
+            return_ws=True,
         )
 
         # configure baseline predictors

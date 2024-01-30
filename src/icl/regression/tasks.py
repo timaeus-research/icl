@@ -51,7 +51,7 @@ class RegressionSequenceDistribution(Generic[T]):
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
 
-    def get_batch(self, num_examples: int, batch_size: int):
+    def get_batch(self, num_examples: int, batch_size: int, return_ws: bool = False):
         """
         Generate a batch of synthetic data (token sequences) for in-context
         regression.
@@ -92,6 +92,10 @@ class RegressionSequenceDistribution(Generic[T]):
         )
 
         ys = apply_transformations(ws, xs, self.std, device)
+
+        if return_ws:
+            return xs, ys, ws
+
         return xs, ys
         
 
