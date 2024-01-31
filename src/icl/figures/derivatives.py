@@ -15,6 +15,9 @@ def d_dt(steps, values):
         
         slope[i] = (dy1 / dx1 + dy0 / dx0) / 2
 
+    slope[0] = slope[1]
+    slope[-1] = slope[-2]
+
     return slope
 
 def d_dlogt(steps, values):
@@ -30,6 +33,9 @@ def d_dlogt(steps, values):
         dy0 = values[i] - values[i-1]
         
         slope[i] = (dy1 / dx1 + dy0 / dx0) / 2
+
+    slope[0] = slope[1]
+    slope[-1] = slope[-2]
 
     return slope
 
@@ -47,5 +53,8 @@ def dlog_dlogt(steps, values):
         dy0 = log_values[i] - log_values[i-1]
         
         slope[i] = (dy1 / dx1 + dy0 / dx0) / 2
+
+    slope[0] = slope[1]
+    slope[-1] = slope[-2]
 
     return slope
