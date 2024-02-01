@@ -35,7 +35,7 @@ def gen_samples(model, file_path=LANGUAGE_FILEPATH, num_lines=5_000_000, start=0
     print(f"Loading {file_path}...")
     if not os.path.exists(file_path):
         stdlogger.info("Downloading dataset to %s...", file_path)
-        download_dataset(file_path, 'georgeyw/dsir-pile-5m')
+        download_dataset(file_path, 'oknMswoztTPaAVreBrWy/dsir-pile-5m')
         stdlogger.info("...done")
     
     for row in gen_from_jsonl(file_path, num_lines, start, verbose):
