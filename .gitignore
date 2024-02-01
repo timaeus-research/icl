@@ -175,3 +175,5 @@ cython_debug/
 **/icl.log
 
 **/archive/**
+
+.vscode/**
