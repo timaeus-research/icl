@@ -1,122 +1,44 @@
-Singular Learning Theory for In-Context Learning
-================================================
+# The Developmental Landscape of In-Context Leanring
 
-Understand the emergence/development of in-context learning in transformers
-trained on in-context linear regression tasks.
+> We show that in-context learning emerges in transformers in discrete developmental stages. These stages are associated with changes in the local geometry of the loss landscape, the nature and magnitude of which are revealed by essential dynamics and the local learning coefficient of singular learning theory.
 
-The main focus is on the phase transitions ehibited in the
-[**task diversity paper**](https://arxiv.org/abs/2306.15063).
+*Preliminary work. Under review by the International Conference
+on Machine Learning (ICML). Do not distribute.*
 
-Project admin
--------------
+## Basic setup
 
-For discussion and managing the project:
-
-* Project discussion and meetings take place on the DevInterp Discord server.
-  (some prior discussion in the group chat).
-* A GitHub project tracks TODO items
-  ([here](https://github.com/orgs/timaeus-research/projects/2/views/3))
-* There are two google docs associated to the project:
-  * Jesse is maintaining meeting notes
-    ([here](https://docs.google.com/document/d/1yQmCNlIql18TYX--9CAgmI1kxcnVe1kpymadifK6wy4/edit))
-  * Dan's original note appears to have been abandoned:
-    ([here](https://docs.google.com/document/d/1S4kBVFhlQBVRrdMrhRZz_4BS5N2_ef9HA051rKM7nCE/edit))
-
-For code and experiments:
-
-* This GitHub repository stores the experiment code, issues, etc.
-  (you are here)
-* W&B is used to track metrics from training runs
-  ([here](https://wandb.ai/devinterp/icl))
-* AWS is used to store snapshots:
-  (unsure where to link...)
-
-For writing up:
-
-* Regrettably we are using overleaf to draft a preprint
-  ([here](https://www.overleaf.com/project/64ee6fc2297aa3dfc799310a))
-
-Tentative target venues:
-
-* AISTATS 2024 ([here](http://aistats.org/aistats2024/)).
-  Key dates (subject to change? there is no cfp yet?):
-  * Abstract deadline:               6 October 2023 (Anywhere on Earth)
-  * Paper submission deadline:      13 October 2023 (Anywhere on Earth)
-  * Paper decision notifications:   19 January 2024
-  * Conference dates:                2 May - 4 May 2024 (Valencia 💪)
-* Present preliminary results at DevInterp confernece in November
-  (no proceedings?)
-
-
-Set-up environment for running experiments
-------------------------------------------
-
-Clone this repository locally:
+Clone this repo and install standard dependencies, 
 
 ```
-git clone git@github.com:timaeus-research/icl.git
+pip install -e . 
 ```
 
-Install standard dependencies (`torch`, `tqdm`, wrappers for AWS and W&B,
-etc.):
+## Reproducing analysis
 
-```
-# inside icl repository
-pip install --editable .
-```
+All the data needed to reproduce the analysis and regenerate the figures depicted in the paper is available in [`data/`](data). Figures are avaiable in [`figures/`](figures), including figures for other experiments and seeds not included in the paper.
 
-The `devinterp` library is another dependency, but it's not yet available
-through pip.
-For now, install this library from source using `pip install --editable`
-(where `--editable` means any changes to the library will not require
-reinstallation):
+To generate figures with the provided data, open the notebooks in [`notebooks/`](notebooks):
 
-* IF you already have the repository on your machine, run:
-  ```
-  pip install --editable /path/to/devinterp_repository
-  ```
+- [`notebooks/main-figures.ipynb`](notebooks/main-figures.ipynb) generates the main figures in the paper. 
+- [`notebooks/essential-dynamics.ipynb`](notebooks/essential-dynamics.ipynb) generates the essential dynamics analysis (over a larger set of checkpoints) 
+- [`notebooks/task-prior.ipynb`](notebooks/task-prior.ipynb) generates figures for a set of models trained on different task distributions that consist of a finite number of tasks. This is for figure 20, which contrasts the task prior to the "0 prediction."
+- [`notebooks/llcs.ipynb`](notebooks/llcs.ipynb) generates figures related to LLC calibration (as discussed in Appendix E.3). 
 
-* IF you do not already have the repository, step outside the icl repository
-  and run:
-  ```
-  # OUTSIDE icl repository
-  git clone git@github.com:timaeus-research/devinterp.git
-  pip install --editable devinterp
-  ```
-  Cloning devinterp *inside* the icl repository is not ideal as (1) you will
-  have to deal with nested git repositories and (2) you will have to deal
-  with the name conflict between the repository/folder named `devinterp` and
-  the pip-installed library `devinterp`.
+## Reproducing experiments
 
-* IF you already have cloned the devinterp library and installed with
-  `pip install --editable`, but now you want to update to the latest source,
-  go into the devinterp repository on your machine and run:
-  ```
-  git pull
-  ```
-  The changes to the source should be reflected next time you
-  `import devinterp`.
+### Checkpointing
 
-To run code that reads or writes snapshots to AWS you will need your AWS API
-keys in a local environment variable. Follow these steps:
+#### Local storage
 
-1. Log in to your AWS account and go to the
-   [security credentials page](https://us-east-1.console.aws.amazon.com/iamv2/home#/security_credentials).
-2. Copy your AWS secret access key and AWS access key ID.
-3. Store them in a .env file in the project like so
-   ```
-   AWS_SECRET_ACCESS_KEY=...
-   AWS_ACCESS_KEY_ID=...
-   ```
-   (TODO: figure out format and filename)
-4. DO NOT check this file into git
-   (TODO: .gitignore it)
+To save checkpoints locally, set the `LOCAL_ROOT` environment variable to a local directory (see `.env-template`). 
 
-Sorry the instructions aren't clearer---I'm still stuck at step 1 because of
-some issue with my AWS account.
+#### Using AWS 
 
-To run experiments with W&B logging you will need your associated API key
-stored in your `.netrc`. Follow these steps:
+If you choose to use AWS, set the `AWS_BUCKET_NAME` variable (see `.env-template`). This assumes that you have an AWS account and that you have set up a bucket. Make sure to also set the `AWS_SECRET_ACCESS_KEY` and `AWS_ACCESS_KEY_ID` variables. 
+
+### Monitoring with W&B
+
+To run experiments with W&B logging you will need your associated API key stored in your `.netrc`. Follow these steps:
 
 1. Log in to your wandb account through the browser and copy your API
    key from [https://wandb.ai/authorize](https://wandb.ai/authorize).
@@ -127,46 +49,58 @@ stored in your `.netrc`. Follow these steps:
 4. This will create a file in your home directory called `.netrc`.
    Keep that file safe.
 
-Configuring and running experiments
------------------------------------
+Set the `WANDB_ENTITY` env variable in `.env`.
 
-Configure and run a single experiment locally:
+### Configuring and deploying training runs
 
-* TODO.
+To run a training run, first configure a run in the [`/sweeps/training-runs`](sweeps/training-runs/) directory. The configuration for the runs featured in the paper are available in [`/sweeps/training-runs/L2H4Minf.yaml`](sweeps/training-runs/L2H4Minf.yaml).
 
-Configure and run a single experiment on Spartan:
+To run a training run, prepare a wandb sweep with the following command: 
 
-* TODO.
+```
+wandb sweep sweeps/training-runs/<config_name>.yaml
+```
 
-Configure and run a sweep:
+This will generate a sweep and print the associated ID. Run the sweep with the following command:
 
-* TODO: Sweeps are defined using YAML etc.
+```
+wandb agent <sweep_id>
+```
+
+### Running LLC estimation
+
+To run LLC estimation, first configure a run in the [`/sweeps/analysis`](sweeps/analysis/) or [ `sweeps/calibration`](sweeps/calibration/) directory. The configuration for the runs featured in the paper are available in [`/sweeps/llc/0-L2H4-llcs-over-time.yaml`](sweeps/llc/0-L2H4-llcs-over-time.yaml).
 
 
-Developer notes
----------------
+To run a training run, prepare a wandb sweep with the following command: 
+
+```
+wandb sweep sweeps/analysis/<config_name>.yaml
+```
+
+This will generate a sweep and print the associated ID. Run the sweep with the following command:
+
+```
+wandb agent <sweep_id>
+```
+
+### Support for TPU training
+
+Training on TPUs is supported out of the box. To disable TPU training, run agent with the DEVICE environment variable set to `cpu`:
+
+```
+DEVICE=cpu wandb agent <sweep_id>
+```
+
+LLC estimation is not yet supported on TPUs. Make sure to disable TPU device using the above command when running LLC estimation.
+
+
+### Testing
 
 Some of the model and baselines implementations have unit tests:
 
-* Install additional testing dependencies `pip install pytest torch_testing`.
-* Add tests in the `tests` directory (name the script `test_*.py`).
-* Run the tests with the command `pytest`.
+- Install additional testing dependencies `pip install pytest torch_testing`.
+- Add tests in the `tests` directory (name the script `test_*.py`).
+- Run the tests with the command `pytest`.
 
-
-Work in this repository initially started in the devinterp repo. There may be
-some atefacts such as commit messages referencing unrelated files and
-projects.
-Furthermore, for posterity, there is some discussion around metrics in
-[this PR](https://github.com/timaeus-research/devinterp/pull/2).
-
-
-Analysis
---------
-
-
-Generate activation plots for each checkpoint in a run:
-
-```
- CORES=1 PYTORCH_ENABLE_MPS_FALLBACK=1 python icl/experiments/activations_analysis.py activations --sweep rlct-sweeps/L2H4-activations.yaml --num-tasks 1 
-```
 

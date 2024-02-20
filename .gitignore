@@ -169,10 +169,11 @@ cython_debug/
 **/tmp/**
 
 **/.vscode/**
-analysis/**
-figures/**
 
 **/nohup.out
 
 **/icl.log
 
+**/archive/**
+
+.vscode/**
