@@ -2,7 +2,6 @@ name: icl-config-sweep
 method: grid
 program: icl
 command: ["python", "icl/train.py"]
-entity: devinterp
 parameters:
   task_config: 
     parameters:

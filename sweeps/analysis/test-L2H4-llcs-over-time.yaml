@@ -2,7 +2,6 @@ name: L2H4-llcs-over-time
 method: grid
 command: ["python", "icl/experiments/sweep_over_time.py", "wandb"]
 project: icl
-entity: devinterp
 parameters:
   sampler_config:
     parameters: 

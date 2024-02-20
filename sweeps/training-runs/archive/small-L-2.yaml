@@ -2,7 +2,6 @@ name: small-model-sweep-2
 method: grid
 command: ["python", "icl/train.py"]
 project: icl
-entity: devinterp
 parameters:
   task_config: 
     parameters:

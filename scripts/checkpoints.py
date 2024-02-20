@@ -1,7 +1,7 @@
 """
 Just use the default aws s3 command line tool to move/copy files over.
 
-E.g.: `aws s3 cp s3://devinterp/checkpoints/icl/ s3://devinterp/backups/icl/ --recursive`
+E.g.: `aws s3 cp s3://{AWS_BUCKET_NAME}/checkpoints/icl/ s3://{AWS_BUCKET_NAME}/backups/icl/ --recursive`
 
 """
 import io
@@ -17,10 +17,11 @@ import torch
 import torch_xla
 import tqdm
 import typer
-from devinfra.io.storage import (  # Import the base class and IDType
+from dotenv import load_dotenv
+
+from infra.io.storage import (  # Import the base class and IDType
     BaseStorageProvider, IDType, S3StorageProvider, create_storage_provider,
     int_id_to_key, key_to_int_id)
-from dotenv import load_dotenv
 
 load_dotenv()
 app = typer.Typer()
