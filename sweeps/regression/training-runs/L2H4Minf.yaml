@@ -1,6 +1,6 @@
-name: L2H4Minf-5
+name: L2H4Minf
 method: grid
-command: ["python", "icl/train.py"]
+command: ["python", "icl/regression/train.py"]
 project: icl
 parameters:
   task_config: 
@@ -22,7 +22,7 @@ parameters:
       num_layers:
         value: 2 
       model_seed:
-        value: 5
+        values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
       pretrain_seed:
         value: null
       true_seed:
@@ -30,7 +30,7 @@ parameters:
       sampling_seed:
         value: null
       layer_norm:
-        values: [true]
+        value: true
       include_output: 
         value: true
   checkpointer_config:
@@ -38,9 +38,9 @@ parameters:
       checkpoint_steps:
         parameters:
           log_space: 
-            value: 0
+            value: 100
           linear_space: 
-            value: 50_000
+            value: 10_000
   optimizer_config:
     parameters:
       lr:

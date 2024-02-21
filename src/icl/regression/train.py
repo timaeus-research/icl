@@ -47,13 +47,15 @@ class StateDict(TypedDict):
     model: Dict
     optimizer: Dict
     scheduler: Dict
+    rng_state: List
 
 
-def state_dict(model, optimizer, scheduler) -> StateDict:
+def state_dict(model, optimizer, scheduler, rng_state: torch.Tensor) -> StateDict:
     return {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
         "scheduler": {k: v for k,v in scheduler.state_dict().items() if not callable(v)},  # Required because of the custom scheduler
+        "rng_state": rng_state.tolist(),  # Required because of the custom scheduler
     }
 
 
@@ -136,6 +138,9 @@ class Run:
             self.model.load_state_dict(last_checkpoint["model"])
             self.optimizer.load_state_dict(last_checkpoint["optimizer"])
 
+            if "rng_state" in last_checkpoint:
+                torch.set_rng_state(torch.tensor(last_checkpoint["rng_state"]))
+
             if self.scheduler is not None:
                 self.scheduler.load_state_dict(last_checkpoint["scheduler"])
 
@@ -200,7 +205,7 @@ def train(config: ICLConfig) -> InContextRegressionTransformer:
             stdlogger.info("Saving checkpoint at step %s", step)
             if XLA: xm.mark_step()
 
-            checkpoint = move_to_device(state_dict(model, optimizer, scheduler), 'cpu')
+            checkpoint = move_to_device(state_dict(model, optimizer, scheduler, torch.get_rng_state()), 'cpu')
             assert str(get_device(checkpoint)) == 'cpu', "Checkpoint should be on CPU"
             checkpointer.save_file(step, checkpoint)
 
