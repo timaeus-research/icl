@@ -156,10 +156,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
     model.train()
     model.to(device)
 
-    for epoch in tqdm.trange(num_epochs):
-        stdlogger.info(f"Epoch {epoch+1}/{num_epochs}")
+    for epoch in tqdm.trange(num_epochs, desc="Epochs"):
         rng_state = torch.get_rng_state()
-        for b, batch in enumerate(run.trainloader):
+        for b, batch in enumerate(tqdm.tqdm(run.trainloader, desc="Training...")):
             if XLA: xm.mark_step()
 
             tokens = batch['tokens'].to(device)
@@ -175,7 +174,7 @@ def train(config: LanguageConfig) -> HookedTransformer:
 
             if XLA: xm.mark_step()
 
-            if step % 100 == 0 and step > 0 and config.is_wandb_enabled:
+            if (step % 100 == 0 or step < 100 or (step % 10 == 0 and step < 1000)) and config.is_wandb_enabled:
                 wandb.log({"batch/loss": loss.mean().item()}, step=step)
 
             if step in config.checkpointer_config.checkpoint_steps:

@@ -6,7 +6,7 @@ parameters:
   run_name: 
     value: "tetrahedron-3m-{seed_greek}"
   num_steps: 
-    value: 60_000
+    value: 50_000
   model_config: 
     parameters:
       num_layers:
@@ -20,6 +20,6 @@ parameters:
           log_space: 
             value: 100
           linear_space: 
-            value: 2_400
+            value: 2_000
   dataset: 
     value: "timaeus/dsir-pile-10m"

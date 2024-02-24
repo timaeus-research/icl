@@ -47,7 +47,7 @@ def get_model_cfg(
 class LanguageConfig(BaseModel):
     run_name: str 
     num_training_samples: int = None
-    num_steps: int = 60_000
+    num_steps: int = 50_000
     batch_size: int = 100
     transformer_config: HookedTransformerConfig = Field(default_factory=get_model_cfg)
     optimizer_config: OptimizerConfig = Field(default_factory=lambda: OptimizerConfig(
@@ -165,9 +165,9 @@ class LanguageConfig(BaseModel):
             "batch_size": self.batch_size,
             "transformer_config": {k: v for k, v in asdict(self.transformer_config).items() if k in ["n_layers", "n_heads", "n_ctx", "d_vocab", "d_model", "seed"]},
             "optimizer_config": self.optimizer_config.model_dump(),
-            "logger_config": self.logger_config.model_dump() if self.logger_config is not None else None,
-            "checkpointer_config": self.checkpointer_config.model_dump() if self.checkpointer_config is not None else None,
-            "scheduler_config": self.scheduler_config.model_dump() if self.scheduler_config is not None else None,
+            # "logger_config": self.logger_config.model_dump() if self.logger_config is not None else None,
+            # "checkpointer_config": self.checkpointer_config.model_dump() if self.checkpointer_config is not None else None,
+            # "scheduler_config": self.scheduler_config.model_dump() if self.scheduler_config is not None else None,
         }
 
 def get_config(
@@ -176,21 +176,21 @@ def get_config(
     config_dict = {
         # evaluation config
         "run_name": "tetrahedron-3m-{seed_greek}",
-        "num_steps": 60_000,
+        "num_steps": 50_000,
         "batch_size": 100,
         "transformer_config": {
             "n_layers": 2,
             "seed": 0
         },
         "checkpointer_config": {
-            "checkpoint_steps": {"log_space": 100, "linear_space": 5_000},
+            "checkpoint_steps": {"log_space": 100, "linear_space": 2_000},
             "bucket_name": os.environ['AWS_LANGUAGE_BUCKET_NAME']
         },
         # for wandb?
         "logger_config": {
             "logging_steps": {
                 "log_space": 100,
-                "linear_space": 1_000,
+                "linear_space": 100,
             },
             "project": project,
             "entity": entity,
@@ -215,6 +215,12 @@ def get_config(
             )
 
         nested_update(config_dict, wandb.config)
-        wandb.config.update(config_dict)
         
-    return LanguageConfig(**config_dict)
+    config = LanguageConfig(**config_dict)
+
+    if config.is_wandb_enabled:
+        config_dict = config.model_dump()
+        wandb.config.update(config_dict)
+        wandb.run.name = config_dict["run_name"]
+
+    return config

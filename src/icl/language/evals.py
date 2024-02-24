@@ -32,13 +32,13 @@ class LanguageEvaluator(ModelEvaluator):
         Evaluate a model against stored batches, returning a dictionary of
         various metrics.
         """
-        loss = torch.zeros(1, device=model.device)
+        device = next(model.parameters()).device
+        loss = torch.zeros(1, device=device)
         for i, batch in enumerate(self.testloader):
             if XLA: xm.mark_step()  
-            x, y = batch
-            x, y = x.to(model.device), y.to(model.device)
-            y_pred = model(x)
-            loss += lm_cross_entropy_loss(y_pred, y)
+            tokens = batch['tokens'].to(device)
+            logits = model(tokens)
+            loss += lm_cross_entropy_loss(logits, tokens)
             if XLA: xm.mark_step()  
 
         loss /= len(self.testloader)
