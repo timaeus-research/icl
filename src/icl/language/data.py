@@ -4,6 +4,7 @@ import pickle
 
 import boto3
 import datasets
+import torch
 import tqdm
 from transformer_lens.utils import tokenize_and_concatenate
 
@@ -54,6 +55,7 @@ def get_loader(model, dataset, batch_size=100, num_workers=0, shuffle=True, pin_
         add_bos_token=True,
         num_proc=12
     )
+    print(f"Dataset has {len(tokens_dataset)} samples")
     dataloader = torch.utils.data.DataLoader(
         tokens_dataset,
         batch_size=batch_size,
