@@ -1,6 +1,6 @@
 name: L2H4Minf
 method: grid
-command: ["python", "icl/regression/train.py"]
+command: ["python", "src/icl/regression/train.py"]
 project: icl
 parameters:
   task_config: 
@@ -8,7 +8,7 @@ parameters:
       task_size:
         value: 4
       max_examples:
-        value: 8
+        value: 16
       num_tasks:
         value: 'inf'
       noise_variance:
