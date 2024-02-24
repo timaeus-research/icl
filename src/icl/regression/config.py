@@ -1,4 +1,5 @@
 import math
+import os
 from typing import Any, Literal, Optional, Union
 
 from pydantic import (BaseModel, ConfigDict, Field, ValidationError,
@@ -285,6 +286,7 @@ def get_config(
         "eval_batch_size": 2048,
         "checkpointer_config": {
             "checkpoint_steps": {"log_space": 50, "linear_space": 50},
+            "bucket_name": os.environ['AWS_REGRESSION_BUCKET_NAME']
         },
         # for wandb?
         "logger_config": {
@@ -316,5 +318,6 @@ def get_config(
             )
 
         nested_update(config_dict, wandb.config)
+        wandb.config.update(config_dict)
         
     return ICLConfig(**config_dict)
