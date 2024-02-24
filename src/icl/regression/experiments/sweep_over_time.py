@@ -14,10 +14,10 @@ from icl.analysis.sample import SamplerConfig
 from icl.analysis.utils import get_unique_config
 from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
-from icl.regression.config import ICLConfig, get_config
+from icl.regression.config import RegressionConfig, get_config
 from icl.regression.experiments.utils import *
 from icl.regression.experiments.utils import flatten_and_process
-from icl.regression.train import Run
+from icl.regression.train import RegressionRun
 from icl.utils import prepare_experiments
 from infra.utils.iterables import flatten_dict, rm_none_vals
 
@@ -29,7 +29,7 @@ if XLA:
     import torch_xla.core.xla_model as xm
 
 def sweep_over_time(
-    config: ICLConfig,
+    config: RegressionConfig,
     sampler_config: dict,
     steps: Optional[List[int]] = None,
     use_wandb: bool = False,
@@ -43,8 +43,8 @@ def sweep_over_time(
     stdlogger.info("Retrieving & restoring training run...")
     start = time.perf_counter()
     config["device"] = DEVICE
-    config: ICLConfig = get_config(**config)
-    run = Run.create_and_restore(config)
+    config: RegressionConfig = get_config(**config)
+    run = RegressionRun.create_and_restore(config)
     end = time.perf_counter()
     stdlogger.info("... %s seconds", end - start)
 

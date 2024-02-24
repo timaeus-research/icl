@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from icl.regression.config import get_config
-from icl.regression.train import Run
+from icl.regression.train import RegressionRun
 from infra.evals import ModelEvaluator
 from infra.integrations.wandb import generate_config_dicts_from_path
 from infra.io.storage import BaseStorageProvider
@@ -23,7 +23,7 @@ def get_run(sweep: str, **filters):
     config_dicts = list(generate_config_dicts_from_path(sweep))
     config_dict = find_obj(config_dicts, **filters) 
     config = get_config(**config_dict)
-    run = Run.create_and_restore(config)
+    run = RegressionRun.create_and_restore(config)
     return run
 
 
@@ -44,13 +44,13 @@ def get_unique_run(sweep: str, **filters):
     Requires that only one run matches the filters.
     """
     config = get_unique_config(sweep, **filters)
-    run = Run.create_and_restore(config)
+    run = RegressionRun.create_and_restore(config)
     return run
 
 
 def get_sweep_configs(sweep: str, **filters):
     """
-    Generate ICLConfigs for all runs in the specified sweep.
+    Generate RegressionConfigs for all runs in the specified sweep.
     """
     for sweep_config_dict in filter_objs(generate_config_dicts_from_path(sweep), **filters):
         yield get_config(**sweep_config_dict)

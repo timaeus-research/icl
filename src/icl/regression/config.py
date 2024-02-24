@@ -6,7 +6,6 @@ from pydantic import (BaseModel, ConfigDict, Field, ValidationError,
                       field_validator, model_validator)
 
 import wandb
-from icl.constants import DEVICE
 from icl.regression.model import InContextRegressionTransformer
 from icl.regression.tasks import (DiscreteTaskDistribution,
                                   GaussianTaskDistribution,
@@ -20,7 +19,7 @@ from infra.utils.iterables import (dict_to_slug, dicts_to_latex, hash_dict,
 from infra.utils.seed import set_seed
 
 
-class ICLTaskConfig(BaseModel):
+class RegressionTaskConfig(BaseModel):
     # paper notation in comments
 
     task_size: int = 8 # D, dimensions of linear regression task
@@ -96,7 +95,7 @@ class ICLTaskConfig(BaseModel):
         return v
 
 
-class ICLConfig(BaseModel):
+class RegressionConfig(BaseModel):
     # Dataset & loader
     num_training_samples: int
     batch_size: int = 128
@@ -116,7 +115,7 @@ class ICLConfig(BaseModel):
     criterion: CriterionLiteral = "cross_entropy"
 
     eval_batch_size: int
-    task_config: ICLTaskConfig
+    task_config: RegressionTaskConfig
 
     class Config:
         frozen = True
@@ -255,7 +254,7 @@ class ICLConfig(BaseModel):
 
 def get_config(
     project: Optional[str] = None, entity: Optional[str] = None, **kwargs
-) -> ICLConfig:
+) -> RegressionConfig:
     # (shared parameters)
     num_steps = 500_000
     batch_size = 256
@@ -320,4 +319,4 @@ def get_config(
         nested_update(config_dict, wandb.config)
         wandb.config.update(config_dict)
         
-    return ICLConfig(**config_dict)
+    return RegressionConfig(**config_dict)

@@ -9,8 +9,9 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from torch import nn
 
+from icl.checkpoints import state_dict
 from icl.constants import DEVICE, XLA
-from icl.regression.evals import ICLEvaluator
+from icl.regression.evals import RegressionEvaluator
 from icl.utils import prepare_experiments
 from infra.utils.seed import set_seed
 
@@ -18,7 +19,7 @@ load_dotenv()
 import logging
 # in case using mps:
 import os
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Optional, Tuple
 
 import numpy as np
 import sentry_sdk
@@ -27,7 +28,7 @@ import tqdm
 
 import wandb
 from icl.monitoring import stdlogger
-from icl.regression.config import ICLConfig, get_config
+from icl.regression.config import RegressionConfig, get_config
 from icl.regression.model import InContextRegressionTransformer
 from icl.regression.tasks import (DiscreteTaskDistribution,
                                   GaussianTaskDistribution,
@@ -43,36 +44,20 @@ if XLA:
     import torch_xla.core.xla_model as xm
  
 
-class StateDict(TypedDict):
-    model: Dict
-    optimizer: Dict
-    scheduler: Dict
-    rng_state: List
-
-
-def state_dict(model, optimizer, scheduler, rng_state: torch.Tensor) -> StateDict:
-    return {
-        "model": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "scheduler": {k: v for k,v in scheduler.state_dict().items() if not callable(v)},  # Required because of the custom scheduler
-        "rng_state": rng_state.tolist(),  # Required because of the custom scheduler
-    }
-
-
-class Run:
-    config: ICLConfig
+class RegressionRun:
+    config: RegressionConfig
     model: nn.Module
     optimizer: torch.optim.Optimizer
     scheduler: Optional[LRScheduler]
     pretrain_dist: RegressionSequenceDistribution[DiscreteTaskDistribution]
     true_dist: RegressionSequenceDistribution[GaussianTaskDistribution]
-    evaluator: ICLEvaluator
+    evaluator: RegressionEvaluator
     checkpointer: Optional[BaseStorageProvider]
     logger: Optional[MetricLogger]
 
     def __init__(
             self, 
-            config: ICLConfig, 
+            config: RegressionConfig, 
             model: Optional[nn.Module] = None,
             optimizer: Optional[torch.optim.Optimizer] = None,
             scheduler: Optional[LRScheduler] = None,
@@ -97,7 +82,7 @@ class Run:
 
         # initialise evaluations
         if XLA: xm.mark_step()  
-        self.evaluator = ICLEvaluator(
+        self.evaluator = RegressionEvaluator(
             pretrain_dist=self.pretrain_dist,
             true_dist=self.true_dist,
             max_examples=config.task_config.max_examples,
@@ -145,14 +130,14 @@ class Run:
                 self.scheduler.load_state_dict(last_checkpoint["scheduler"])
 
     @classmethod
-    def create_and_restore(cls, config: ICLConfig):
+    def create_and_restore(cls, config: RegressionConfig):
         """Load a run from a checkpoint and restore the last checkpoint."""
         self = cls(config)
         self.restore()
         return self
 
 
-def train(config: ICLConfig) -> InContextRegressionTransformer:
+def train(config: RegressionConfig) -> InContextRegressionTransformer:
     """
     Initialise and train an InContextRegressionTransformer model, tracking
     various metrics.
@@ -161,7 +146,7 @@ def train(config: ICLConfig) -> InContextRegressionTransformer:
     stdlogger.info(yaml.dump(config.model_dump()))
     stdlogger.info("-" * 80 + "\n")
 
-    run = Run(config)
+    run = RegressionRun(config)
     model = run.model
     model.train()
     optimizer = run.optimizer

@@ -16,9 +16,9 @@ from icl.constants import ANALYSIS, DEVICE, FIGURES, XLA
 from icl.figures.notation import pyvar_dict_to_slug
 from icl.figures.plotting import plot_loss_trace, plot_weights_trace
 from icl.monitoring import stdlogger
-from icl.regression.config import ICLConfig, get_config
+from icl.regression.config import RegressionConfig, get_config
 from icl.regression.experiments.utils import *
-from icl.regression.train import Run
+from icl.regression.train import RegressionRun
 from icl.utils import prepare_experiments
 from infra.utils.iterables import flatten_dict, rm_none_vals
 
@@ -55,8 +55,8 @@ def estimate_at_checkpoint(
     stdlogger.info("Retrieving & restoring training run...")
     start = time.perf_counter()
     config["device"] = DEVICE
-    config: ICLConfig = get_config(**config)
-    run = Run.create_and_restore(config)
+    config: RegressionConfig = get_config(**config)
+    run = RegressionRun.create_and_restore(config)
 
     # Iterate over checkpoints
     steps = list(run.checkpointer.file_ids)
