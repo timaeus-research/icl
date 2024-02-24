@@ -204,7 +204,7 @@ class ICLConfig(BaseModel):
             task_config_hash = hash_dict(task_config_dict)[:6]
             opt_config_hash = hash_dict(data["optimizer_config"])[:6]
             scheduler_config_hash = hash_dict(data["scheduler_config"])[:6]
-            run_name = f"ntasks-{num_tasks}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}"
+            run_name = f"M-{task_config_dict['num_tasks']}-seed-{task_config_dict['model_seed']}-task-{task_config_hash}-opt-{opt_config_hash}-sched-{scheduler_config_hash}"
             checkpoint_config["project_dir"] = checkpoint_config.get(
                 "project_dir", f"icl/{run_name}"
             )
