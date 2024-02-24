@@ -5,6 +5,7 @@ import pickle
 import boto3
 import datasets
 import tqdm
+from transformer_lens.utils import tokenize_and_concatenate
 
 from icl.constants import BIGRAMS_FILEPATH, DATA, LANGUAGE_FILEPATH
 from icl.monitoring import stdlogger
@@ -35,10 +36,30 @@ def gen_samples(model, file_path=LANGUAGE_FILEPATH, num_lines=5_000_000, start=0
     print(f"Loading {file_path}...")
     if not os.path.exists(file_path):
         stdlogger.info("Downloading dataset to %s...", file_path)
-        download_dataset(file_path, 'georgeyw/dsir-pile-5m')
+        download_dataset(file_path, 'ge     orgeyw/dsir-pile-5m')
         stdlogger.info("...done")
     
     for row in gen_from_jsonl(file_path, num_lines, start, verbose):
         contents = row['contents']
         yield model.tokenizer(contents)['input_ids']
+
+
+def get_loader(model, dataset, batch_size=100, num_workers=0, shuffle=True, pin_memory=True):
+    tokens_dataset = tokenize_and_concatenate(
+        dataset,
+        model.tokenizer,
+        streaming=False,
+        max_length=model.cfg.n_ctx,
+        column_name='contents',
+        add_bos_token=True,
+        num_proc=12
+    )
+    dataloader = torch.utils.data.DataLoader(
+        tokens_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=shuffle,
+        pin_memory=pin_memory
+    )
+    return dataloader
    

@@ -24,7 +24,7 @@ from icl.analysis.weights import WeightsTrace
 from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
 from icl.regression.evals import SequenceMSELoss, SubsequenceMSELoss
-from icl.regression.train import Run
+from icl.regression.train import RegressionRun
 from infra.utils.iterables import dicts_to_latex
 
 if XLA:
@@ -385,7 +385,7 @@ class SamplerConfig(BaseModel):
    
         return data
 
-    def to_sampler(self, run: Run, log_fn: Optional[Callable] = None):
+    def to_sampler(self, run: RegressionRun, log_fn: Optional[Callable] = None):
         return Sampler(self, run, log_fn=log_fn)
         
     def get_loss_fn(self, variant="mse", batch_reduction: str = "mean", context_reduction: str = "mean"):
@@ -418,7 +418,7 @@ class SamplerConfig(BaseModel):
         })
 
 class Sampler:
-    def __init__(self, config: SamplerConfig, run: Run, log_fn: Optional[Callable] = None):
+    def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None):
         self.config = config
         self.run = run
 

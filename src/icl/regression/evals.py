@@ -31,7 +31,7 @@ def mse(y1, y2, axis=None):
     return (y1 - y2).square().mean(axis=axis)
 
 
-class ICLEvaluator(ModelEvaluator):
+class RegressionEvaluator(ModelEvaluator):
     """
     Stores fixed evaluation data batches, computed at the start of the
     training run, as well as baseline predictions for these batches.

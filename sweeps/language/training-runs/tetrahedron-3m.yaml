@@ -1,0 +1,25 @@
+name: tetrahedron-3m
+method: grid
+command: ["python", "src/icl/language/train.py"]
+project: tetrahedron
+parameters:
+  run_name: 
+    value: "tetrahedron-3m-{seed_greek}"
+  num_steps: 
+    value: 60_000
+  model_config: 
+    parameters:
+      num_layers:
+        value: 2 
+      seed:
+        values: [0, 1, 2, 3, 4]
+  checkpointer_config:
+    parameters:
+      checkpoint_steps:
+        parameters:
+          log_space: 
+            value: 100
+          linear_space: 
+            value: 2_400
+  dataset: 
+    value: "timaeus/dsir-pile-10m"

@@ -6,7 +6,7 @@ from infra.utils.iterables import flatten_dict, unflatten_dict
 
 
 def generate_config_dicts_from_path(file_path: str, **kwargs):
-    """Load the ICLConfigs for each of the runs defined in a wandb sweep config at the specified file path."""
+    """Load the RegressionConfigs for each of the runs defined in a wandb sweep config at the specified file path."""
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
 
