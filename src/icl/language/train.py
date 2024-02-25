@@ -135,9 +135,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
     Initialise and train an HookedTransformer model, tracking
     various metrics.
     """    
-    print("\n" + "=" * 36 + f" {config.run_name} " + "=" * 36)
-    print(yaml.dump(config.model_dump()))
-    print("-" * 80 + "\n")
+    stdlogger.info("\n" + "=" * 36 + f" {config.run_name} " + "=" * 36)
+    stdlogger.info(yaml.dump(config.model_dump()))
+    stdlogger.info("-" * 80 + "\n")
 
     run = LanguageRun(config)
     model = run.model
@@ -159,8 +159,8 @@ def train(config: LanguageConfig) -> HookedTransformer:
     if config.is_wandb_enabled:
         wandb.watch(model)
 
-    print("Finished initialising model and data loaders.")
-    print("Training for", num_epochs, "epochs.")
+    stdlogger.info("Finished initialising model and data loaders.")
+    stdlogger.info("Training for", num_epochs, "epochs.")
 
     for epoch in tqdm.trange(num_epochs, desc="Epochs"):
         rng_state = torch.get_rng_state()
@@ -206,8 +206,8 @@ def train(config: LanguageConfig) -> HookedTransformer:
     if config.is_wandb_enabled:
         wandb.finish()
 
-    print("\n" + "=" * 36 + f" Finished " + "=" * 36)
-    print("\n")
+    stdlogger.info("\n" + "=" * 36 + f" Finished " + "=" * 36)
+    stdlogger.info("\n")
 
     return model
 
