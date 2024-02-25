@@ -1,7 +1,7 @@
 name: tetrahedron-3m
 method: grid
 command: ["python", "src/icl/language/train.py"]
-project: tetrahedron
+project: tetrahedron-3m
 parameters:
   run_name: 
     value: "tetrahedron-3m-{seed_greek}"
