@@ -156,6 +156,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
     model.train()
     model.to(device)
 
+    if config.is_wandb_enabled:
+        wandb.watch(model)
+
     for epoch in tqdm.trange(num_epochs, desc="Epochs"):
         rng_state = torch.get_rng_state()
         for b, batch in enumerate(tqdm.tqdm(run.trainloader, desc="Training...")):
