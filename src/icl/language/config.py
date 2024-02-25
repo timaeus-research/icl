@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 
 import wandb
+from icl.language.data import get_tokenized_dataset
 from icl.monitoring import stdlogger
 from infra.evals import CriterionLiteral
 from infra.io import CheckpointerConfig, MetricLoggingConfig
@@ -154,10 +155,10 @@ class LanguageConfig(BaseModel):
         return self.logger_config is not None and self.logger_config.project is not None and self.logger_config.entity is not None
 
     def trainset_factory(self):
-        return datasets.load_dataset(self.trainset, split='train')
+        return get_tokenized_dataset(self.trainset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx)
     
     def testset_factory(self):  
-        return datasets.load_dataset(self.testset, split='train')
+        return get_tokenized_dataset(self.testset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx)
     
     def model_dump(self):
         return {
