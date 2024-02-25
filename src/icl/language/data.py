@@ -7,7 +7,6 @@ import boto3
 import datasets
 import torch
 import tqdm
-from datasets.builder import DatasetBuildError
 from huggingface_hub import HfApi, HfFolder, create_repo
 from transformer_lens.utils import AutoTokenizer, tokenize_and_concatenate
 
@@ -99,7 +98,7 @@ def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer,
         
         except FileNotFoundError:
             print(f"Tokenized dataset {tokenized_dataset_name} not found, processing...")
-        except DatasetBuildError as e:
+        except Exception as e:
             print(f"Error loading tokenized dataset {tokenized_dataset_name}, processing...")
             print(e)
 
