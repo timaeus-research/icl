@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 
 import wandb
+from icl.monitoring import stdlogger
 from infra.evals import CriterionLiteral
 from infra.io import CheckpointerConfig, MetricLoggingConfig
 from infra.monitoring import expand_steps_config_
@@ -173,6 +174,8 @@ class LanguageConfig(BaseModel):
 def get_config(
     project: Optional[str] = None, entity: Optional[str] = None, **kwargs
 ) -> LanguageConfig:
+    stdlogger.info("Configuring training run...")
+
     config_dict = {
         # evaluation config
         "run_name": "tetrahedron-3m-{seed_greek}",
@@ -202,6 +205,8 @@ def get_config(
 
     # Sync with wandb (side-effects!)
     if logger_config["project"] is not None and logger_config["entity"] is not None:
+        stdlogger.info("Pulling configuration from wandb...")
+
         if "run_name" in config_dict:
             run_name = config_dict["run_name"]
             wandb.init(
@@ -216,9 +221,11 @@ def get_config(
 
         nested_update(config_dict, wandb.config)
         
+    stdlogger.info("Preparing configuration object")
     config = LanguageConfig(**config_dict)
 
     if config.is_wandb_enabled:
+        stdlogger.info("Updating wandb run name and config...")
         config_dict = config.model_dump()
         wandb.config.update(config_dict)
         wandb.run.name = config_dict["run_name"]
