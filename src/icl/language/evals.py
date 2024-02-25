@@ -33,14 +33,12 @@ class LanguageEvaluator(ModelEvaluator):
         various metrics.
         """
         device = next(model.parameters()).device
-        loss = torch.zeros(1, device=device)
+        loss = 0
         for i, batch in enumerate(self.testloader):
-            if XLA: xm.mark_step()  
             tokens = batch['tokens'].to(device)
             logits = model(tokens)
-            loss += lm_cross_entropy_loss(logits, tokens)
-            if XLA: xm.mark_step()  
+            loss += lm_cross_entropy_loss(logits, tokens).item()
 
         loss /= len(self.testloader)
-        return {'test/loss': loss.item()}
+        return {'test/loss': loss}
       

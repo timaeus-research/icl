@@ -73,7 +73,7 @@ class LanguageRun:
         self.model = model
 
         # initialise datasets
-        if XLA: xm.mark_step()  
+        # if XLA: xm.mark_step()  
 
         trainset = self.config.trainset_factory()
         self.trainloader = get_loader(model, trainset)
@@ -81,7 +81,7 @@ class LanguageRun:
         testset = self.config.testset_factory()
         self.evaluator = LanguageEvaluator(get_loader(model, testset, shuffle=False))
 
-        if XLA: xm.mark_step()
+        # if XLA: xm.mark_step()
 
         # initialise monitoring code
         if checkpointer is None and config.checkpointer_config is not None: 
@@ -135,9 +135,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
     Initialise and train an HookedTransformer model, tracking
     various metrics.
     """    
-    stdlogger.info("\n" + "=" * 36 + f" {config.run_name} " + "=" * 36)
-    stdlogger.info(yaml.dump(config.model_dump()))
-    stdlogger.info("-" * 80 + "\n")
+    print("\n" + "=" * 36 + f" {config.run_name} " + "=" * 36)
+    print(yaml.dump(config.model_dump()))
+    print("-" * 80 + "\n")
 
     run = LanguageRun(config)
     model = run.model
@@ -159,11 +159,15 @@ def train(config: LanguageConfig) -> HookedTransformer:
     if config.is_wandb_enabled:
         wandb.watch(model)
 
+    print("Finished initialising model and data loaders.")
+    print("Training for", num_epochs, "epochs.")
+
     for epoch in tqdm.trange(num_epochs, desc="Epochs"):
         rng_state = torch.get_rng_state()
         for b, batch in enumerate(tqdm.tqdm(run.trainloader, desc="Training...")):
-            if XLA: xm.mark_step()
+            # if XLA: xm.mark_step()
 
+            optimizer.zero_grad()
             tokens = batch['tokens'].to(device)
             logits = model(tokens)
             loss = lm_cross_entropy_loss(logits, tokens)
@@ -173,8 +177,6 @@ def train(config: LanguageConfig) -> HookedTransformer:
             if scheduler is not None:
                 scheduler.step()
 
-            optimizer.zero_grad()
-
             if XLA: xm.mark_step()
 
             if (step % 100 == 0 or step < 100 or (step % 10 == 0 and step < 1000)) and config.is_wandb_enabled:
@@ -182,21 +184,21 @@ def train(config: LanguageConfig) -> HookedTransformer:
 
             if step in config.checkpointer_config.checkpoint_steps:
                 stdlogger.info("Saving checkpoint at step %s", step)
-                if XLA: xm.mark_step()
+                # if XLA: xm.mark_step()
 
                 checkpoint = move_to_device(state_dict(model, optimizer, scheduler, rng_state, epoch=epoch, batch=b), 'cpu')
                 assert str(get_device(checkpoint)) == 'cpu', "Checkpoint should be on CPU"
                 checkpointer.save_file(step, checkpoint)
 
-                if XLA: xm.mark_step()
+                # if XLA: xm.mark_step()
 
             if step in config.logger_config.logging_steps:
                 stdlogger.info("Logging at step %s", step)
-                if XLA: xm.mark_step()
+                # if XLA: xm.mark_step()
                 model.eval()
                 metrics = run.evaluator(model) 
                 model.train()
-                if XLA: xm.mark_step()
+                # if XLA: xm.mark_step()
                 logger.log(metrics, step=step)
 
             step += 1
@@ -204,8 +206,8 @@ def train(config: LanguageConfig) -> HookedTransformer:
     if config.is_wandb_enabled:
         wandb.finish()
 
-    stdlogger.info("\n" + "=" * 36 + f" Finished " + "=" * 36)
-    stdlogger.info("\n")
+    print("\n" + "=" * 36 + f" Finished " + "=" * 36)
+    print("\n")
 
     return model
 
