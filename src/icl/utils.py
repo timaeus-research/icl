@@ -15,6 +15,9 @@ from icl.monitoring import stdlogger
 def prepare_experiments():
     from icl.constants import ANALYSIS, FIGURES
 
+    assert os.environ.get("AWS_ACCESS_KEY_ID") is not None, "AWS_ACCESS_KEY_ID not set"
+    assert os.environ.get("AWS_SECRET_ACCESS_KEY") is not None, "AWS_SECRET_ACCESS_KEY not set"
+
     load_dotenv()
     sns.set_theme(style="ticks")
 
