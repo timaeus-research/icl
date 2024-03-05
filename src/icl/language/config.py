@@ -28,7 +28,7 @@ def get_model_cfg(
         tokenizer_name='georgeyw/TinyStories-tokenizer-5k', 
         normalization_type='LN', 
         attn_only=True, 
-        seed=1, 
+        seed=0, 
         positional_embedding_type='shortformer'
 ):
     return HookedTransformerConfig(
@@ -155,10 +155,10 @@ class LanguageConfig(BaseModel):
         return self.logger_config is not None and self.logger_config.project is not None and self.logger_config.entity is not None
 
     def trainset_factory(self):
-        return get_tokenized_dataset(self.trainset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx)
+        return get_tokenized_dataset(self.trainset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx, streaming=False)
     
     def testset_factory(self):  
-        return get_tokenized_dataset(self.testset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx)
+        return get_tokenized_dataset(self.testset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx, streaming=False)
     
     def model_dump(self):
         return {

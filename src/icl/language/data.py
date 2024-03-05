@@ -48,7 +48,7 @@ def gen_samples(model, file_path=LANGUAGE_FILEPATH, num_lines=5_000_000, start=0
 
 
 
-def upload_dataset_to_hub(dataset, dataset_name: str, organization: str = None, force_save=False):
+def upload_dataset_to_hub(dataset, dataset_name: str, organization: str = None, force_save=False,):
     # Define the repository name and whether it belongs to an organization or a user
     repo_name = dataset_name if organization is None else f"{organization}/{dataset_name}"
     
@@ -84,7 +84,7 @@ def upload_dataset_to_hub(dataset, dataset_name: str, organization: str = None, 
     os.system(f"rm -rf {dataset_path}")
 
 
-def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer, str], max_length=1024, force_reprocess=False):
+def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer, str], max_length=1024, force_reprocess=False, streaming=True):
     # Attempt to load the tokenized dataset
     tokenized_dataset_name = f"timaeus/{''.join(original_dataset_name.split('/')[1:])}-tokens"
 
@@ -92,18 +92,18 @@ def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer,
         print(f"Force reprocessing is enabled, reprocessing {tokenized_dataset_name}...")
     else:
         try:
-            tokenized_dataset = datasets.load_dataset(tokenized_dataset_name, split='train')
+            tokenized_dataset = datasets.load_dataset(tokenized_dataset_name, streaming=streaming, split='train')
             print(f"Tokenized dataset {tokenized_dataset_name} already exists.")
             return tokenized_dataset
         
         except FileNotFoundError:
             print(f"Tokenized dataset {tokenized_dataset_name} not found, processing...")
-        except Exception as e:
-            print(f"Error loading tokenized dataset {tokenized_dataset_name}, processing...")
-            print(e)
+        # except Exception as e:
+        #     print(f"Error loading tokenized dataset {tokenized_dataset_name}, processing...")
+        #     print(e)
 
     # Load the original dataset
-    dataset = datasets.load_dataset(original_dataset_name, split='train')
+    dataset = datasets.load_dataset(original_dataset_name, split='train', streaming=streaming)
     
     # Tokenization and transformation logic here
     # This is a placeholder for the actual tokenization and processing
@@ -114,7 +114,7 @@ def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer,
     tokenized_dataset = tokenize_and_concatenate(
         dataset,
         tokenizer,
-        streaming=False,
+        streaming=streaming,
         max_length=max_length,
         column_name='contents',
         add_bos_token=True,
@@ -133,7 +133,7 @@ def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer,
     return tokenized_dataset
 
 
-def get_loader(dataset, batch_size=100, num_workers=0, shuffle=True, pin_memory=True):
+def get_loader(dataset, batch_size=100, num_workers=0, shuffle=False, pin_memory=True):
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
