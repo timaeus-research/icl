@@ -7,9 +7,9 @@ parameters:
     value: "tetrahedron-3m-{seed_greek}"
   num_steps: 
     value: 50_000
-  model_config: 
+  transformer_config: 
     parameters:
-      num_layers:
+      n_layers:
         value: 2 
       seed:
         values: [0, 1, 2, 3, 4]

@@ -53,7 +53,8 @@ class LanguageRun:
     checkpointer: Optional[BaseStorageProvider]
     logger: Optional[MetricLogger]
     evaluator: LanguageEvaluator
-    trainloader: datasets.Dataset
+    trainset: datasets.Dataset
+    trainloader: torch.utils.data.DataLoader
 
     def __init__(
             self, 
@@ -77,11 +78,11 @@ class LanguageRun:
         # initialise datasets
         # if XLA: xm.mark_step()  
 
-        trainset = self.config.trainset_factory()
-        self.trainloader = get_loader(trainset)
+        self.trainset = self.config.trainset_factory()
+        self.trainloader = get_loader(self.trainset, shuffle=False) # Shuffle is not necessary for 1-epoch training
 
         testset = self.config.testset_factory()
-        self.evaluator = LanguageEvaluator(get_loader(testset, shuffle=False))
+        self.evaluator = LanguageEvaluator(testset)
 
         print("Finished initialising data loaders.")
 
@@ -152,10 +153,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
     device = get_default_device()
 
     num_steps = config.num_steps
-    num_steps_per_epoch = len(run.trainloader)
-    num_epochs = (num_steps // num_steps_per_epoch) + 1
 
     step = 0
+    epoch = 0
 
     model.train()
     model.to(device)
@@ -164,9 +164,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
         wandb.watch(model)
 
     print("Finished initialising model, dataloaders, optimizer, etc.")
-    print(f"Training for {num_epochs} epochs.")
 
-    for epoch in tqdm.trange(num_epochs, desc="Epochs"):
+    while step < num_steps:
+        print(f"Starting epoch {epoch}...")
         rng_state = torch.get_rng_state()
         for b, batch in enumerate(tqdm.tqdm(run.trainloader, desc="Training...")):
             # if XLA: xm.mark_step()
@@ -206,6 +206,7 @@ def train(config: LanguageConfig) -> HookedTransformer:
                 logger.log(metrics, step=step)
 
             step += 1
+        epoch += 1
 
     if config.is_wandb_enabled:
         wandb.finish()
