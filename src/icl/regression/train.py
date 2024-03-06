@@ -124,7 +124,8 @@ class RegressionRun:
             self.optimizer.load_state_dict(last_checkpoint["optimizer"])
 
             if "rng_state" in last_checkpoint:
-                torch.set_rng_state(torch.tensor(last_checkpoint["rng_state"]))
+                torch.set_rng_state(torch.tensor(last_checkpoint["rng_state"], dtype=torch.uint8))
+
 
             if self.scheduler is not None:
                 self.scheduler.load_state_dict(last_checkpoint["scheduler"])

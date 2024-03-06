@@ -177,3 +177,8 @@ cython_debug/
 **/archive/**
 
 .vscode/**
+
+**/figures/L2H4Minf0/**
+
+**/figures/L2H4M**/
+**/figures/multitask-parity/**

@@ -2,7 +2,7 @@ import os
 import time
 import warnings
 from contextlib import contextmanager
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 import typer
@@ -19,6 +19,7 @@ from icl.regression.experiments.utils import *
 from icl.regression.experiments.utils import flatten_and_process
 from icl.regression.train import RegressionRun
 from icl.utils import prepare_experiments
+from infra.monitoring import StepsConfig, expand_steps_config_, process_steps
 from infra.utils.iterables import flatten_dict, rm_none_vals
 
 WANDB_ENTITY = os.environ.get("WANDB_ENTITY")
@@ -28,10 +29,13 @@ app = typer.Typer()
 if XLA:
     import torch_xla.core.xla_model as xm
 
+
+StepsType = Union[List[int], StepsConfig]
+
 def sweep_over_time(
     config: RegressionConfig,
     sampler_config: dict,
-    steps: Optional[List[int]] = None,
+    steps: Optional[StepsType] = None,
     use_wandb: bool = False,
 ):      
     cores = int(os.environ.get("CORES", 1))
@@ -42,7 +46,7 @@ def sweep_over_time(
 
     stdlogger.info("Retrieving & restoring training run...")
     start = time.perf_counter()
-    config["device"] = DEVICE
+    config["device"] = 'cpu'
     config: RegressionConfig = get_config(**config)
     run = RegressionRun.create_and_restore(config)
     end = time.perf_counter()
@@ -58,7 +62,14 @@ def sweep_over_time(
     stdlogger.info("... %s seconds", end - start)
 
     # Iterate over checkpoints
-    steps = steps or list(run.checkpointer.file_ids)
+    num_steps = run.config.num_steps
+
+    if steps is None:
+        steps = sorted(list(run.config.checkpointer_config.checkpoint_steps))
+
+    elif isinstance(steps, dict):
+        expand_steps_config_(steps, num_steps)
+        steps = sorted(list(process_steps(steps)))
 
     if not steps:
         raise ValueError("No checkpoints found")
@@ -73,9 +84,12 @@ def sweep_over_time(
         print(yaml.dump(serialized))
 
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
+    run.model.train()
 
-    for step, model in tqdm(zip(steps, iter_models(run.model, run.checkpointer, verbose=True)), total=len(steps), desc="Iterating over checkpoints..."):
-        run.model = model
+    for step in tqdm(steps, desc="Iterating over checkpoints..."):
+        checkpoint = run.checkpointer.load_file(step)
+        run.model.load_state_dict(checkpoint['model'])
+        run.model.to(device)
         sampler = sampler_config.to_sampler(run)
 
         try:
@@ -127,7 +141,7 @@ def cmd_line_sweep_over_time(
     num_chains: int = typer.Option(None, help="Number of chains"), 
     steps: Optional[List[int]] = typer.Option(None, help="Step"), 
     batch_size: Optional[int] = typer.Option(None, help="Batch size"),
-    use_wandb: bool = typer.Option(True, help="Use wandb"),
+    use_wandb: bool = typer.Option(True, help="Use wandb")
 ):
     """
     Initialise and train an InContextRegressionTransformer model, tracking

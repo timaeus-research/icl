@@ -1,6 +1,6 @@
 name: L2H4-llcs-over-time
 method: grid
-command: ["python", "icl/experiments/sweep_over_time.py", "wandb"]
+command: ["python", "src/icl/experiments/sweep_over_time.py", "wandb"]
 project: icl
 parameters:
   sampler_config:
@@ -30,7 +30,7 @@ parameters:
       eval_batch_size:
         value: null
       eval_dataset_size:
-        value: 1048576
+        value: 32768
       eval_metrics:
         value: ["likelihood-derived", "batch-loss"]
       eval_online:

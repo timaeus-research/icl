@@ -69,7 +69,7 @@ class LanguageRun:
 
         # initialise model
         if model is None:
-            model = config.transformer_factory().to(DEVICE)
+            model = config.transformer_factory().to('cpu')
 
         self.model = model
 
@@ -157,14 +157,20 @@ def train(config: LanguageConfig) -> HookedTransformer:
     step = 0
     epoch = 0
 
+
     model.train()
     model.to(device)
 
-    if config.is_wandb_enabled:
-        wandb.watch(model)
-
     print("Finished initialising model, dataloaders, optimizer, etc.")
 
+    if not XLA:
+        print("Compiling model...")
+        model = torch.compile(model)
+        print("Finished compiling model.")
+
+    if config.is_wandb_enabled:
+        wandb.watch(model)
+    
     while step < num_steps:
         print(f"Starting epoch {epoch}...")
         rng_state = torch.get_rng_state()

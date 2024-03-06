@@ -427,9 +427,6 @@ class Sampler:
             batch_size=self.config.eval_dataset_size,
         )
 
-        xs.to(DEVICE)
-        ys.to(DEVICE)
-
         self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
         self.eval_dataset = self.full_dataset
 
@@ -470,6 +467,9 @@ class Sampler:
             y_preds = model(xs, ys)
             yield self.eval_loss_fn(y_preds, ys).detach()
 
+            if XLA:
+                xm.mark_step()
+
     def eval_model(self, model, max_num_batches: Optional[int] = None, verbose=False):
         loss = None
 
@@ -478,7 +478,7 @@ class Sampler:
             y_preds = model(xs, ys)
             _loss = self.eval_loss_fn(y_preds, ys)
 
-            loss = loss if loss is not None else torch.zeros_like(_loss)
+            loss = loss if loss is not None else torch.zeros_like(_loss, device=DEVICE)
             loss += _loss.detach() * xs.shape[0]
 
             if max_num_batches and max_num_batches <= i:

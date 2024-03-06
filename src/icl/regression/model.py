@@ -76,25 +76,38 @@ class InContextRegressionTransformer(torch.nn.Module):
         self.num_layers = num_layers
     
     def forward(self, xs, ys):
-        # input validation
-        B, K, D = xs.shape
-        assert K <= self.max_examples, \
-            f"too many examples for model {K} > {self.max_examples}"
-        assert D == self.task_size, \
-            f"incorrect input size for model {D} != {self.task_size}"
-        B_, K_, _1 = ys.shape
-        assert B == B_, f"batch size mismatch b/w xs:{B} and ys:{B_}"
-        assert K == K_, f"num_examples mismatch b/w xs:{K} and ys:{K_}"
-        assert _1 == 1, "ys should be scalars"
+            """
+            Forward pass of the regression model.
 
-        # encode examples as token sequence
-        toks = to_token_sequence(xs, ys)
+            Args:
+                xs (torch.Tensor): Input tensor of shape (B, K, D), where B is the batch size,
+                    K is the number of examples, and D is the input size.
+                ys (torch.Tensor): Target tensor of shape (B, K, 1), where B is the batch size,
+                    K is the number of examples, and 1 is the scalar output.
 
-        # run dtransformer to predict next tokens
-        toks_pred = self.token_sequence_transformer(toks)
-        # decode y predictions from next-token-prediction
-        ys_pred = from_predicted_token_sequence(toks_pred)
-        return ys_pred
+            Returns:
+                torch.Tensor: Predicted output tensor of shape (B, K, 1), where B is the batch size,
+                    K is the number of examples, and 1 is the scalar output.
+            """
+            # input validation
+            B, K, D = xs.shape
+            assert K <= self.max_examples, \
+                f"too many examples for model {K} > {self.max_examples}"
+            assert D == self.task_size, \
+                f"incorrect input size for model {D} != {self.task_size}"
+            B_, K_, _1 = ys.shape
+            assert B == B_, f"batch size mismatch b/w xs:{B} and ys:{B_}"
+            assert K == K_, f"num_examples mismatch b/w xs:{K} and ys:{K_}"
+            assert _1 == 1, "ys should be scalars"
+
+            # encode examples as token sequence
+            toks = to_token_sequence(xs, ys)
+
+            # run dtransformer to predict next tokens
+            toks_pred = self.token_sequence_transformer(toks)
+            # decode y predictions from next-token-prediction
+            ys_pred = from_predicted_token_sequence(toks_pred)
+            return ys_pred
     
     def to(self, *args, **kwargs):
         self.device = args[0]

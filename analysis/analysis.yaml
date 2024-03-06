@@ -1,0 +1,15 @@
+- model_seed: 1
+  stages:
+    - start: 0
+      end: 1500
+      name: LR1
+    - start: 1500
+      end: 40_000
+      name: LR2
+    - start: 40_000
+      end: 320_000
+      name: LR3
+    - start: 320_000
+      end: 500_000
+      name: LR4
+

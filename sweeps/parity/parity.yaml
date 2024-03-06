@@ -1,0 +1,29 @@
+name: parity
+method: grid
+command: ["python", "src/icl/other/parity.py"]
+project: multitask-parity
+parameters:
+  num_tasks:
+    values: [4, 8, 16]
+  num_features:
+    value: 16
+  num_task_bits:
+    value: 3
+  hidden_dim:
+    value: 50
+  alpha:
+    values: [0.5, 0.8, 1.0, 2.0, 3.0, 4.0]
+  num_steps:
+    value: 10000
+  batch_size:
+    value: 1024
+  eval_batch_size:
+    value: 256
+  num_checkpoints:
+    value: 1000
+  lr:
+    value: 0.003
+  seed:
+    value: 0
+  log_wandb:
+    value: True
