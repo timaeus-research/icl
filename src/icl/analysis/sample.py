@@ -253,17 +253,16 @@ def sample(
             subsample=subsample,
         )
 
-    results = []
-
-    if XLA:
-        xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
-    elif cores > 1:
-        ctx = get_context("spawn")
-        with ctx.Pool(cores) as pool:
-            results = pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
+    if cores > 1: 
+        if XLA:
+            xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+        else:
+            ctx = get_context("spawn")
+            with ctx.Pool(cores) as pool:
+                pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
     else:
         for i in range(num_chains):
-            results.append(_sample_single_chain(get_args(i)))
+            _sample_single_chain(get_args(i))
     
     results = {}
 
