@@ -48,7 +48,7 @@ def call_with(func: Callable, **kwargs):
 
 
 def sample_single_chain(
-    ref_model: nn.Module,
+    model: nn.Module,
     loader: DataLoader,
     criterion: Callable,
     num_draws=100,
@@ -64,7 +64,7 @@ def sample_single_chain(
     subsample: bool = False
 ):
     # Initialize new model and optimizer for this chain
-    model = deepcopy(ref_model).to(device)
+    model = model.to(device)
 
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
@@ -105,7 +105,7 @@ def sample_single_chain(
         warnings.warn(f"Chain failed to converge: {e}")
 
 def sample_single_chain_xla(
-    ref_model: nn.Module,
+    model: nn.Module,
     loader: DataLoader,
     criterion: Callable,
     num_draws=100,
@@ -122,7 +122,7 @@ def sample_single_chain_xla(
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
-    model = deepcopy(ref_model).to(device)
+    model = model.to(device)
     xm.mark_step()
 
     optimizer_kwargs = optimizer_kwargs or {}
@@ -175,6 +175,7 @@ def sample_single_chain_xla(
 
 def _sample_single_chain(kwargs):
     if kwargs.get('device', torch.device('cpu')).type == "xla":
+        kwargs['device'] = xm.xla_device() 
         return sample_single_chain_xla(**kwargs)
     
     return sample_single_chain(**kwargs)
@@ -238,7 +239,7 @@ def sample(
         return dict(
             chain=i,
             seed=seeds[i],
-            ref_model=model,
+            model=deepcopy(model),
             loader=loader,
             criterion=criterion,
             num_draws=num_draws,
