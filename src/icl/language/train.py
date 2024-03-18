@@ -157,7 +157,6 @@ def train(config: LanguageConfig) -> HookedTransformer:
     step = 0
     epoch = 0
 
-
     model.train()
     model.to(device)
 
@@ -170,7 +169,9 @@ def train(config: LanguageConfig) -> HookedTransformer:
 
     if config.is_wandb_enabled:
         wandb.watch(model)
-    
+
+    print("Finished initialising model, dataloaders, optimizer, etc.")
+
     while step < num_steps:
         print(f"Starting epoch {epoch}...")
         rng_state = torch.get_rng_state()
