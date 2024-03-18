@@ -123,7 +123,7 @@ def sample_single_chain_xla(
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
-    model = model.to(device)
+    model = model.train().to(device)
     xm.mark_step()
 
     optimizer_kwargs = optimizer_kwargs or {}
@@ -133,18 +133,20 @@ def sample_single_chain_xla(
         torch.manual_seed(seed)
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
-    model.train()
 
     if cores > 1:
         para_loader = pl.ParallelLoader(loader, [device])
         loader = para_loader.per_device_loader(device)
 
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain} on {device} with {cores} cores", total=num_steps, disable=not verbose)
     xm.mark_step()
 
     try: 
-        for i, (xs, ys) in  pbar:
+        for i, (xs, ys) in pbar:
             optimizer.zero_grad()
+            if i < 10: 
+                print(xs.device, ys.device)
+
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -156,8 +158,7 @@ def sample_single_chain_xla(
                 mean_loss = loss.mean()
 
             mean_loss.backward()
-            optimizer.step()
-            xm.mark_step()
+            xm.optimizer_step(optimizer)
 
             pbar.set_postfix(loss=mean_loss.item())
 
@@ -165,7 +166,6 @@ def sample_single_chain_xla(
                 draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 with torch.no_grad():
-
                     for callback in callbacks:
                         call_with(callback, **locals())  # Cursed but we'll fix it later
             
@@ -241,7 +241,7 @@ def sample(
         return dict(
             chain=i,
             seed=seeds[i],
-            model=deepcopy(model),
+            model=deepcopy(model.to('cpu')),
             loader=loader,
             criterion=criterion,
             num_draws=num_draws,
@@ -430,6 +430,8 @@ class Sampler:
             batch_size=self.config.eval_dataset_size,
         )
 
+        xs, ys = xs.to('cpu'), ys.to('cpu')
+
         self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
         self.eval_dataset = self.full_dataset
 
@@ -476,21 +478,22 @@ class Sampler:
     def eval_model(self, model, max_num_batches: Optional[int] = None, verbose=False):
         loss = None
 
-        for i, (xs, ys) in tqdm(enumerate(self.eval_loader), desc="Evaluating init loss", total = (max_num_batches or len(self.eval_loader)), disable=not verbose):
-            xs, ys = xs.to(DEVICE), ys.to(DEVICE)
-            y_preds = model(xs, ys)
-            _loss = self.eval_loss_fn(y_preds, ys)
+        with torch.no_grad():
+            for i, (xs, ys) in tqdm(enumerate(self.eval_loader), desc="Evaluating init loss", total = (max_num_batches or len(self.eval_loader)), disable=not verbose):
+                xs, ys = xs.to(DEVICE), ys.to(DEVICE)
+                y_preds = model(xs, ys)
+                _loss = self.eval_loss_fn(y_preds, ys)
 
-            loss = loss if loss is not None else torch.zeros_like(_loss, device=DEVICE)
-            loss += _loss.detach() * xs.shape[0]
+                loss = loss if loss is not None else torch.zeros_like(_loss, device=DEVICE)
+                loss += _loss.detach() * xs.shape[0]
 
-            if max_num_batches and max_num_batches <= i:
-                break
+                if max_num_batches and max_num_batches <= i:
+                    break
 
-        if loss is None:
-            raise ValueError("No batches in eval loader")
+            if loss is None:
+                raise ValueError("No batches in eval loader")
 
-        return (loss / self.config.eval_dataset_size).detach()
+            return (loss / self.config.eval_dataset_size).detach()
         
     def get_cov_callback(self):
         return make_transformer_cov_accumulator(self.run.model, device=DEVICE, num_evals=self.config.num_evals)
