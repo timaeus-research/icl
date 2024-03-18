@@ -104,6 +104,11 @@ def sample_single_chain(
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
+def cycle(iterable):
+    while True:
+        for x in iterable:
+            yield x
+
 def sample_single_chain_xla(
     model: nn.Module,
     loader: DataLoader,
@@ -138,24 +143,26 @@ def sample_single_chain_xla(
         para_loader = pl.ParallelLoader(loader, [device])
         loader = para_loader.per_device_loader(device)
 
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
+    pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     xm.mark_step()
 
     try: 
         for i, (xs, ys) in pbar:
-            optimizer.zero_grad()
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
 
-            if subsample:
-                k = np.random.randint(0, loss.numel() + 1)
-                mean_loss = loss.view(-1)[:k].mean()
-            else:
-                mean_loss = loss.mean()
+            optimizer.zero_grad()
+            loss.backward()
 
-            mean_loss.backward()
-            pbar.set_postfix(loss=mean_loss.item())
+            # if subsample:
+            #     k = np.random.randint(0, loss.numel() + 1)
+            #     mean_loss = loss.view(-1)[:k].mean()
+            # else:
+            #     mean_loss = loss.mean()
+            # mean_loss.backward()
+
+            # pbar.set_postfix(loss=mean_loss.item())
 
             # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
             #     draw = (i - num_burnin_steps) // num_steps_bw_draws
