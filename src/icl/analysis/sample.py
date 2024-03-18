@@ -157,12 +157,12 @@ def sample_single_chain_xla(
             mean_loss.backward()
             pbar.set_postfix(loss=mean_loss.item())
 
-            if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-                draw = (i - num_burnin_steps) // num_steps_bw_draws
+            # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+            #     draw = (i - num_burnin_steps) // num_steps_bw_draws
 
-                with torch.no_grad():
-                    for callback in callbacks:
-                        call_with(callback, **locals())  # Cursed but we'll fix it later
+            #     with torch.no_grad():
+            #         for callback in callbacks:
+            #             call_with(callback, **locals())  # Cursed but we'll fix it later
             
             xm.optimizer_step(optimizer)
 
