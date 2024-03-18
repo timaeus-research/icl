@@ -156,23 +156,23 @@ def sample_single_chain_xla(
             loss = criterion(y_preds, ys)
 
             optimizer.zero_grad()
-            loss.backward()
 
-            # if subsample:
-            #     k = np.random.randint(0, loss.numel() + 1)
-            #     mean_loss = loss.view(-1)[:k].mean()
-            # else:
-            #     mean_loss = loss.mean()
-            # mean_loss.backward()
+            if subsample:
+                k = np.random.randint(0, loss.numel() + 1)
+                mean_loss = loss.view(-1)[:k].mean()
+            else:
+                mean_loss = loss.mean()
 
-            # pbar.set_postfix(loss=mean_loss.item())
+            mean_loss.backward()
 
-            # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-            #     draw = (i - num_burnin_steps) // num_steps_bw_draws
+            pbar.set_postfix(loss=mean_loss.item())
 
-            #     with torch.no_grad():
-            #         for callback in callbacks:
-            #             call_with(callback, **locals())  # Cursed but we'll fix it later
+            if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+                draw = (i - num_burnin_steps) // num_steps_bw_draws
+
+                with torch.no_grad():
+                    for callback in callbacks:
+                        call_with(callback, **locals())  # Cursed but we'll fix it later
             
             xm.optimizer_step(optimizer)
 
