@@ -32,6 +32,7 @@ if XLA:
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.distributed.xla_multiprocessing as xmp
 
+
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
     sig = inspect.signature(func)
@@ -45,6 +46,12 @@ def call_with(func: Callable, **kwargs):
     
     # Call the function with the filtered kwargs
     return func(**filtered_kwargs)
+
+
+def cycle(iterable):
+    while True:
+        for x in iterable:
+            yield x
 
 
 def sample_single_chain(
@@ -74,7 +81,7 @@ def sample_single_chain(
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+    pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
     try: 
         for i, (xs, ys) in  pbar:
@@ -104,10 +111,6 @@ def sample_single_chain(
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
-def cycle(iterable):
-    while True:
-        for x in iterable:
-            yield x
 
 def sample_single_chain_xla(
     model: nn.Module,
@@ -319,7 +322,7 @@ class SamplerConfig(BaseModel):
 
     cores: int = 1
     device: str = "cpu"
-    per_token: bool = True
+    per_token: bool = False
 
     init_seed: Optional[int] = None
 
