@@ -138,15 +138,12 @@ def sample_single_chain_xla(
         para_loader = pl.ParallelLoader(loader, [device])
         loader = para_loader.per_device_loader(device)
 
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain} on {device} with {cores} cores", total=num_steps, disable=not verbose)
+    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     xm.mark_step()
 
     try: 
         for i, (xs, ys) in pbar:
             optimizer.zero_grad()
-            if i < 10: 
-                print(xs.device, ys.device)
-
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -158,8 +155,6 @@ def sample_single_chain_xla(
                 mean_loss = loss.mean()
 
             mean_loss.backward()
-            xm.optimizer_step(optimizer)
-
             pbar.set_postfix(loss=mean_loss.item())
 
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
@@ -169,7 +164,7 @@ def sample_single_chain_xla(
                     for callback in callbacks:
                         call_with(callback, **locals())  # Cursed but we'll fix it later
             
-                xm.mark_step()
+            xm.optimizer_step(optimizer)
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
@@ -512,7 +507,7 @@ class Sampler:
             dataset_size=self.config.eval_dataset_size,
             temperature=self.config.temperature,
             loss_fn=loss_fn,
-            device=DEVICE,
+            device='cpu',
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -529,7 +524,7 @@ class Sampler:
             self.config.eval_dataset_size,
             self.iter_eval_model,
             temperature=self.config.temperature,
-            device=DEVICE,
+            device='cpu',
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -541,7 +536,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.loss_dim,
-            DEVICE,
+            'cpu',
             online=True,
             include_trace=True
         )
@@ -551,7 +546,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.run.model, 
-            DEVICE,
+            'cpu',
         )
 
     def get_callbacks(self):
