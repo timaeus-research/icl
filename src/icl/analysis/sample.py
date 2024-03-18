@@ -118,7 +118,8 @@ def sample_single_chain_xla(
     verbose=True,
     device: Union[str, torch.device] = torch.device("xla"),
     callbacks: List[Callable] = [],
-    subsample: bool = False
+    subsample: bool = False,
+    cores=1
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
@@ -134,8 +135,9 @@ def sample_single_chain_xla(
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
 
-    para_loader = pl.ParallelLoader(loader, [device])
-    loader = para_loader.per_device_loader(device)
+    if cores > 1:
+        para_loader = pl.ParallelLoader(loader, [device])
+        loader = para_loader.per_device_loader(device)
 
     pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
     xm.mark_step()
@@ -251,6 +253,7 @@ def sample(
             verbose=verbose,
             callbacks=callbacks,
             subsample=subsample,
+            cores=cores
         )
 
     if cores > 1: 
