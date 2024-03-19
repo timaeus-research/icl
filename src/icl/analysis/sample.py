@@ -146,18 +146,11 @@ def sample_single_chain_xla(
     if cores > 1:
         para_loader = pl.ParallelLoader(loader, [device])
         loader = para_loader.per_device_loader(device)
+    # else:
+    #     loader = pl.MpDeviceLoader(loader, device)
 
-    pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
+    # pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     xm.mark_step() 
-
-    def subsample_loss(loss):
-        k = np.random.randint(0, ys.numel() + 1)
-        return loss.view(-1)[:k].mean()
-    
-    def normal_loss(loss):
-        return loss.mean()
-    
-    process_loss = subsample_loss if subsample else normal_loss
     
     print(f"Starting chain {chain} on {device} with {cores} cores.")
     print("Loader length:", len(loader))
@@ -165,26 +158,28 @@ def sample_single_chain_xla(
     def train_step(xs, ys):
         y_preds = model(xs, ys)
         loss = criterion(y_preds, ys)
-        mean_loss = process_loss(loss)
+
+        if subsample:
+            k = np.random.randint(0, loss.numel() + 1)
+            mean_loss = loss.view(-1)[:k].mean()
+        else:
+            mean_loss = loss.mean()
+
         optimizer.zero_grad()
         mean_loss.backward()
         xm.optimizer_step(optimizer)
         return mean_loss
 
     try: 
-        with xm.mesh(device):
-            for i, (xs, ys) in enumerate(cycle(loader)):
-                xs, ys = xs.to(device), ys.to(device)
-                mean_loss = xm.add_step_closure(train_step, args=(xs, ys))
+        for i, (xs, ys) in enumerate(cycle(loader)):
+            xs, ys = xs.to(device), ys.to(device)
+            mean_loss = xm.add_step_closure(train_step, args=(xs, ys))
 
-                if cores > 1:
-                    mean_loss = xm.mesh_reduce('loss_reduce', mean_loss, lambda x: x / cores)
+            if i % update_frequency == 0 and verbose:
+                xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
 
-                if i % update_frequency == 0 and verbose:
-                    xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
-
-                if i >= num_steps:
-                    break
+            if i >= num_steps:
+                break
         # for i, (xs, ys) in pbar:
         #     xs, ys = xs.to(device), ys.to(device)
         #     y_preds = model(xs, ys)
