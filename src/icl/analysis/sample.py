@@ -127,7 +127,8 @@ def sample_single_chain_xla(
     device: Union[str, torch.device] = torch.device("xla"),
     callbacks: List[Callable] = [],
     subsample: bool = False,
-    cores=1
+    cores=1,
+    update_frequency=25,
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
@@ -146,7 +147,7 @@ def sample_single_chain_xla(
         para_loader = pl.ParallelLoader(loader, [device])
         loader = para_loader.per_device_loader(device)
 
-    pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
+    pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     xm.mark_step() 
 
     def subsample_loss(loss):
@@ -176,7 +177,10 @@ def sample_single_chain_xla(
             #             call_with(callback, **locals())  # Cursed but we'll fix it later
             
             xm.optimizer_step(optimizer)
-            # pbar.set_postfix(loss=mean_loss.item())
+            # pbar.set_postfix(loss=mean_loss.item())  # This destroys efficiency on the TPU
+
+            if i % update_frequency == 0:
+                xm.master_print(f"Iteration: {i} {time.time()}")
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
