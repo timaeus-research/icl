@@ -28,6 +28,7 @@ from icl.regression.train import RegressionRun
 from infra.utils.iterables import dicts_to_latex
 
 if XLA:
+    import
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.distributed.xla_multiprocessing as xmp
@@ -128,7 +129,7 @@ def sample_single_chain_xla(
     callbacks: List[Callable] = [],
     subsample: bool = False,
     cores=1,
-    update_frequency=25,
+    update_frequency=10,
 ):
     xm.mark_step()
     # Initialize new model and optimizer for this chain
@@ -158,29 +159,54 @@ def sample_single_chain_xla(
         return loss.mean()
     
     process_loss = subsample_loss if subsample else normal_loss
+    
+    print(f"Starting chain {chain} on {device} with {cores} cores.")
+    print("Loader length:", len(loader))
+
+    def train_step(xs, ys):
+        y_preds = model(xs, ys)
+        loss = criterion(y_preds, ys)
+        mean_loss = process_loss(loss)
+        optimizer.zero_grad()
+        mean_loss.backward()
+        xm.optimizer_step(optimizer)
+        return mean_loss
 
     try: 
-        for i, (xs, ys) in pbar:
-            xs, ys = xs.to(device), ys.to(device)
-            y_preds = model(xs, ys)
-            loss = criterion(y_preds, ys)
-            mean_loss = process_loss(loss)
+        with xm.mesh(device):
+            for i, (xs, ys) in enumerate(cycle(loader)):
+                xs, ys = xs.to(device), ys.to(device)
+                mean_loss = xm.add_step_closure(train_step, args=(xs, ys))
 
-            optimizer.zero_grad()
-            mean_loss.backward()
+                if cores > 1:
+                    mean_loss = xm.mesh_reduce('loss_reduce', mean_loss, lambda x: x / cores)
 
-            # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-            #     draw = (i - num_burnin_steps) // num_steps_bw_draws
+                if i % update_frequency == 0 and verbose:
+                    xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
 
-            #     with torch.no_grad():
-            #         for callback in callbacks:
-            #             call_with(callback, **locals())  # Cursed but we'll fix it later
+                if i >= num_steps:
+                    break
+        # for i, (xs, ys) in pbar:
+        #     xs, ys = xs.to(device), ys.to(device)
+        #     y_preds = model(xs, ys)
+        #     loss = criterion(y_preds, ys)
+        #     mean_loss = process_loss(loss)
+
+        #     optimizer.zero_grad()
+        #     mean_loss.backward()
+
+        #     # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+        #     #     draw = (i - num_burnin_steps) // num_steps_bw_draws
+
+        #     #     with torch.no_grad():
+        #     #         for callback in callbacks:
+        #     #             call_with(callback, **locals())  # Cursed but we'll fix it later
             
-            xm.optimizer_step(optimizer)
-            # pbar.set_postfix(loss=mean_loss.item())  # This destroys efficiency on the TPU
+        #     xm.optimizer_step(optimizer)
+        #     # pbar.set_postfix(loss=mean_loss.item())  # This destroys efficiency on the TPU
 
-            if i % update_frequency == 0:
-                xm.master_print(f"Iteration: {i} {time.time()}")
+        #     if i % update_frequency == 0:
+        #         xm.master_print(f"Iteration: {i} {time.time()}")
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
