@@ -155,31 +155,31 @@ def sample_single_chain_xla(
     print(f"Starting chain {chain} on {device} with {cores} cores.")
     print("Loader length:", len(loader))
 
-    def train_step(xs, ys):
-        y_preds = model(xs, ys)
-        loss = criterion(y_preds, ys)
-
-        if subsample:
-            k = np.random.randint(0, loss.numel() + 1)
-            mean_loss = loss.view(-1)[:k].mean()
-        else:
-            mean_loss = loss.mean()
-
-        optimizer.zero_grad()
-        mean_loss.backward()
-        xm.optimizer_step(optimizer)
-        return mean_loss
+    def log_fn(i, mean_loss):
+        xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
 
     try: 
         for i, (xs, ys) in enumerate(cycle(loader)):
             xs, ys = xs.to(device), ys.to(device)
-            mean_loss = xm.add_step_closure(train_step, args=(xs, ys))
+            y_preds = model(xs, ys)
+            loss = criterion(y_preds, ys)
+
+            if subsample:
+                k = np.random.randint(0, loss.numel() + 1)
+                mean_loss = loss.view(-1)[:k].mean()
+            else:
+                mean_loss = loss.mean()
+
+            optimizer.zero_grad()
+            mean_loss.backward()
+            xm.optimizer_step(optimizer)
 
             if i % update_frequency == 0 and verbose:
-                xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
+                xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
 
             if i >= num_steps:
                 break
+            
         # for i, (xs, ys) in pbar:
         #     xs, ys = xs.to(device), ys.to(device)
         #     y_preds = model(xs, ys)
