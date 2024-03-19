@@ -130,10 +130,8 @@ def sample_single_chain_xla(
     cores=1,
     update_frequency=10,
 ):
-    xm.mark_step()
     # Initialize new model and optimizer for this chain
     model = model.train().to(device)
-    xm.mark_step()
 
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
@@ -150,7 +148,6 @@ def sample_single_chain_xla(
     #     loader = pl.MpDeviceLoader(loader, device)
 
     # pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
-    xm.mark_step() 
     
     print(f"Starting chain {chain} on {device} with {cores} cores.")
     print("Loader length:", len(loader))
@@ -175,11 +172,12 @@ def sample_single_chain_xla(
             xm.optimizer_step(optimizer)
 
             if i % update_frequency == 0 and verbose:
-                xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
+                xm.master_print(f"Iteration: {i} {time.time()}")
+                # xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
 
             if i >= num_steps:
                 break
-            
+
         # for i, (xs, ys) in pbar:
         #     xs, ys = xs.to(device), ys.to(device)
         #     y_preds = model(xs, ys)

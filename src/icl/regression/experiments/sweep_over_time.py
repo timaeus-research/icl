@@ -87,8 +87,8 @@ def sweep_over_time(
     run.model.train()
 
     for step in tqdm(steps, desc="Iterating over checkpoints..."):
-        checkpoint = run.checkpointer.load_file(step)
-        run.model.load_state_dict(checkpoint['model'])
+        # checkpoint = run.checkpointer.load_file(step) # Skip while testing
+        # run.model.load_state_dict(checkpoint['model']) 
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
 
