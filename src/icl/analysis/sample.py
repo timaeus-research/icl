@@ -50,6 +50,7 @@ def call_with(func: Callable, **kwargs):
 
 def cycle(iterable):
     while True:
+        print("Cycling")
         for x in iterable:
             yield x
 
@@ -150,10 +151,7 @@ def sample_single_chain_xla(
     # pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     
     print(f"Starting chain {chain} on {device} with {cores} cores.")
-    print("Loader length:", len(loader))
-
-    def log_fn(i, mean_loss):
-        xm.master_print(f"Iteration: {i}, Loss: {mean_loss.item()}")
+    print(f"Iterating for {num_steps} steps, loader contains {len(loader)} batches.")
 
     try: 
         for i, (xs, ys) in enumerate(cycle(loader)):
