@@ -176,7 +176,7 @@ def sample_single_chain_xla(
             #             call_with(callback, **locals())  # Cursed but we'll fix it later
             
             xm.optimizer_step(optimizer)
-            pbar.set_postfix(loss=mean_loss.item())
+            # pbar.set_postfix(loss=mean_loss.item())
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
