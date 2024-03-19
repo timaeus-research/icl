@@ -28,7 +28,6 @@ from icl.regression.train import RegressionRun
 from infra.utils.iterables import dicts_to_latex
 
 if XLA:
-    import
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.distributed.xla_multiprocessing as xmp
