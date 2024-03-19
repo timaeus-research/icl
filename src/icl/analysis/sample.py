@@ -147,22 +147,25 @@ def sample_single_chain_xla(
         loader = para_loader.per_device_loader(device)
 
     pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
-    xm.mark_step()
+    xm.mark_step() 
+
+    def subsample_loss(loss):
+        k = np.random.randint(0, ys.numel() + 1)
+        return loss.view(-1)[:k].mean()
+    
+    def normal_loss(loss):
+        return loss.mean()
+    
+    process_loss = subsample_loss if subsample else normal_loss
 
     try: 
         for i, (xs, ys) in pbar:
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
+            mean_loss = process_loss(loss)
 
             optimizer.zero_grad()
-
-            if subsample:
-                k = np.random.randint(0, loss.numel() + 1)
-                mean_loss = loss.view(-1)[:k].mean()
-            else:
-                mean_loss = loss.mean()
-
             mean_loss.backward()
 
             # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
