@@ -160,7 +160,7 @@ def sample_single_chain_xla(
 
     try: 
         if verbose:
-            print(f"Starting chain {chain} on {device} with {cores} cores.")
+            print(f"Starting chain {chain} on {device} with {cores} cores and {steps} steps.")
             start = time.time()
 
         for i, (xs, ys) in enumerate(cycle(loader)):   
@@ -218,9 +218,42 @@ def _sample_single_chain(kwargs):
     return sample_single_chain(**kwargs)
 
 
-def _sample_single_chain_worker(index, num_chains, get_args):
+def _sample_single_chain_worker(
+        index, 
+        num_chains, 
+        seeds,
+        model,
+        loader,
+        criterion,
+        num_draws,
+        num_burnin_steps,
+        num_steps_bw_draws,
+        sampling_method,
+        optimizer_kwargs,
+        device,
+        verbose,
+        subsample,
+        cores           
+):
     """ Worker function for multiprocessing """
-    return _sample_single_chain(get_args(index % num_chains))
+    seed = seeds[index]
+    model = deepcopy(model.to('cpu'))
+    return _sample_single_chain(dict(
+        chain=index,
+        seed=seed,
+        model=model,
+        loader=loader,
+        criterion=criterion,
+        num_draws=num_draws,
+        num_burnin_steps=num_burnin_steps,
+        num_steps_bw_draws=num_steps_bw_draws,
+        sampling_method=sampling_method,
+        optimizer_kwargs=optimizer_kwargs,
+        device=device,
+        verbose=verbose,
+        subsample=subsample,
+        cores=cores  
+    ))
 
 
 def sample(
@@ -294,7 +327,22 @@ def sample(
 
     if cores > 1: 
         if XLA:
-            xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+            xmp.spawn(_sample_single_chain_worker, args=(
+                num_chains, 
+                seeds=seeds,
+                model=model,
+                loader=loader,
+                criterion=criterion,
+                num_draws=num_draws,
+                num_burnin_steps=num_burnin_steps,
+                num_steps_bw_draws=num_steps_bw_draws,
+                sampling_method=sampling_method,
+                optimizer_kwargs=optimizer_kwargs,
+                device=device,
+                verbose=verbose,
+                subsample=subsample,
+                cores=cores
+            ), nprocs=cores)
         else:
             # ctx = get_context("spawn")
             # with ctx.Pool(cores) as pool:
