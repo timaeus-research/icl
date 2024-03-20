@@ -1,4 +1,4 @@
-name: L2H4-llcs-over-time
+name: L2H4Minf-llcs-over-time
 method: grid
 command: ["python", "src/icl/regression/experiments/sweep_over_time.py", "wandb"]
 project: forms
