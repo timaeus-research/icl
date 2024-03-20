@@ -160,8 +160,14 @@ def sample_single_chain_xla(
     # TODO: Restrict support
     # if callbacks
 
-    chain_loss = 0
-    chain_loss_sq = 0
+    chain_loss = torch.zeros(1, device=device)
+    chain_loss_sq = torch.zeros(1, device=device)
+
+    def increment_loss(loss):
+        nonlocal chain_loss
+        nonlocal chain_loss_sq
+        chain_loss += loss
+        chain_loss_sq += loss ** 2
 
     try: 
         if verbose:
@@ -193,10 +199,11 @@ def sample_single_chain_xla(
                 # draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 with torch.no_grad():
-                    _loss = mean_loss.item()
+                    xm.add_step_closure(increment_loss, mean_loss)
+                    # _loss = mean_loss.item()
 
-                    chain_loss += _loss
-                    chain_loss_sq += _loss ** 2
+                    # chain_loss += mean_loss
+                    # chain_loss_sq += mean_loss ** 2
 
                 # with torch.no_grad():
                 #     for callback in callbacks:
@@ -217,8 +224,10 @@ def sample_single_chain_xla(
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
-    chain_loss_mean = chain_loss / num_draws
-    chain_loss_std = (chain_loss_sq / num_draws - chain_loss_mean ** 2) ** 0.5
+    xm.mark_step()
+
+    chain_loss_mean = (chain_loss / num_draws).item()
+    chain_loss_std = ((chain_loss_sq / num_draws - chain_loss_mean ** 2) ** 0.5).item()
 
     return {
         "loss/mean": chain_loss_mean,
@@ -334,14 +343,15 @@ def sample(
             result['llc/mean'] = (result['wbic/mean'] - init_loss * dataset_size) / temperature
             result['llc/std'] = result['wbic/std'] / temperature
 
+        keys = list(results[0].keys())
         d = {
             f"{key}/{i}": result[key] for key in keys for i, result in enumerate(results)
         }
         
         for key in keys:
             entries = [result[key] for result in results]
-            d[f"{key}/mean"] = np.mean(entries)
-            d[f"{key}/std"] = np.std(entries)
+            d[f"{key}/mean"] = float(np.mean(entries))
+            d[f"{key}/std"] = float(np.std(entries))
 
         return d
 
