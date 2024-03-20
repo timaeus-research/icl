@@ -124,6 +124,10 @@ class RegressionEvaluator(ModelEvaluator):
 
         }
     
+    
+def compose(functions):
+    return functools.reduce(lambda f, g: lambda x: g(f(x)), functions, lambda x: x)
+
 class SequenceMSELoss:
     def __init__(self, batch_reduction: str = "mean", context_reduction: str = "mean") -> None:
         self.batch_reduction = batch_reduction
@@ -149,7 +153,23 @@ class SequenceMSELoss:
         mean_reduction_dims.append(2)
         self.mean_reduction_dims = tuple(mean_reduction_dims)
         self.sum_reduction_dims = tuple(sum_reduction_dims)
-        
+
+        if self.batch_reduction == 'mean' and self.context_reduction == 'mean':
+            self.loss_fn = F.mse_loss
+        else:
+            loss_fn = nn.MSELoss(reduction="none")
+            reductions = []
+
+            if self.batch_reduction == 'mean':
+                reductions.append(lambda x: x.mean(dim=self.mean_reduction_dims))
+            elif self.batch_reduction == 'sum':
+                reductions.append(lambda x: x.sum(dim=self.sum_reduction_dims))
+            
+            if not reductions:
+                self.loss_fn = loss_fn
+            else:
+                self.loss_fn = lambda y_pred, y: compose(reductions)(loss_fn(y_pred, y))
+ 
 
     def __call__(
             self, 
@@ -163,14 +183,7 @@ class SequenceMSELoss:
         
         Always takes the mean over tokens. Reduction is applied to the batch.
         """
-        loss = F.mse_loss(y_pred, y, reduction="none")
-
-        if self.mean_reduction_dims:
-            loss = loss.mean(dim=self.mean_reduction_dims)
-        if self.sum_reduction_dims:
-            loss = loss.sum(dim=self.sum_reduction_dims)
-
-        return loss
+        return self.loss_fn(y_pred, y)
 
     
 class SubsequenceMSELoss:

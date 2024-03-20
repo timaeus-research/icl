@@ -78,7 +78,18 @@ class LikelihoodMetricsEstimator:
         self.online = online
         self.log_fn = log_fn
         self.least_num_samples_seen = 0
+        self.device = device
+
+        if self.loss_fn:
+            self._call = self.call_with_loss_fn
+        else:
+            self._call = self.update
        
+        if online:
+            self._track_online = self.log_interim
+        else:
+            self._track_online = lambda: None
+
     @staticmethod
     def _estimate(first_moment, second_moment, init_loss, dataset_size, temperature):
         loss_avg = first_moment
@@ -120,37 +131,37 @@ class LikelihoodMetricsEstimator:
         
         return pd.DataFrame(_estimates)
 
-    def update(self, chain: int, draw: int, loss: torch.Tensor):
+    def update(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
         self.expected_loss_estimator.update(chain, draw, loss)
 
-    def __call__(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
-        if self.loss_fn is None:
-            self.update(chain, draw, loss)
+    def call_with_loss_fn(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
+        _loss = self.loss_fn(model)
+        total_loss = torch.zeros(1, dtype=torch.float32).to(self.device)
+
+        if isinstance(_loss, Generator):
+            n = 0
+
+            for i, _l in enumerate(_loss):
+                total_loss += _l.sum() 
+                n += i
+
+            self.update(chain, draw, total_loss / n)
         else:
-            _loss = self.loss_fn(model)
-            total_loss = torch.zeros(1, dtype=torch.float32).to(model.device)
+            self.update(chain, draw, self.loss_fn(model))
 
-            if isinstance(_loss, Generator):
-                n = 0
+    def log_interim(self):
+        new_least_num_samples_seen = self.expected_loss_estimator.least_num_samples_seen 
 
-                for i, _l in enumerate(_loss):
-                    total_loss += _l.sum() 
-                    n += i
+        if new_least_num_samples_seen > self.least_num_samples_seen:
+            self.least_num_samples_seen = new_least_num_samples_seen
 
-                self.update(chain, draw, total_loss / n)
-            else:
-                self.update(chain, draw, self.loss_fn(model))
+            if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
+                self.log_fn(self.estimate(), step=self.least_num_samples_seen)
+        
 
-        if self.online:
-            new_least_num_samples_seen = self.expected_loss_estimator.least_num_samples_seen 
-
-            if new_least_num_samples_seen > self.least_num_samples_seen:
-                self.least_num_samples_seen = new_least_num_samples_seen
-
-                if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
-                    self.log_fn(self.estimate(), step=self.least_num_samples_seen)
-            
-
+    def __call__(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
+        self._call(chain, draw, loss, model)
+        self._track_online()
 
     def reset(self):
         self.expected_loss_estimator.reset()
@@ -206,6 +217,7 @@ class SLTObservablesEstimator:
         self.online = online
         self.log_fn = log_fn
         self.least_num_samples_seen = 0
+        self.device = device
 
     def estimate(self):
         return {
@@ -220,19 +232,20 @@ class SLTObservablesEstimator:
     def update(self, chain: int, draw: int, model: nn.Module):
         total_loss = torch.zeros(1, dtype=torch.float32).to(model.device)
 
-        for batch_losses in self.singular_fluctuation_estimator.iter_update(chain, draw, model):
-            total_loss += batch_losses.sum()
+        with torch.no_grad():
+            for batch_losses in self.singular_fluctuation_estimator.iter_update(chain, draw, model):
+                total_loss += batch_losses.sum()
 
-        self.likelihood_metrics_estimator.update(chain, draw, total_loss / self.dataset_size)
+            self.likelihood_metrics_estimator.update(chain, draw, total_loss / self.dataset_size)
 
-        if self.online:
-            new_least_num_samples_seen = self.likelihood_metrics_estimator.expected_loss_estimator.least_num_samples_seen 
+            if self.online:
+                new_least_num_samples_seen = self.likelihood_metrics_estimator.expected_loss_estimator.least_num_samples_seen 
 
-            if new_least_num_samples_seen > self.least_num_samples_seen:
-                self.least_num_samples_seen = new_least_num_samples_seen
+                if new_least_num_samples_seen > self.least_num_samples_seen:
+                    self.least_num_samples_seen = new_least_num_samples_seen
 
-                if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
-                    self.log_fn(self.estimate(), step=self.least_num_samples_seen)
+                    if self.log_fn is not None and new_least_num_samples_seen % 10 == 0:
+                        self.log_fn(self.estimate(), step=self.least_num_samples_seen)
 
     def __call__(self, chain: int, draw: int, model: nn.Module):
         self.update(chain, draw, model)

@@ -10,7 +10,7 @@ import torch
 from pydantic import BaseModel, Field, field_validator, model_validator
 from torch import nn
 from torch.multiprocessing import cpu_count, get_context
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
@@ -32,6 +32,7 @@ if XLA:
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.distributed.xla_multiprocessing as xmp
 
+
 def call_with(func: Callable, **kwargs):
     """Check the func annotation and call with only the necessary kwargs."""
     sig = inspect.signature(func)
@@ -47,8 +48,14 @@ def call_with(func: Callable, **kwargs):
     return func(**filtered_kwargs)
 
 
+def cycle(iterable):
+    while True:
+        for x in iterable:
+            yield x
+
+
 def sample_single_chain(
-    ref_model: nn.Module,
+    model: nn.Module,
     loader: DataLoader,
     criterion: Callable,
     num_draws=100,
@@ -61,10 +68,12 @@ def sample_single_chain(
     verbose=True,
     device: Union[str, torch.device] = torch.device("cpu"),
     callbacks: List[Callable] = [],
-    subsample: bool = False
+    subsample: bool = False,
+    cores=1,
+    update_frequency=10
 ):
     # Initialize new model and optimizer for this chain
-    model = deepcopy(ref_model).to(device)
+    model = model.to(device)
 
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
@@ -74,9 +83,13 @@ def sample_single_chain(
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+    pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
     try: 
+        if verbose:
+            print(f"Starting chain {chain} on {device} with {cores} cores and {num_steps} steps.")
+            start = time.time()
+            
         for i, (xs, ys) in  pbar:
             optimizer.zero_grad()
             xs, ys = xs.to(device), ys.to(device)
@@ -100,12 +113,17 @@ def sample_single_chain(
                 with torch.no_grad():
                     for callback in callbacks:
                         call_with(callback, **locals())  # Cursed but we'll fix it later
-                        
+
+        if verbose:
+            end = time.time()
+            print(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")                    
+    
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
+
 def sample_single_chain_xla(
-    ref_model: nn.Module,
+    model: nn.Module,
     loader: DataLoader,
     criterion: Callable,
     num_draws=100,
@@ -118,12 +136,11 @@ def sample_single_chain_xla(
     verbose=True,
     device: Union[str, torch.device] = torch.device("xla"),
     callbacks: List[Callable] = [],
-    subsample: bool = False
+    subsample: bool = False,
+    cores=1,
 ):
-    xm.mark_step()
     # Initialize new model and optimizer for this chain
-    model = deepcopy(ref_model).to(device)
-    xm.mark_step()
+    model = model.train().to(device)
 
     optimizer_kwargs = optimizer_kwargs or {}
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
@@ -132,17 +149,25 @@ def sample_single_chain_xla(
         torch.manual_seed(seed)
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
-    model.train()
 
-    para_loader = pl.ParallelLoader(loader, [device])
-    loader = para_loader.per_device_loader(device)
+    chain_loss = torch.zeros(1, device=device)
+    chain_loss_sq = torch.zeros(1, device=device)
 
-    pbar = tqdm(zip(range(num_steps), itertools.cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
-    xm.mark_step()
+    def increment_loss(loss):
+        nonlocal chain_loss
+        nonlocal chain_loss_sq
+        chain_loss += loss
+        chain_loss_sq += loss ** 2
 
     try: 
-        for i, (xs, ys) in  pbar:
-            optimizer.zero_grad()
+        if verbose:
+            print(f"Starting chain {chain} on {device} with {cores} cores and {num_steps} steps.")
+            start = time.time()
+
+        for i, (xs, ys) in enumerate(cycle(loader)):   
+            if i >= num_steps:
+                break
+
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -153,28 +178,39 @@ def sample_single_chain_xla(
             else:
                 mean_loss = loss.mean()
 
+            optimizer.zero_grad()
+
+
             mean_loss.backward()
             optimizer.step()
             xm.mark_step()
 
-            pbar.set_postfix(loss=mean_loss.item())
-
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-                draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 with torch.no_grad():
-
-                    for callback in callbacks:
-                        call_with(callback, **locals())  # Cursed but we'll fix it later
+                    xm.add_step_closure(increment_loss, (mean_loss, ))
             
-                xm.mark_step()
+        if verbose:
+            end = time.time()
+            stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
+    xm.mark_step()
+
+    chain_loss_mean = (chain_loss / num_draws).item()
+    chain_loss_std = ((chain_loss_sq / num_draws - chain_loss_mean ** 2) ** 0.5).item()
+
+    return {
+        "loss/mean": chain_loss_mean,
+        "loss/std": chain_loss_std
+    }
+
 
 def _sample_single_chain(kwargs):
     if kwargs.get('device', torch.device('cpu')).type == "xla":
+        kwargs['device'] = xm.xla_device() 
         return sample_single_chain_xla(**kwargs)
     
     return sample_single_chain(**kwargs)
@@ -238,7 +274,7 @@ def sample(
         return dict(
             chain=i,
             seed=seeds[i],
-            ref_model=model,
+            model=deepcopy(model.to('cpu')),
             loader=loader,
             criterion=criterion,
             num_draws=num_draws,
@@ -250,20 +286,48 @@ def sample(
             verbose=verbose,
             callbacks=callbacks,
             subsample=subsample,
+            cores=cores
         )
 
-    results = []
-
-    if XLA:
-        xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
-    elif cores > 1:
-        ctx = get_context("spawn")
-        with ctx.Pool(cores) as pool:
-            results = pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
+    if cores > 1: 
+        raise NotImplementedError("Multiprocessing is not currently supported")
+        # if XLA:
+        #     xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+        # else:
+        #     ctx = get_context("spawn")
+        #     with ctx.Pool(cores) as pool:
+        #         pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
     else:
+        results = []
+
         for i in range(num_chains):
             results.append(_sample_single_chain(get_args(i)))
     
+    if results:
+        keys = list(results[0].keys())
+
+        dataset_size = callbacks[0].dataset_size
+        temperature = callbacks[0].temperature
+        init_loss  = callbacks[0].init_loss.item()
+
+        for result in results:
+            result['wbic/mean'] = dataset_size * result['loss/mean']
+            result['wbic/std'] = dataset_size * result['loss/std']
+            result['llc/mean'] = (result['wbic/mean'] - init_loss * dataset_size) / temperature
+            result['llc/std'] = result['wbic/std'] / temperature
+
+        keys = list(results[0].keys())
+        d = {
+            f"{key}/{i}": result[key] for key in keys for i, result in enumerate(results)
+        }
+        
+        for key in keys:
+            entries = [result[key] for result in results]
+            d[f"{key}/mean"] = float(np.mean(entries))
+            d[f"{key}/std"] = float(np.std(entries))
+
+        return d
+
     results = {}
 
     for callback in callbacks:
@@ -280,7 +344,7 @@ class SamplerConfig(BaseModel):
 
     # SGLD steps
     sampling_method: Literal["sgld", "sgnht"] = "sgld" # Only SGLD is supported for now
-    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"] = 'eval-dataset'  # Only eval-dataset is supported for now
+    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"] = 'infinite-dataset'  # Only eval-dataset is supported for now
     grad_batch_size: int = 1024
 
     # Parametrization 1 (original)
@@ -314,7 +378,7 @@ class SamplerConfig(BaseModel):
 
     cores: int = 1
     device: str = "cpu"
-    per_token: bool = True
+    per_token: bool = False
 
     init_seed: Optional[int] = None
 
@@ -322,12 +386,6 @@ class SamplerConfig(BaseModel):
     @classmethod
     def check_sampling_method(cls, v: str) -> str:
         assert v == "sgld", "Only SGLD is supported for now"
-        return v
-
-    @field_validator('grad_batch_origin')
-    @classmethod
-    def check_grad_batch_origin(cls, v: str) -> str:
-        assert v  == "eval-dataset", "Only eval-dataset is supported for now"
         return v
 
     # Validate all fields
@@ -416,25 +474,38 @@ class SamplerConfig(BaseModel):
             r"\gamma": str(self.gamma),
             "eval": (self.eval_method, self.eval_loss_fn),
         })
+    
 
 class Sampler:
-    def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None):
+    def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None, device: Optional[torch.device] = None):
         self.config = config
         self.run = run
+        self.device = device or DEVICE
 
-        xs, ys = run.pretrain_dist.get_batch(
-            num_examples=run.config.task_config.max_examples,
-            batch_size=self.config.eval_dataset_size,
-        )
-
-        self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
-        self.eval_dataset = self.full_dataset
+        # if XLA:
+        #     self.device = torch.device('cpu')  # Excuse me
+        
+        if self.config.grad_batch_origin == "infinite-dataset":
+            self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.run.config.task_config.max_examples,
+                self.config.grad_batch_size
+            ) 
+            self.eval_dataset, self.eval_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.run.config.task_config.max_examples,
+                self.config.eval_batch_size or self.config.grad_batch_size,
+                self.config.eval_dataset_size,
+            )
+        else:
+            self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.run.config.task_config.max_examples,
+                self.config.grad_batch_size,
+                self.config.eval_dataset_size
+            )
+            self.eval_dataset = self.full_dataset
+            self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
 
         if self.config.eval_method == "fixed-minibatch":
-            self.eval_dataset = torch.utils.data.TensorDataset(xs[:self.config.eval_batch_size, :, :], ys[:self.config.eval_batch_size, :, :])
-
-        self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
-        self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
+            warnings.warn("Fixed minibatch evals are not supported for now.")
 
         self.log_fn = log_fn
         context_reduction = "none" if self.config.per_token else "mean"
@@ -444,6 +515,7 @@ class Sampler:
             batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", 
             context_reduction=context_reduction
         )
+        
         if XLA:
             xm.mark_step()
 
@@ -473,24 +545,25 @@ class Sampler:
     def eval_model(self, model, max_num_batches: Optional[int] = None, verbose=False):
         loss = None
 
-        for i, (xs, ys) in tqdm(enumerate(self.eval_loader), desc="Evaluating init loss", total = (max_num_batches or len(self.eval_loader)), disable=not verbose):
-            xs, ys = xs.to(DEVICE), ys.to(DEVICE)
-            y_preds = model(xs, ys)
-            _loss = self.eval_loss_fn(y_preds, ys)
+        with torch.no_grad():
+            for i, (xs, ys) in tqdm(enumerate(self.eval_loader), desc="Evaluating init loss", total = (max_num_batches or len(self.eval_loader)), disable=not verbose):
+                xs, ys = xs.to(DEVICE), ys.to(DEVICE)
+                y_preds = model(xs, ys)
+                _loss = self.eval_loss_fn(y_preds, ys)
 
-            loss = loss if loss is not None else torch.zeros_like(_loss, device=DEVICE)
-            loss += _loss.detach() * xs.shape[0]
+                loss = loss if loss is not None else torch.zeros_like(_loss, device=DEVICE)
+                loss += _loss.detach() * xs.shape[0]
 
-            if max_num_batches and max_num_batches <= i:
-                break
+                if max_num_batches and max_num_batches <= i:
+                    break
 
-        if loss is None:
-            raise ValueError("No batches in eval loader")
+            if loss is None:
+                raise ValueError("No batches in eval loader")
 
-        return (loss / self.config.eval_dataset_size).detach()
+            return (loss / self.config.eval_dataset_size).detach()
         
     def get_cov_callback(self):
-        return make_transformer_cov_accumulator(self.run.model, device=DEVICE, num_evals=self.config.num_evals)
+        return make_transformer_cov_accumulator(self.run.model, device=self.device, num_evals=self.config.num_evals)
 
     def get_likelihood_metrics_callback(self):
         loss_fn = None  # self.config.eval_method == "grad-minibatch"
@@ -523,7 +596,7 @@ class Sampler:
             self.config.eval_dataset_size,
             self.iter_eval_model,
             temperature=self.config.temperature,
-            device=DEVICE,
+            device=self.device,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -535,7 +608,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.loss_dim,
-            DEVICE,
+            self.device,
             online=True,
             include_trace=True
         )
@@ -545,7 +618,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.run.model, 
-            DEVICE,
+            self.device,
         )
 
     def get_callbacks(self):
@@ -590,8 +663,10 @@ class Sampler:
             optimizer_kwargs=self.config.get_optimizer_kwargs(),
             num_draws=self.config.num_draws,
             num_chains=self.config.num_chains,
+            num_burnin_steps=self.config.num_burnin_steps,
+            num_steps_bw_draws=self.config.num_steps_bw_draws,
             cores=self.config.cores,
-            device=DEVICE,
+            device=self.device,
             callbacks=self.callbacks,
             seed=seed,
             subsample=self.config.eval_loss_fn == "subsequence-mse"

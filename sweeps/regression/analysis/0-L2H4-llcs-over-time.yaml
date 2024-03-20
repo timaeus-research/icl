@@ -1,7 +1,7 @@
-name: L2H4-llcs-over-time
+name: L2H4Minf-llcs-over-time
 method: grid
 command: ["python", "src/icl/regression/experiments/sweep_over_time.py", "wandb"]
-project: icl
+project: forms
 parameters:
   sampler_config:
     parameters: 
@@ -9,12 +9,12 @@ parameters:
         value: 8
       num_draws:
         value: 500
-      num_burn_in:
+      num_burnin_steps:
         value: 500
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "eval-dataset"
+        value: "infinite-dataset"
       grad_batch_size:
         value: 1024
       # 
@@ -30,7 +30,7 @@ parameters:
       eval_batch_size:
         value: null
       eval_dataset_size:
-        value: 32768
+        value: 131072
       eval_metrics:
         value: ["likelihood-derived", "batch-loss"]
       eval_online:
@@ -38,7 +38,7 @@ parameters:
       eval_loss_fn:
         value: "mse"
       init_seed:
-        value: 0
+        value: 42
 
   task_config: 
     parameters:

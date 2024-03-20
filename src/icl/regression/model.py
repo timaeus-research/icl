@@ -92,13 +92,13 @@ class InContextRegressionTransformer(torch.nn.Module):
             # input validation
             B, K, D = xs.shape
             assert K <= self.max_examples, \
-                f"too many examples for model {K} > {self.max_examples}"
+                f"too many examples for model {K} > {self.max_examples}. Shape: {xs.shape} and {ys.shape}"
             assert D == self.task_size, \
-                f"incorrect input size for model {D} != {self.task_size}"
+                f"incorrect input size for model {D} != {self.task_size}. Shape: {xs.shape} and {ys.shape}"
             B_, K_, _1 = ys.shape
-            assert B == B_, f"batch size mismatch b/w xs:{B} and ys:{B_}"
-            assert K == K_, f"num_examples mismatch b/w xs:{K} and ys:{K_}"
-            assert _1 == 1, "ys should be scalars"
+            assert B == B_, f"batch size mismatch b/w xs:{B} and ys:{B_}. Shape: {xs.shape} and {ys.shape}"
+            assert K == K_, f"num_examples mismatch b/w xs:{K} and ys:{K_}. Shape: {xs.shape} and {ys.shape}"
+            assert _1 == 1, f"ys should be scalars. Shape: {ys.shape}"
 
             # encode examples as token sequence
             toks = to_token_sequence(xs, ys)

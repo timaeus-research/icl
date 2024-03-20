@@ -37,7 +37,11 @@ def sweep_over_time(
     sampler_config: dict,
     steps: Optional[StepsType] = None,
     use_wandb: bool = False,
+    testing: bool = False
 ):      
+    if testing:
+        warnings.warn("Testing mode enabled")
+
     cores = int(os.environ.get("CORES", 1))
     device = str(DEVICE)
 
@@ -48,7 +52,13 @@ def sweep_over_time(
     start = time.perf_counter()
     config["device"] = 'cpu'
     config: RegressionConfig = get_config(**config)
-    run = RegressionRun.create_and_restore(config)
+
+    if testing:
+        warnings.warn("Testing mode: Skipping checkpointer")
+        run = RegressionRun(config)
+    else:
+        run = RegressionRun.create_and_restore(config)
+
     end = time.perf_counter()
     stdlogger.info("... %s seconds", end - start)
 
@@ -87,17 +97,17 @@ def sweep_over_time(
     run.model.train()
 
     for step in tqdm(steps, desc="Iterating over checkpoints..."):
-        checkpoint = run.checkpointer.load_file(step)
-        run.model.load_state_dict(checkpoint['model'])
+        if not testing:
+            warnings.warn("Testing mode: Skipping checkpoint loading")
+            checkpoint = run.checkpointer.load_file(step) # Skip while testing
+            run.model.load_state_dict(checkpoint['model']) 
+
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
 
         try:
             results = sampler.eval(run.model)
             log_fn(results, step=step)
-
-            if XLA:
-                xm.mark_step()
         
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")
