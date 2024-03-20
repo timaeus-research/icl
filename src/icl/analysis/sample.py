@@ -329,19 +329,19 @@ def sample(
         if XLA:
             xmp.spawn(_sample_single_chain_worker, args=(
                 num_chains, 
-                seeds=seeds,
-                model=model,
-                loader=loader,
-                criterion=criterion,
-                num_draws=num_draws,
-                num_burnin_steps=num_burnin_steps,
-                num_steps_bw_draws=num_steps_bw_draws,
-                sampling_method=sampling_method,
-                optimizer_kwargs=optimizer_kwargs,
-                device=device,
-                verbose=verbose,
-                subsample=subsample,
-                cores=cores
+                seeds,
+                model,
+                loader,
+                criterion,
+                num_draws,
+                num_burnin_steps,
+                num_steps_bw_draws,
+                sampling_method,
+                optimizer_kwargs,
+                device,
+                verbose,
+                subsample,
+                cores
             ), nprocs=cores)
         else:
             # ctx = get_context("spawn")
