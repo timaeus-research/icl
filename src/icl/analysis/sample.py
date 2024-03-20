@@ -236,24 +236,28 @@ def _sample_single_chain_worker(
         cores           
 ):
     """ Worker function for multiprocessing """
-    seed = seeds[index]
-    model = deepcopy(model.to('cpu'))
-    return _sample_single_chain(dict(
-        chain=index,
-        seed=seed,
-        model=model,
-        loader=loader,
-        criterion=criterion,
-        num_draws=num_draws,
-        num_burnin_steps=num_burnin_steps,
-        num_steps_bw_draws=num_steps_bw_draws,
-        sampling_method=sampling_method,
-        optimizer_kwargs=optimizer_kwargs,
-        device=device,
-        verbose=verbose,
-        subsample=subsample,
-        cores=cores  
-    ))
+    try:
+        seed = seeds[index]
+        model = deepcopy(model.to('cpu'))
+        return _sample_single_chain(dict(
+            chain=index,
+            seed=seed,
+            model=model,
+            loader=loader,
+            criterion=criterion,
+            num_draws=num_draws,
+            num_burnin_steps=num_burnin_steps,
+            num_steps_bw_draws=num_steps_bw_draws,
+            sampling_method=sampling_method,
+            optimizer_kwargs=optimizer_kwargs,
+            device=device,
+            verbose=verbose,
+            subsample=subsample,
+            cores=cores  
+        ))
+    except Exception as e:
+        print(f"Chain {index} failed with {e}")
+        raise e
 
 
 def sample(
