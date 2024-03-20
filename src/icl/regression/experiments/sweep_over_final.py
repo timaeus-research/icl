@@ -56,7 +56,8 @@ def estimate_at_checkpoint(
     start = time.perf_counter()
     config["device"] = DEVICE
     config: RegressionConfig = get_config(**config)
-    run = RegressionRun.create_and_restore(config)
+    # run = RegressionRun.create_and_restore(config)
+    run = RegressionRun(config)
 
     # Iterate over checkpoints
     steps = list(run.checkpointer.file_ids)
