@@ -135,7 +135,6 @@ def sample_single_chain_xla(
     seed: Optional[int] = None,
     verbose=True,
     device: Union[str, torch.device] = torch.device("xla"),
-    callbacks: List[Callable] = [],
     subsample: bool = False,
     cores=1,
 ):
@@ -210,8 +209,18 @@ def sample_single_chain_xla(
 
 def _sample_single_chain(kwargs):
     if kwargs.get('device', torch.device('cpu')).type == "xla":
-        kwargs['device'] = xm.xla_device() 
+        core = kwargs.pop('core', None)
+        
+        if core is not None:
+            kwargs['device'] = xm.xla_device(core)
+        else:
+            kwargs['device'] = xm.xla_device()
+
+        kwargs.pop('callbacks')
+
         return sample_single_chain_xla(**kwargs)
+    
+    kwargs.pop('core')
     
     return sample_single_chain(**kwargs)
 
@@ -284,25 +293,24 @@ def sample(
             optimizer_kwargs=optimizer_kwargs,
             device=device,
             verbose=verbose,
-            callbacks=callbacks,
             subsample=subsample,
             cores=cores
         )
 
     if cores > 1: 
-        if XLA:
-            xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
-        else:
-            ctx = get_context("spawn")
-            with ctx.Pool(cores) as pool:
-                pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
+        # if XLA:
+        #     xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+        # else:
+        ctx = get_context("spawn")
+        with ctx.Pool(cores) as pool:
+            results = pool.map(_sample_single_chain, [{**(get_args(i)), "callbacks": callbacks, 'core': i % cores} for i in range(num_chains)])
     else:
         results = []
 
         for i in range(num_chains):
-            results.append(_sample_single_chain(get_args(i)))
+            results.append(_sample_single_chain(get_args(i), callbacks=callbacks))
     
-    if results:
+    if results and all(results):
         keys = list(results[0].keys())
 
         dataset_size = callbacks[0].dataset_size
