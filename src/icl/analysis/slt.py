@@ -9,7 +9,6 @@ from torch import nn
 
 from icl.analysis.estimators import get_estimator
 from icl.analysis.health import ChainHealthException
-from icl.constants import DEVICE
 from icl.regression.experiments.utils import flatten_and_process
 
 app = typer.Typer()
@@ -218,6 +217,7 @@ class SLTObservablesEstimator:
         self.online = online
         self.log_fn = log_fn
         self.least_num_samples_seen = 0
+        self.device = device
 
     def estimate(self):
         return {
@@ -230,7 +230,7 @@ class SLTObservablesEstimator:
         return self.likelihood_metrics_estimator.dataset_size
     
     def update(self, chain: int, draw: int, model: nn.Module):
-        total_loss = torch.zeros(1, dtype=torch.float32).to(DEVICE)
+        total_loss = torch.zeros(1, dtype=torch.float32).to(model.device)
 
         with torch.no_grad():
             for batch_losses in self.singular_fluctuation_estimator.iter_update(chain, draw, model):

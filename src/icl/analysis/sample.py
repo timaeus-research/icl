@@ -191,7 +191,13 @@ def sample_single_chain_xla(
 
                 with torch.no_grad():
                     for callback in callbacks:
-                        call_with(callback, **locals())  # Cursed but we'll fix it later
+                        call_with(
+                            callback, 
+                            draw=draw,
+                            chain=chain,
+                            loss=loss.detach().cpu(),
+                            model=model.to('cpu'),
+                        ) 
             
         if verbose:
             end = time.time()
@@ -443,9 +449,13 @@ class SamplerConfig(BaseModel):
     
 
 class Sampler:
-    def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None):
+    def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None, device: Optional[torch.device] = None):
         self.config = config
         self.run = run
+        self.device = device or DEVICE
+
+        if XLA:
+            self.device = torch.device('cpu')  # Excuse me
         
         if self.config.grad_batch_origin == "infinite-dataset":
             self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
@@ -525,7 +535,7 @@ class Sampler:
             return (loss / self.config.eval_dataset_size).detach()
         
     def get_cov_callback(self):
-        return make_transformer_cov_accumulator(self.run.model, device=DEVICE, num_evals=self.config.num_evals)
+        return make_transformer_cov_accumulator(self.run.model, device=self.device, num_evals=self.config.num_evals)
 
     def get_likelihood_metrics_callback(self):
         loss_fn = None  # self.config.eval_method == "grad-minibatch"
@@ -558,7 +568,7 @@ class Sampler:
             self.config.eval_dataset_size,
             self.iter_eval_model,
             temperature=self.config.temperature,
-            device=DEVICE,
+            device=self.device,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -570,7 +580,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.loss_dim,
-            DEVICE,
+            self.device,
             online=True,
             include_trace=True
         )
@@ -580,7 +590,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.run.model, 
-            DEVICE,
+            self.device,
         )
 
     def get_callbacks(self):
@@ -626,7 +636,7 @@ class Sampler:
             num_draws=self.config.num_draws,
             num_chains=self.config.num_chains,
             cores=self.config.cores,
-            device=DEVICE,
+            device=self.device,
             callbacks=self.callbacks,
             seed=seed,
             subsample=self.config.eval_loss_fn == "subsequence-mse"
