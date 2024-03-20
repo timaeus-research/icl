@@ -2,6 +2,7 @@ import inspect
 import itertools
 import time
 import warnings
+from collections import Sequence
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
@@ -317,6 +318,10 @@ class SamplerConfig(BaseModel):
     per_token: bool = True
 
     init_seed: Optional[int] = None
+
+    # Restricted LLC
+    include: Sequence[str] = ("*", )
+    exclude: Sequence[str] = ()
 
     @field_validator('sampling_method')
     @classmethod
