@@ -198,8 +198,8 @@ def sample_single_chain_xla(
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
                 # draw = (i - num_burnin_steps) // num_steps_bw_draws
 
-                with torch.no_grad():
-                    xm.add_step_closure(increment_loss, mean_loss)
+                # with torch.no_grad():
+                xm.add_step_closure(increment_loss, mean_loss)
                     # _loss = mean_loss.item()
 
                     # chain_loss += mean_loss
