@@ -324,40 +324,41 @@ def sample(
             device=device,
             verbose=verbose,
             subsample=subsample,
-            cores=cores
+            cores=cores,
+            callbacks=callbacks
         )
 
     start_time = time.time()
 
     if cores > 1: 
-        if XLA:
-            xmp.spawn(_sample_single_chain_worker, args=(
-                num_chains, 
-                seeds,
-                model,
-                loader,
-                criterion,
-                num_draws,
-                num_burnin_steps,
-                num_steps_bw_draws,
-                sampling_method,
-                optimizer_kwargs,
-                device,
-                verbose,
-                subsample,
-                cores
-            ), nprocs=cores)
-        else:
-            # ctx = get_context("spawn")
-            # with ctx.Pool(cores) as pool:
-            #     results = pool.map(_sample_single_chain, [{**(get_args(i)), 'core': i % cores} for i in range(num_chains)])
+        # if XLA:
+        #     xmp.spawn(_sample_single_chain_worker, args=(
+        #         num_chains, 
+        #         seeds,
+        #         model,
+        #         loader,
+        #         criterion,
+        #         num_draws,
+        #         num_burnin_steps,
+        #         num_steps_bw_draws,
+        #         sampling_method,
+        #         optimizer_kwargs,
+        #         device,
+        #         verbose,
+        #         subsample,
+        #         cores
+        #     ), nprocs=cores)
+        # else:
+        #     ctx = get_context("spawn")
+        #     with ctx.Pool(cores) as pool:
+        #         results = pool.map(_sample_single_chain, [{**(get_args(i)), 'core': i % cores} for i in range(num_chains)])
             
-            raise NotImplementedError("Multiprocessing is only supported with XLA")
+        raise NotImplementedError("Multiprocessing is not supported.")
     else:
         results = []
 
         for i in range(num_chains):
-            results.append(_sample_single_chain(get_args(i), callbacks=callbacks))
+            results.append(_sample_single_chain(get_args(i)))
     
     if results and all(results):
         keys = list(results[0].keys())
