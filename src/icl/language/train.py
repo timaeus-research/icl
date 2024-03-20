@@ -191,7 +191,7 @@ def train(config: LanguageConfig) -> HookedTransformer:
             if XLA: xm.mark_step()
 
             if (step % 100 == 0 or step < 100 or (step % 10 == 0 and step < 1000)) and config.is_wandb_enabled:
-                wandb.log({"batch/loss": loss.mean().item()}, step=step)
+                wandb.log({"batch/loss": loss.item()}, step=step)
 
             if step in config.checkpointer_config.checkpoint_steps:
                 print("Saving checkpoint at step %s", step)

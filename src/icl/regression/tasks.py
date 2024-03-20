@@ -1,7 +1,8 @@
 import math
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar, Union
 
 import torch
+from torch.utils.data import IterableDataset
 
 from infra.utils.device import DeviceOrDeviceLiteral
 
@@ -46,7 +47,7 @@ class RegressionSequenceDistribution(Generic[T]):
     """
     task_distribution: T
 
-    def __init__(self, task_distribution: T, noise_variance=0.25, device='cpu'):
+    def __init__(self, task_distribution: T, noise_variance=0.25):
         self.task_distribution = task_distribution
         self.noise_variance = noise_variance
         self.std = noise_variance**0.5
@@ -97,30 +98,43 @@ class RegressionSequenceDistribution(Generic[T]):
             return xs, ys, ws
 
         return xs, ys
-        
 
-    def loop_batches(self, num_examples: int, batch_size: int):
-        """
-        Iterate over batches of synthetic data (token sequences) for
-        in-context regression.
+    def as_dataset_and_loader(self, num_examples: int, batch_size: int, dataset_size: Union[int, Literal['inf']] = 'inf', shuffle=True):
+        if dataset_size == 'inf':
+            if not shuffle:
+                raise ValueError("Cannot have infinite dataset without shuffling")
 
-        Yields:
+            dataset = RegressionDataset(self, num_examples=num_examples, batch_size=batch_size)
+            loader = torch.utils.data.DataLoader(dataset, batch_size=None)
+            return dataset, loader
 
-        * `xs : tensor(batch_size, num_examples, task_size, device=device)`
-            batch of sequences of input vectors.
-        * `ys : tensor(batch_size, num_examples, 1, device=device)`
-            batch of corresponding sequences of input vectors.
-        """
-        while True:
-            yield self.get_batch(
-                num_examples=num_examples,
-                batch_size=batch_size,
-            )
+        # Finite dataset
+        xs, ys = self.get_batch(
+            num_examples=num_examples,
+            batch_size=dataset_size,
+        )
 
+        xs, ys = xs.to('cpu'), ys.to('cpu')
+        dataset = torch.utils.data.TensorDataset(xs, ys)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+        return dataset, loader
 
     def to(self, device: str):
         self.task_distribution.to(device)
         return self
+
+class RegressionDataset(IterableDataset, Generic[T]):
+    def __init__(self, task_distribution: RegressionSequenceDistribution[T], num_examples: int, batch_size=1024):
+        self.task_distribution = task_distribution
+        self.batch_size = batch_size
+        self.num_examples = num_examples
+
+    def __iter__(self):
+        while True:
+            yield self.task_distribution.get_batch(
+                num_examples=self.num_examples,
+                batch_size=self.batch_size,
+            )
 
 
 class TaskDistribution:

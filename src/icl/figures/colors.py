@@ -1,8 +1,8 @@
 import colorsys
 from typing import List, Literal, Tuple, Union
 
-import plotly.express as px
 import numpy as np
+import plotly.express as px
 import seaborn as sns
 from matplotlib import patches as mpatches
 
@@ -53,7 +53,7 @@ def get_transition_type(transition: Transition) -> TransitionType:
 def plot_transitions(axes, transitions, max_step=np.inf, xlim=True, alpha=0.2, colors=None, labels=False):
     if colors is None:
         types = [get_transition_type(m) for m in transitions]
-        colors = gen_LR_TRANSITION_COLORS(types)
+        colors = gen_transition_colors(types)
 
     min_step = min([t[0] for t in transitions])
     max_step = min(max_step, max([t[1] for t in transitions]))
