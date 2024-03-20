@@ -14,7 +14,7 @@ parameters:
       sampling_method:
         value: sgld
       grad_batch_origin:
-        value: "infinite-dataset"
+        value: "infinite  -dataset"
       grad_batch_size:
         value: 1024
       # 

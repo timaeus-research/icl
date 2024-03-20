@@ -86,6 +86,10 @@ def sample_single_chain(
     pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
 
     try: 
+        if verbose:
+            print(f"Starting chain {chain} on {device} with {cores} cores.")
+            start = time.time()
+            
         for i, (xs, ys) in  pbar:
             optimizer.zero_grad()
             xs, ys = xs.to(device), ys.to(device)
@@ -109,7 +113,11 @@ def sample_single_chain(
                 with torch.no_grad():
                     for callback in callbacks:
                         call_with(callback, **locals())  # Cursed but we'll fix it later
-                        
+
+        if verbose:
+            end = time.time()
+            stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")                    
+    
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
@@ -156,7 +164,7 @@ def sample_single_chain_xla(
         if verbose:
             print(f"Starting chain {chain} on {device} with {cores} cores.")
             start = time.time()
-            
+
         for i, (xs, ys) in enumerate(cycle(loader)):   
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
@@ -174,10 +182,6 @@ def sample_single_chain_xla(
             optimizer.step()
             xm.mark_step()
             # xm.optimizer_step(optimizer)
-
-            if i % update_frequency == 0 and verbose:
-                xm.master_print(f"Iteration: {i} {time.time()}")
-                # xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
 
             if i >= num_steps:
                 break
@@ -203,6 +207,7 @@ def sample_single_chain_xla(
 
         #     if i % update_frequency == 0:
         #         xm.master_print(f"Iteration: {i} {time.time()}")
+            
         if verbose:
             end = time.time()
             stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")
