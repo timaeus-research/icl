@@ -10,7 +10,7 @@ import torch
 from pydantic import BaseModel, Field, field_validator, model_validator
 from torch import nn
 from torch.multiprocessing import cpu_count, get_context
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
@@ -50,7 +50,6 @@ def call_with(func: Callable, **kwargs):
 
 def cycle(iterable):
     while True:
-        print("Cycling")
         for x in iterable:
             yield x
 
@@ -142,9 +141,9 @@ def sample_single_chain_xla(
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
 
-    if cores > 1:
-        para_loader = pl.ParallelLoader(loader, [device])
-        loader = para_loader.per_device_loader(device)
+    # if cores > 1:
+    #     para_loader = pl.ParallelLoader(loader, [device])
+    #     loader = para_loader.per_device_loader(device)
     # else:
     #     loader = pl.MpDeviceLoader(loader, device)
 
@@ -155,6 +154,9 @@ def sample_single_chain_xla(
 
     try: 
         for i, (xs, ys) in enumerate(cycle(loader)):
+            if i % update_frequency == 0 and verbose:
+                print(xs.device)
+    
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -167,9 +169,13 @@ def sample_single_chain_xla(
 
             optimizer.zero_grad()
             mean_loss.backward()
-            xm.optimizer_step(optimizer)
+            
+            optimizer.step()
+            xm.mark_step()
+            # xm.optimizer_step(optimizer)
 
             if i % update_frequency == 0 and verbose:
+                print(xs.device)
                 xm.master_print(f"Iteration: {i} {time.time()}")
                 # xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
 
@@ -310,7 +316,7 @@ class SamplerConfig(BaseModel):
 
     # SGLD steps
     sampling_method: Literal["sgld", "sgnht"] = "sgld" # Only SGLD is supported for now
-    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"] = 'eval-dataset'  # Only eval-dataset is supported for now
+    grad_batch_origin: Literal["infinite-dataset", "eval-dataset"] = 'infinite-dataset'  # Only eval-dataset is supported for now
     grad_batch_size: int = 1024
 
     # Parametrization 1 (original)
@@ -352,12 +358,6 @@ class SamplerConfig(BaseModel):
     @classmethod
     def check_sampling_method(cls, v: str) -> str:
         assert v == "sgld", "Only SGLD is supported for now"
-        return v
-
-    @field_validator('grad_batch_origin')
-    @classmethod
-    def check_grad_batch_origin(cls, v: str) -> str:
-        assert v  == "eval-dataset", "Only eval-dataset is supported for now"
         return v
 
     # Validate all fields
@@ -446,27 +446,37 @@ class SamplerConfig(BaseModel):
             r"\gamma": str(self.gamma),
             "eval": (self.eval_method, self.eval_loss_fn),
         })
+    
 
 class Sampler:
     def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None):
         self.config = config
         self.run = run
+        
+        if self.config.grad_batch_origin == "infinite-dataset":
+            self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.run.config.task_config.max_examples,
+                self.config.grad_batch_size
+            ) 
+            self.eval_dataset, self.eval_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.run.config.task_config.max_examples,
+                self.config.eval_batch_size or self.config.grad_batch_size,
+                self.config.eval_dataset_size,
+            )
+        else:
+            self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
+                self.config.grad_batch_size,
+                self.config.grad_batch_size,
+                self.config.eval_dataset_size
+            )
+            self.eval_dataset = self.full_dataset
+            self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
 
-        xs, ys = run.pretrain_dist.get_batch(
-            num_examples=run.config.task_config.max_examples,
-            batch_size=self.config.eval_dataset_size,
-        )
 
-        xs, ys = xs.to('cpu'), ys.to('cpu')
-
-        self.full_dataset = torch.utils.data.TensorDataset(xs, ys)
-        self.eval_dataset = self.full_dataset
+        self.eval_dataset = self.run.pretrain_dist.as_dataset(self.config.eval_dataset_size)
 
         if self.config.eval_method == "fixed-minibatch":
-            self.eval_dataset = torch.utils.data.TensorDataset(xs[:self.config.eval_batch_size, :, :], ys[:self.config.eval_batch_size, :, :])
-
-        self.grad_loader = torch.utils.data.DataLoader(self.full_dataset, batch_size=self.config.grad_batch_size, shuffle=True)  # Shuffle might meant repeats
-        self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
+            warnings.warn("Fixed minibatch evals are not supported for now.")
 
         self.log_fn = log_fn
         context_reduction = "none" if self.config.per_token else "mean"
@@ -476,6 +486,7 @@ class Sampler:
             batch_reduction="none" if "singular-fluctuation" in self.config.eval_metrics else "mean", 
             context_reduction=context_reduction
         )
+        
         if XLA:
             xm.mark_step()
 
