@@ -116,7 +116,7 @@ def sample_single_chain(
 
         if verbose:
             end = time.time()
-            stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")                    
+            print(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")                    
     
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
@@ -166,6 +166,9 @@ def sample_single_chain_xla(
             start = time.time()
 
         for i, (xs, ys) in enumerate(cycle(loader)):   
+            if i >= num_steps:
+                break
+
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -183,30 +186,12 @@ def sample_single_chain_xla(
             xm.mark_step()
             # xm.optimizer_step(optimizer)
 
-            if i >= num_steps:
-                break
+            if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+                draw = (i - num_burnin_steps) // num_steps_bw_draws
 
-        # for i, (xs, ys) in pbar:
-        #     xs, ys = xs.to(device), ys.to(device)
-        #     y_preds = model(xs, ys)
-        #     loss = criterion(y_preds, ys)
-        #     mean_loss = process_loss(loss)
-
-        #     optimizer.zero_grad()
-        #     mean_loss.backward()
-
-        #     # if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-        #     #     draw = (i - num_burnin_steps) // num_steps_bw_draws
-
-        #     #     with torch.no_grad():
-        #     #         for callback in callbacks:
-        #     #             call_with(callback, **locals())  # Cursed but we'll fix it later
-            
-        #     xm.optimizer_step(optimizer)
-        #     # pbar.set_postfix(loss=mean_loss.item())  # This destroys efficiency on the TPU
-
-        #     if i % update_frequency == 0:
-        #         xm.master_print(f"Iteration: {i} {time.time()}")
+                with torch.no_grad():
+                    for callback in callbacks:
+                        call_with(callback, **locals())  # Cursed but we'll fix it later
             
         if verbose:
             end = time.time()
@@ -556,7 +541,7 @@ class Sampler:
             dataset_size=self.config.eval_dataset_size,
             temperature=self.config.temperature,
             loss_fn=loss_fn,
-            device='cpu',
+            device=DEVICE,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -573,7 +558,7 @@ class Sampler:
             self.config.eval_dataset_size,
             self.iter_eval_model,
             temperature=self.config.temperature,
-            device='cpu',
+            device=DEVICE,
             online=self.config.eval_online,
             include_trace=self.config.eval_online,
             log_fn=self.log_fn,
@@ -585,7 +570,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.loss_dim,
-            'cpu',
+            DEVICE,
             online=True,
             include_trace=True
         )
@@ -595,7 +580,7 @@ class Sampler:
             self.config.num_chains, 
             self.config.num_draws, 
             self.run.model, 
-            'cpu',
+            DEVICE,
         )
 
     def get_callbacks(self):

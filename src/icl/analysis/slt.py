@@ -9,6 +9,7 @@ from torch import nn
 
 from icl.analysis.estimators import get_estimator
 from icl.analysis.health import ChainHealthException
+from icl.constants import DEVICE
 from icl.regression.experiments.utils import flatten_and_process
 
 app = typer.Typer()
@@ -32,7 +33,7 @@ class ExpectedBatchLossEstimator:
         return self.estimator.estimates()
     
     def __call__(self, chain: int, draw: int, loss: torch.Tensor):
-        self.estimator.update(chain, draw, loss.detach().cpu())
+        self.estimator.update(chain, draw, loss)
 
     def reset(self):
         self.estimator.reset()
@@ -54,7 +55,7 @@ class ExpectedLossObservableEstimator:
         return self.estimator.estimates()
     
     def __call__(self, chain: int, draw: int, model: nn.Module):
-        self.estimator.update(chain, draw, self.loss_fn(model).detach().cpu())
+        self.estimator.update(chain, draw, self.loss_fn(model))
 
     def reset(self):
         self.estimator.reset()
@@ -132,7 +133,7 @@ class LikelihoodMetricsEstimator:
         return pd.DataFrame(_estimates)
 
     def update(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
-        self.expected_loss_estimator.update(chain, draw, loss.detach().cpu())
+        self.expected_loss_estimator.update(chain, draw, loss)
 
     def call_with_loss_fn(self, chain: int, draw: int, loss: torch.Tensor, model: nn.Module):
         _loss = self.loss_fn(model)
@@ -229,11 +230,11 @@ class SLTObservablesEstimator:
         return self.likelihood_metrics_estimator.dataset_size
     
     def update(self, chain: int, draw: int, model: nn.Module):
-        total_loss = torch.zeros(1, dtype=torch.float32).to('cpu')
+        total_loss = torch.zeros(1, dtype=torch.float32).to(DEVICE)
 
         with torch.no_grad():
             for batch_losses in self.singular_fluctuation_estimator.iter_update(chain, draw, model):
-                total_loss += batch_losses.sum().detach().cpu()
+                total_loss += batch_losses.sum()
 
             self.likelihood_metrics_estimator.update(chain, draw, total_loss / self.dataset_size)
 
