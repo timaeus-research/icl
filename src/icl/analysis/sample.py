@@ -297,6 +297,8 @@ def sample(
             cores=cores
         )
 
+    start_time = time.time()
+
     if cores > 1: 
         # if XLA:
         #     xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
@@ -340,6 +342,11 @@ def sample(
     for callback in callbacks:
         if hasattr(callback, "estimate"):
             results.update(callback.estimate())
+
+    end_time = time.time()
+
+    if verbose:
+        stdlogger.info(f"Sampled {num_chains} chains in {end_time - start_time:.2f}s")
 
     return results
 
