@@ -245,7 +245,6 @@ class OnlineExpectationEstimatorWithTrace:
 #         return (self.draws[:self.num_samples_seen] ** 2).mean()
     
     
-
     
 
 def get_estimator(num_chains: int, num_draws: int, observable_dim: int = 1, device="cpu", online: bool = False, include_trace: bool = False):
