@@ -324,9 +324,9 @@ def sample(
     if results:
         keys = list(results[0].keys())
 
-        dataset_size = callbacks[0].likelihood_metrics_estimator.dataset_size
-        temperature = callbacks[0].likelihood_metrics_estimator.temperature
-        init_loss  = callbacks[0].likelihood_metrics_estimator.init_loss.item()
+        dataset_size = callbacks[0].dataset_size
+        temperature = callbacks[0].temperature
+        init_loss  = callbacks[0].init_loss.item()
 
         for result in results:
             result['wbic/mean'] = dataset_size * result['loss/mean']
