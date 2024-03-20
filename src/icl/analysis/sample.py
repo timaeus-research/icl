@@ -135,8 +135,10 @@ def sample_single_chain_xla(
     seed: Optional[int] = None,
     verbose=True,
     device: Union[str, torch.device] = torch.device("xla"),
+    callbacks: List[Callable] = [],
     subsample: bool = False,
     cores=1,
+    update_frequency=10,
 ):
     # Initialize new model and optimizer for this chain
     model = model.train().to(device)
@@ -149,6 +151,15 @@ def sample_single_chain_xla(
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
 
+    # if cores > 1:
+    #     para_loader = pl.ParallelLoader(loader, [device])
+    #     loader = para_loader.per_device_loader(device)
+    # else:
+    #     loader = pl.MpDeviceLoader(loader, device)
+
+    # TODO: Restrict support
+    # if callbacks
+
     chain_loss = torch.zeros(1, device=device)
     chain_loss_sq = torch.zeros(1, device=device)
 
@@ -160,7 +171,7 @@ def sample_single_chain_xla(
 
     try: 
         if verbose:
-            print(f"Starting chain {chain} on {device} with {cores} cores and {steps} steps.")
+            print(f"Starting chain {chain} on {device} with {cores} cores.")
             start = time.time()
 
         for i, (xs, ys) in enumerate(cycle(loader)):   
@@ -185,9 +196,28 @@ def sample_single_chain_xla(
             xm.mark_step()
 
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
+                # draw = (i - num_burnin_steps) // num_steps_bw_draws
+
                 with torch.no_grad():
                     xm.add_step_closure(increment_loss, (mean_loss, ))
+            # xm.optimizer_step(optimizer)
 
+                # _loss = mean_loss.item()
+
+                # chain_loss += mean_loss
+                # chain_loss_sq += mean_loss ** 2
+
+                # with torch.no_grad():
+                #     for callback in callbacks:
+                #         call_with(
+                #             callback, 
+                #             draw=draw,
+                #             chain=chain,
+                #             loss=loss,
+                #             model=model,
+                #         ) 
+                
+                # xm.mark_step()
             
         if verbose:
             end = time.time()
@@ -209,55 +239,15 @@ def sample_single_chain_xla(
 
 def _sample_single_chain(kwargs):
     if kwargs.get('device', torch.device('cpu')).type == "xla":
-        kwargs['device'] = xm.xla_device()
-
-        kwargs.pop('callbacks')
-
+        kwargs['device'] = xm.xla_device() 
         return sample_single_chain_xla(**kwargs)
-       
+    
     return sample_single_chain(**kwargs)
 
 
-def _sample_single_chain_worker(
-        index, 
-        num_chains, 
-        seeds,
-        model,
-        loader,
-        criterion,
-        num_draws,
-        num_burnin_steps,
-        num_steps_bw_draws,
-        sampling_method,
-        optimizer_kwargs,
-        device,
-        verbose,
-        subsample,
-        cores           
-):
+def _sample_single_chain_worker(index, num_chains, get_args):
     """ Worker function for multiprocessing """
-    try:
-        seed = seeds[index]
-        model = deepcopy(model.to('cpu'))
-        return _sample_single_chain(dict(
-            chain=index,
-            seed=seed,
-            model=model,
-            loader=loader,
-            criterion=criterion,
-            num_draws=num_draws,
-            num_burnin_steps=num_burnin_steps,
-            num_steps_bw_draws=num_steps_bw_draws,
-            sampling_method=sampling_method,
-            optimizer_kwargs=optimizer_kwargs,
-            device=device,
-            verbose=verbose,
-            subsample=subsample,
-            cores=cores  
-        ))
-    except Exception as e:
-        print(f"Chain {index} failed with {e}")
-        raise e
+    return _sample_single_chain(get_args(index % num_chains))
 
 
 def sample(
@@ -323,44 +313,26 @@ def sample(
             optimizer_kwargs=optimizer_kwargs,
             device=device,
             verbose=verbose,
+            callbacks=callbacks,
             subsample=subsample,
-            cores=cores,
-            callbacks=callbacks
+            cores=cores
         )
 
-    start_time = time.time()
-
     if cores > 1: 
-        # if XLA:
-        #     xmp.spawn(_sample_single_chain_worker, args=(
-        #         num_chains, 
-        #         seeds,
-        #         model,
-        #         loader,
-        #         criterion,
-        #         num_draws,
-        #         num_burnin_steps,
-        #         num_steps_bw_draws,
-        #         sampling_method,
-        #         optimizer_kwargs,
-        #         device,
-        #         verbose,
-        #         subsample,
-        #         cores
-        #     ), nprocs=cores)
-        # else:
-        #     ctx = get_context("spawn")
-        #     with ctx.Pool(cores) as pool:
-        #         results = pool.map(_sample_single_chain, [{**(get_args(i)), 'core': i % cores} for i in range(num_chains)])
-            
-        raise NotImplementedError("Multiprocessing is not supported.")
+        if XLA:
+            raise NotImplementedError("XLA is not supported for multiprocessing")
+            xmp.spawn(_sample_single_chain_worker, args=(num_chains, get_args), nprocs=cores)
+        else:
+            ctx = get_context("spawn")
+            with ctx.Pool(cores) as pool:
+                pool.map(_sample_single_chain, [get_args(i) for i in range(num_chains)])
     else:
         results = []
 
         for i in range(num_chains):
             results.append(_sample_single_chain(get_args(i)))
     
-    if results and all(results):
+    if results:
         keys = list(results[0].keys())
 
         dataset_size = callbacks[0].dataset_size
@@ -390,11 +362,6 @@ def sample(
     for callback in callbacks:
         if hasattr(callback, "estimate"):
             results.update(callback.estimate())
-
-    end_time = time.time()
-
-    if verbose:
-        stdlogger.info(f"Sampled {num_chains} chains in {end_time - start_time:.2f}s with {cores} cores on {device}")
 
     return results
 
