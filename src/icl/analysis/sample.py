@@ -154,10 +154,7 @@ def sample_single_chain_xla(
     print(f"Starting chain {chain} on {device} with {cores} cores.")
 
     try: 
-        for i, (xs, ys) in enumerate(cycle(loader)):
-            if i % update_frequency == 0 and verbose:
-                print(xs.device)
-    
+        for i, (xs, ys) in enumerate(cycle(loader)):   
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
             loss = criterion(y_preds, ys)
@@ -176,7 +173,6 @@ def sample_single_chain_xla(
             # xm.optimizer_step(optimizer)
 
             if i % update_frequency == 0 and verbose:
-                print(xs.device)
                 xm.master_print(f"Iteration: {i} {time.time()}")
                 # xm.add_step_closure(log_fn, args=(i, mean_loss), run_async=True)                
 
