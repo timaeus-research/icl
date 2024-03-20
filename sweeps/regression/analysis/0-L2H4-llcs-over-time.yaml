@@ -9,7 +9,7 @@ parameters:
         value: 8
       num_draws:
         value: 500
-      num_burn_in:
+      num_burnin_steps:
         value: 500
       sampling_method:
         value: sgld

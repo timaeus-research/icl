@@ -42,7 +42,7 @@ def estimate_at_checkpoint(
     plotting_config: dict,
     checkpoint_idx: Optional[int] = None,
     step: Optional[int] = None,
-    use_wandb: bool = False
+    use_wandb: bool = False,
 ):      
     assert step is None or checkpoint_idx is None, "Can only specify one of step or checkpoint_idx"
 
@@ -56,8 +56,8 @@ def estimate_at_checkpoint(
     start = time.perf_counter()
     config["device"] = DEVICE
     config: RegressionConfig = get_config(**config)
-    # run = RegressionRun.create_and_restore(config)
-    run = RegressionRun(config)  # TODO: Restore
+    run = RegressionRun.create_and_restore(config)
+    # run = RegressionRun(config) 
 
     # Iterate over checkpoints
     steps = list(run.checkpointer.file_ids)
