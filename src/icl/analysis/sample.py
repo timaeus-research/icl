@@ -189,21 +189,22 @@ def sample_single_chain_xla(
                 mean_loss = loss.mean()
 
             optimizer.zero_grad()
-            mean_loss.backward()
-            
-            optimizer.step()
-            xm.mark_step()
-            # xm.optimizer_step(optimizer)
 
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
                 # draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 # with torch.no_grad():
                 xm.add_step_closure(increment_loss, mean_loss)
-                    # _loss = mean_loss.item()
 
-                    # chain_loss += mean_loss
-                    # chain_loss_sq += mean_loss ** 2
+            mean_loss.backward()
+            optimizer.step()
+            xm.mark_step()
+            # xm.optimizer_step(optimizer)
+
+                # _loss = mean_loss.item()
+
+                # chain_loss += mean_loss
+                # chain_loss_sq += mean_loss ** 2
 
                 # with torch.no_grad():
                 #     for callback in callbacks:
@@ -215,7 +216,7 @@ def sample_single_chain_xla(
                 #             model=model,
                 #         ) 
                 
-                xm.mark_step()
+                # xm.mark_step()
             
         if verbose:
             end = time.time()
