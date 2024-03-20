@@ -30,7 +30,7 @@ parameters:
       eval_batch_size:
         value: null
       eval_dataset_size:
-        value: 32768
+        value: 131072
       eval_metrics:
         value: ["likelihood-derived", "batch-loss"]
       eval_online:
@@ -38,7 +38,7 @@ parameters:
       eval_loss_fn:
         value: "mse"
       init_seed:
-        value: 0
+        value: 42
 
   task_config: 
     parameters:

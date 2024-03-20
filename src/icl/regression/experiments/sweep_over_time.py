@@ -37,7 +37,7 @@ def sweep_over_time(
     sampler_config: dict,
     steps: Optional[StepsType] = None,
     use_wandb: bool = False,
-    testing: bool = True
+    testing: bool = False
 ):      
     if testing:
         warnings.warn("Testing mode enabled")
