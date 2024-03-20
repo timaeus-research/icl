@@ -346,7 +346,7 @@ def sample(
     end_time = time.time()
 
     if verbose:
-        stdlogger.info(f"Sampled {num_chains} chains in {end_time - start_time:.2f}s")
+        stdlogger.info(f"Sampled {num_chains} chains in {end_time - start_time:.2f}s with {cores} cores on {device}")
 
     return results
 
