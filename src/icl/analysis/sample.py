@@ -160,8 +160,8 @@ def sample_single_chain_xla(
     # TODO: Restrict support
     # if callbacks
 
-    # chain_loss = torch.zeros(1, device=device)
-    # chain_loss_sq = torch.zeros(1, device=device)
+    chain_loss = torch.zeros(1, device=device)
+    chain_loss_sq = torch.zeros(1, device=device)
 
     try: 
         if verbose:
@@ -190,21 +190,21 @@ def sample_single_chain_xla(
             # xm.optimizer_step(optimizer)
 
             if i >= num_burnin_steps and (i - num_burnin_steps) % num_steps_bw_draws == 0:
-                draw = (i - num_burnin_steps) // num_steps_bw_draws
-
-                # with torch.no_grad():
-                #     chain_loss += mean_loss
-                #     chain_loss_sq += mean_loss ** 2
+                # draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 with torch.no_grad():
-                    for callback in callbacks:
-                        call_with(
-                            callback, 
-                            draw=draw,
-                            chain=chain,
-                            loss=loss,
-                            model=model,
-                        ) 
+                    chain_loss += mean_loss
+                    chain_loss_sq += mean_loss ** 2
+
+                # with torch.no_grad():
+                #     for callback in callbacks:
+                #         call_with(
+                #             callback, 
+                #             draw=draw,
+                #             chain=chain,
+                #             loss=loss,
+                #             model=model,
+                #         ) 
                 
                 xm.mark_step()
             
@@ -215,6 +215,13 @@ def sample_single_chain_xla(
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
+    chain_loss_mean = chain_loss.item() / num_draws
+    chain_loss_std = (chain_loss_sq.item() / num_draws - chain_loss_mean ** 2) ** 0.5
+
+    return {
+        "loss/mean": chain_loss_mean,
+        "loss/std": chain_loss_std
+    }
 
 
 def _sample_single_chain(kwargs):
@@ -314,13 +321,27 @@ def sample(
     
     if results:
         keys = list(results[0].keys())
+
+        dataset_size = callbacks[0].likelihood_metrics_estimator.dataset_size
+        temperature = callbacks[0].likelihood_metrics_estimator.temperature
+        init_loss  = callbacks[0].likelihood_metrics_estimator.init_loss.item()
+
+        for result in results:
+            result['wbic/mean'] = dataset_size * result['loss/mean']
+            result['wbic/std'] = dataset_size * result['loss/std']
+            result['llc/mean'] = (result['wbic/mean'] - init_loss * dataset_size) / temperature
+            result['llc/std'] = result['wbic/std'] / temperature
+
         d = {
             f"{key}/{i}": result[key] for key in keys for i, result in enumerate(results)
         }
         
         for key in keys:
-            d[f"{key}/mean"] = np.mean([result[key] for result in results])
-        
+            entries = [result[key] for result in results]
+            d[f"{key}/mean"] = np.mean(entries)
+            d[f"{key}/std"] = np.std(entries)
+
+        return d
 
     results = {}
 
