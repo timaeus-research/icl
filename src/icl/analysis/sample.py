@@ -68,7 +68,9 @@ def sample_single_chain(
     verbose=True,
     device: Union[str, torch.device] = torch.device("cpu"),
     callbacks: List[Callable] = [],
-    subsample: bool = False
+    subsample: bool = False,
+    cores=1,
+    update_frequency=10
 ):
     # Initialize new model and optimizer for this chain
     model = model.to(device)
@@ -465,15 +467,12 @@ class Sampler:
             )
         else:
             self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
-                self.config.grad_batch_size,
+                self.run.config.task_config.max_examples,
                 self.config.grad_batch_size,
                 self.config.eval_dataset_size
             )
             self.eval_dataset = self.full_dataset
             self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
-
-
-        self.eval_dataset = self.run.pretrain_dist.as_dataset(self.config.eval_dataset_size)
 
         if self.config.eval_method == "fixed-minibatch":
             warnings.warn("Fixed minibatch evals are not supported for now.")
