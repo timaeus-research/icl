@@ -1,5 +1,6 @@
 import inspect
 import itertools
+import re
 import time
 import warnings
 from collections import Sequence
@@ -422,6 +423,42 @@ class SamplerConfig(BaseModel):
             "eval": (self.eval_method, self.eval_loss_fn),
         })
 
+import re
+
+
+def match_template(template, string):
+    """
+    Check if a string matches a template with wildcards.
+
+    The template string can contain two types of wildcards:
+    - Single wildcard (*): Matches any character except a dot (.).
+    - Double wildcard (**): Matches any character including dots.
+
+    Parameters:
+        template (str): The template string with wildcards.
+        string (str): The string to match against the template.
+
+    Returns:
+        bool: True if the string matches the template, False otherwise.
+
+    Example:
+        template = 'token_sequence_transformer.blocks.*.attention.**'
+        string1 = 'token_sequence_transformer.blocks.0.attention.attention.weight'
+        string2 = 'token_sequence_transformer.blocks.1.ffn.weight'
+        string3 = 'token_sequence_transformer.blocks.2.attention.bias'
+
+        print(match_template(template, string1))  # Output: True
+        print(match_template(template, string2))  # Output: False
+        print(match_template(template, string3))  # Output: True
+    """
+
+    escaped_template = template.replace('.', '\\.')
+    pattern = escaped_template.replace('*', '[^.]*')
+    pattern = pattern.replace('**', '.*')
+    pattern = f'^{pattern}$'
+    return re.match(pattern, string) is not None
+
+
 class Sampler:
     def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None):
         self.config = config
@@ -586,7 +623,42 @@ class Sampler:
         stdlogger.info(f"Evaluated hessians in {end - start:.2f}s")
         return results
 
+    def restrict_(self, model: nn.Module):
+        """
+        Restricts the gradients of the model's parameters based on the include and exclude configurations.
+
+        Exclusive patterns take precedence over inclusive patterns if a parameter matches both. 
+
+        Args:
+            model (nn.Module): The model whose parameters' gradients need to be restricted.
+
+        Returns:
+            None
+        """
+        include_templates = [e for e in self.config.include if "*" in e]
+        include_exact = [e for e in self.config.include if "*" not in e]
+
+        exclude_templates = [e for e in self.config.exclude if "*" in e]
+        exclude_exact = [e for e in self.config.exclude if "*" not in e]
+
+        for name, param in model.named_parameters():
+            param.requires_grad = False
+
+            if any(name == e for e in include_exact):
+                param.requires_grad = True
+
+            elif any(match_template(e, name) for e in include_templates):
+                param.requires_grad = True               
+
+            if any(name == e for e in exclude_exact):
+                param.requires_grad = False
+            elif any(match_template(e, name) for e in exclude_templates):
+                param.requires_grad = False
+
     def eval(self, model: nn.Module, seed=None):
+        if "*" not in self.config.include or self.config.exclude:
+            self.restrict_(model)
+
         results = sample(
             model,
             self.grad_loader,

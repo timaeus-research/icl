@@ -86,11 +86,17 @@ def sweep_over_time(
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
     run.model.train()
 
-    for step in tqdm(steps, desc="Iterating over checkpoints..."):
+
+    for i, step in enumerate(tqdm(steps, desc="Iterating over checkpoints...")):
         checkpoint = run.checkpointer.load_file(step)
         run.model.load_state_dict(checkpoint['model'])
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
+
+        if i == 0 and "*" not in sampler.config.include or self.config.exclude:
+            sampler.restrict_(run.model)
+            restriction = [n for n, p in run.model.named_parameters() if p.requires_grad]
+            stdlogger.info("Restricting sampler to parameters %s", restriction)
 
         try:
             results = sampler.eval(run.model)
