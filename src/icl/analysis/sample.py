@@ -151,9 +151,12 @@ def sample_single_chain_xla(
 
     # pbar = zip(range(num_steps), cycle(loader)) # tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain} ({device}, {cores} cores)", total=num_steps, disable=not verbose)
     
-    print(f"Starting chain {chain} on {device} with {cores} cores.")
 
     try: 
+        if verbose:
+            print(f"Starting chain {chain} on {device} with {cores} cores.")
+            start = time.time()
+            
         for i, (xs, ys) in enumerate(cycle(loader)):   
             xs, ys = xs.to(device), ys.to(device)
             y_preds = model(xs, ys)
@@ -200,9 +203,13 @@ def sample_single_chain_xla(
 
         #     if i % update_frequency == 0:
         #         xm.master_print(f"Iteration: {i} {time.time()}")
+        if verbose:
+            end = time.time()
+            stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
+
 
 
 def _sample_single_chain(kwargs):
