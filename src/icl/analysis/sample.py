@@ -160,8 +160,8 @@ def sample_single_chain_xla(
     # TODO: Restrict support
     # if callbacks
 
-    chain_loss = torch.zeros(1, device=device)
-    chain_loss_sq = torch.zeros(1, device=device)
+    chain_loss = 0
+    chain_loss_sq = 0
 
     try: 
         if verbose:
@@ -193,8 +193,10 @@ def sample_single_chain_xla(
                 # draw = (i - num_burnin_steps) // num_steps_bw_draws
 
                 with torch.no_grad():
-                    chain_loss += mean_loss
-                    chain_loss_sq += mean_loss ** 2
+                    _loss = mean_loss.item()
+
+                    chain_loss += _loss
+                    chain_loss_sq += _loss ** 2
 
                 # with torch.no_grad():
                 #     for callback in callbacks:
@@ -215,8 +217,8 @@ def sample_single_chain_xla(
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
 
-    chain_loss_mean = chain_loss.item() / num_draws
-    chain_loss_std = (chain_loss_sq.item() / num_draws - chain_loss_mean ** 2) ** 0.5
+    chain_loss_mean = chain_loss / num_draws
+    chain_loss_std = (chain_loss_sq / num_draws - chain_loss_mean ** 2) ** 0.5
 
     return {
         "loss/mean": chain_loss_mean,
