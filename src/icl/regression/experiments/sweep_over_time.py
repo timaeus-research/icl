@@ -145,9 +145,10 @@ def sweep_over_time(
 
     for i, step in enumerate(tqdm(steps, desc="Iterating over checkpoints...")):
         if not testing:
-            warnings.warn("Testing mode: Skipping checkpoint loading")
-            checkpoint = run.checkpointer.load_file(step) # Skip while testing
+            checkpoint = run.checkpointer.load_file(step)
             run.model.load_state_dict(checkpoint['model']) 
+        else:
+            warnings.warn("Testing mode: Skipping checkpoint loading")
 
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
@@ -174,6 +175,7 @@ def sweep_over_time(
 
         try:
             results = sampler.eval(run.model)
+            results['loss/init'] = sampler.init_loss.item()
             log_fn(results, step=step)
         
         except ChainHealthException as e:
@@ -185,7 +187,7 @@ def wandb_context(config=None):
     config = config or dict(wandb.config)
     wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}-s{config['task_config']['model_seed']}"
     wandb.config['device'] = str(DEVICE)
-    
+
     try:
         yield config
         wandb.finish()
