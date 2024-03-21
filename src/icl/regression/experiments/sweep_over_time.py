@@ -96,7 +96,7 @@ def sweep_over_time(
     sampler_config: SamplerConfig = SamplerConfig(**sampler_config, device=device, cores=cores)
     run.model.train()
 
-    for step in tqdm(steps, desc="Iterating over checkpoints..."):
+    for i, step in enumerate(tqdm(steps, desc="Iterating over checkpoints...")):
         if not testing:
             warnings.warn("Testing mode: Skipping checkpoint loading")
             checkpoint = run.checkpointer.load_file(step) # Skip while testing
@@ -105,10 +105,19 @@ def sweep_over_time(
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
 
-        if i == 0 and "*" not in sampler.config.include or self.config.exclude:
+        if i == 0 and "*" not in sampler.config.include or sampler.config.exclude:
             sampler.restrict_(run.model)
-            restriction = [n for n, p in run.model.named_parameters() if p.requires_grad]
-            stdlogger.info("Restricting sampler to parameters %s", restriction)
+            restriction = [(i, n) for i, (n, p) in enumerate(run.model.named_parameters()) if p.requires_grad]
+            
+            print("")
+            print("Restricting sampler to:")
+            for n in restriction:
+                print("\t", n)
+            print("")
+
+            restricted_positions = ".".join([i for i, n in restriction])
+            wandb.run.name = wandb.run.name + f"-r{restricted_positions}"
+            wandb.config['restriction'] = [n for i, n in restriction]
 
         try:
             results = sampler.eval(run.model)
@@ -121,7 +130,7 @@ def sweep_over_time(
 def wandb_context(config=None):
     wandb.init(project="icl", entity=WANDB_ENTITY)
     config = config or dict(wandb.config)
-    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}"
+    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}-seed{config['task_config']['model_seed']}"
     try:
         yield config
         wandb.finish()
@@ -135,7 +144,10 @@ def wandb_sweep_over_time():
     with wandb_context() as config:
         sampler_config = config.pop("sampler_config")
         steps = config.pop("steps", None)
-        sweep_over_time(config, sampler_config, steps=steps, use_wandb=True)
+        testing = config.pop("testing", False)
+        if testing:
+            wandb.run.name = "TEST-" + wandb.run.name
+        sweep_over_time(config, sampler_config, steps=steps, use_wandb=True, testing=testing)
 
 
 @app.command("sweep")

@@ -72,13 +72,12 @@ def sample_single_chain(
     callbacks: List[Callable] = [],
     subsample: bool = False,
     cores=1,
-    update_frequency=10
 ):
     # Initialize new model and optimizer for this chain
     model = model.to(device)
 
     optimizer_kwargs = optimizer_kwargs or {}
-    optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
+    optimizer = sampling_method((p for p in model.parameters() if p.requires_grad), **optimizer_kwargs)
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -86,6 +85,13 @@ def sample_single_chain(
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
     model.train()
     pbar = tqdm(zip(range(num_steps), cycle(loader)), desc=f"Chain {chain}", total=num_steps, disable=not verbose)
+
+    print("Optimizing over:")
+    for param_group in optimizer.param_groups:
+        for param in param_group['params']:
+            for n, p in model.named_parameters():
+                if p is param:
+                    print("\t", n, f"({p.shape})")
 
     try: 
         if verbose:
@@ -162,10 +168,8 @@ def sample_single_chain_xla(
         chain_loss_sq += loss ** 2
 
     try: 
-        if verbose:
-            print(f"Starting chain {chain} on {device} with {cores} cores and {num_steps} steps.")
-            start = time.time()
-
+        start = time.time()
+        
         for i, (xs, ys) in enumerate(cycle(loader)):   
             if i >= num_steps:
                 break
@@ -192,9 +196,8 @@ def sample_single_chain_xla(
                 with torch.no_grad():
                     xm.add_step_closure(increment_loss, (mean_loss, ))
             
-        if verbose:
-            end = time.time()
-            stdlogger.info(f"Chain {chain} on {device} with {cores} cores finished in {end - start:.2f}s")
+        end = time.time()
+        duration = end - start
 
     except ChainHealthException as e:
         warnings.warn(f"Chain failed to converge: {e}")
@@ -206,7 +209,8 @@ def sample_single_chain_xla(
 
     return {
         "loss/mean": chain_loss_mean,
-        "loss/std": chain_loss_std
+        "loss/std": chain_loss_std,
+        "duration": duration
     }
 
 
@@ -305,7 +309,7 @@ def sample(
         for i in range(num_chains):
             results.append(_sample_single_chain(get_args(i)))
     
-    if results:
+    if results and any(results):
         keys = list(results[0].keys())
 
         dataset_size = callbacks[0].dataset_size
@@ -482,9 +486,6 @@ class SamplerConfig(BaseModel):
         })
     
 
-import re
-
-
 def match_template(template, string):
     """
     Check if a string matches a template with wildcards.
@@ -523,6 +524,9 @@ class Sampler:
         self.config = config
         self.run = run
         self.device = device or DEVICE
+
+        if config.init_seed is not None:
+            torch.manual_seed(config.init_seed)
 
         # if XLA:
         #     self.device = torch.device('cpu')  # Excuse me
@@ -765,9 +769,6 @@ class Sampler:
         for callback in self.callbacks:
             if hasattr(callback, "init_loss"):
                 callback.init_loss = init_loss
-
-        if self.config.init_seed is not None:
-            torch.manual_seed(self.config.init_seed)
 
     @property
     def callbacks(self):
