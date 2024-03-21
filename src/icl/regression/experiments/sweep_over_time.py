@@ -99,13 +99,7 @@ def sweep_over_time(
     start = time.perf_counter()
     config["device"] = 'cpu'
     config: RegressionConfig = get_config(**config)
-
-    if testing:
-        warnings.warn("Testing mode: Skipping checkpointer")
-        run = RegressionRun(config)
-    else:
-        run = RegressionRun.create_and_restore(config)
-
+    run = RegressionRun(config)
     end = time.perf_counter()
     stdlogger.info("... %s seconds", end - start)
 

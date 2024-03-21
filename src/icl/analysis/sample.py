@@ -529,6 +529,7 @@ class Sampler:
         self.device = device or DEVICE
 
         if config.init_seed is not None:
+            print(f"Setting SGLD seed to {config.init_seed}")
             set_seed(config.init_seed)
 
         # if XLA:
