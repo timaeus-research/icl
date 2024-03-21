@@ -1,6 +1,5 @@
 import inspect
 import itertools
-import re
 import time
 import warnings
 from copy import deepcopy
@@ -22,6 +21,7 @@ from icl.analysis.sgld import SGLD
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
                               SLTObservablesEstimator)
+from icl.analysis.utils import match_template
 from icl.analysis.weights import WeightsTrace
 from icl.constants import DEVICE, XLA
 from icl.monitoring import stdlogger
@@ -488,39 +488,6 @@ class SamplerConfig(BaseModel):
             "eval": (self.eval_method, self.eval_loss_fn),
         })
     
-
-def match_template(template, string):
-    """
-    Check if a string matches a template with wildcards.
-
-    The template string can contain two types of wildcards:
-    - Single wildcard (*): Matches any character except a dot (.).
-    - Double wildcard (**): Matches any character including dots.
-
-    Parameters:
-        template (str): The template string with wildcards.
-        string (str): The string to match against the template.
-
-    Returns:
-        bool: True if the string matches the template, False otherwise.
-
-    Example:
-        template = 'token_sequence_transformer.blocks.*.attention.**'
-        string1 = 'token_sequence_transformer.blocks.0.attention.attention.weight'
-        string2 = 'token_sequence_transformer.blocks.1.ffn.weight'
-        string3 = 'token_sequence_transformer.blocks.2.attention.bias'
-
-        print(match_template(template, string1))  # Output: True
-        print(match_template(template, string2))  # Output: False
-        print(match_template(template, string3))  # Output: True
-    """
-
-    escaped_template = template.replace('.', '\\.')
-    pattern = escaped_template.replace('*', '[^.]*')
-    pattern = pattern.replace('**', '.*')
-    pattern = f'^{pattern}$'
-    return re.match(pattern, string) is not None
-
 
 class Sampler:
     def __init__(self, config: SamplerConfig, run: RegressionRun, log_fn: Optional[Callable] = None, device: Optional[torch.device] = None):

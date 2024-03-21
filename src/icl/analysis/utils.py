@@ -1,5 +1,6 @@
 
 import functools
+import re
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -148,6 +149,40 @@ def log_on_update(callback, monitor, log_fn):
     
     callback.update = update
     return callback
+
+
+def match_template(template, string):
+    """
+    Check if a string matches a template with wildcards.
+
+    The template string can contain two types of wildcards:
+    - Single wildcard (*): Matches any character except a dot (.).
+    - Double wildcard (**): Matches any character including dots.
+
+    Parameters:
+        template (str): The template string with wildcards.
+        string (str): The string to match against the template.
+
+    Returns:
+        bool: True if the string matches the template, False otherwise.
+
+    Example:
+        template = 'token_sequence_transformer.blocks.*.attention.**'
+        string1 = 'token_sequence_transformer.blocks.0.attention.attention.weight'
+        string2 = 'token_sequence_transformer.blocks.1.ffn.weight'
+        string3 = 'token_sequence_transformer.blocks.2.attention.bias'
+
+        print(match_template(template, string1))  # Output: True
+        print(match_template(template, string2))  # Output: False
+        print(match_template(template, string3))  # Output: True
+    """
+
+    escaped_template = template.replace('.', '\\.')
+    pattern = escaped_template.split('**')
+    pattern = [p.replace('*', '[^.]*') for p in pattern]
+    pattern = '.*'.join(pattern)
+    pattern = f'^{pattern}$'
+    return re.match(pattern, string) is not None
     
     
 
