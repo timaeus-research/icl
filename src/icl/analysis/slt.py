@@ -191,8 +191,8 @@ class SingularFluctuationEstimator:
         singular_fluctuation_std = self.temperature * functional_variance_std / 2
 
         return {
-            "singular_fluctuation/mean": singular_fluctuation.detach(),
-            "singular_fluctuation/std": singular_fluctuation_std.detach()
+            "singfluc/mean": singular_fluctuation.detach(),
+            "singfluc/std": singular_fluctuation_std.detach()
         }
 
     def iter_update(self, chain: int, draw: int, model: nn.Module):

@@ -206,10 +206,12 @@ def sample_single_chain_xla(
     xm.mark_step()
 
     chain_loss_mean = (chain_loss / num_draws).item()
-    chain_loss_std = ((chain_loss_sq / num_draws - chain_loss_mean ** 2) ** 0.5).item()
+    chain_loss_sq_mean  = chain_loss_sq.item() / num_draws
+    chain_loss_std = ((chain_loss_sq_mean - chain_loss_mean ** 2) ** 0.5)
 
     return {
         "loss/mean": chain_loss_mean,
+        "loss/sq": chain_loss_sq_mean,
         "loss/std": chain_loss_std,
         "duration": duration
     }
@@ -311,27 +313,27 @@ def sample(
             results.append(_sample_single_chain(get_args(i)))
     
     if results and any(results):
-        keys = list(results[0].keys())
+        keys = ['loss/mean', 'loss/std', 'duration']
 
+        d = {
+            f"{key}/{i}": result[key] for key in keys for i, result in enumerate(results)
+        }
+
+        loss_mean = np.mean([result['loss/mean'] for result in results])
+        loss_sq = np.mean([result['loss/sq'] for result in results])
+        loss_std = (loss_mean ** 2 - loss_sq) ** 0.5
+
+        d['loss/mean'] = loss_mean
+        d['loss/std'] = loss_std
+        
         dataset_size = callbacks[0].dataset_size
         temperature = callbacks[0].temperature
         init_loss  = callbacks[0].init_loss.item()
 
-        for result in results:
-            result['wbic/mean'] = dataset_size * result['loss/mean']
-            result['wbic/std'] = dataset_size * result['loss/std']
-            result['llc/mean'] = (result['wbic/mean'] - init_loss * dataset_size) / temperature
-            result['llc/std'] = result['wbic/std'] / temperature
-
-        keys = list(results[0].keys())
-        d = {
-            f"{key}/{i}": result[key] for key in keys for i, result in enumerate(results)
-        }
-        
-        for key in keys:
-            entries = [result[key] for result in results]
-            d[f"{key}/mean"] = float(np.mean(entries))
-            d[f"{key}/std"] = float(np.std(entries))
+        d['wbic/mean'] = dataset_size * d['loss/mean']
+        d['wbic/std'] = dataset_size * d['loss/std']
+        d['llc/mean'] = (d['wbic/mean'] - init_loss * dataset_size) / temperature
+        d['llc/std'] = d['wbic/std'] / temperature
 
         return d
 

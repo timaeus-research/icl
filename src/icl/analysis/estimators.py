@@ -1,4 +1,4 @@
-from typing import (Any, Iterable, Union)
+from typing import Any, Iterable, Union
 
 import numpy as torch
 import pandas as pd
@@ -155,8 +155,8 @@ class OnlineExpectationEstimatorWithTrace:
     def estimate(self):
         return {
             "trace": self.first_moments.detach(),
-            **{f"chain-{i}/mean": self.first_moments[i, self.least_num_samples_seen-1].detach() for i in range(self.num_chains)},
-            **{f"chain-{i}/std": torch.sqrt(self.second_moments[i, self.least_num_samples_seen-1] - self.first_moments[i, self.num_samples_seen[i]-1] ** 2).detach() for i in range(self.num_chains)},
+            **{f"mean/{i}": self.first_moments[i, self.least_num_samples_seen-1].detach() for i in range(self.num_chains)},
+            **{f"std/{i}": torch.sqrt(self.second_moments[i, self.least_num_samples_seen-1] - self.first_moments[i, self.num_samples_seen[i]-1] ** 2).detach() for i in range(self.num_chains)},
             "mean": self.first_moment.detach(),
             "std": torch.sqrt(self.second_moment - self.first_moment ** 2).detach(),
         }
@@ -179,72 +179,6 @@ class OnlineExpectationEstimatorWithTrace:
         self.num_samples_seen.zero_()
         self.first_moments.zero_()
         self.second_moments.zero_()
-
-# class OnlineExpectationEstimator:
-#     def __init__(self, num_samples: int, observable_dim: int = 1, device="cpu"):
-#         self.num_samples = num_samples
-#         self.num_samples_seen = 0
-#         self.observable_dim = observable_dim
-#         self.first_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
-#         self.second_moment = torch.zeros(observable_dim, dtype=torch.float32).to(device)
-
-#     def update(self, chain: int, draw: int, observation: float):
-#         self.first_moment = self.first_moment  + (observation - self.first_moment) / (self.num_samples_seen + 1)
-#         self.second_moment = self.second_moment + (observation ** 2 - self.second_moment) / (self.num_samples_seen + 1)
-#         self.increment()
-
-#     def _update(self, chain: int, draw: int, indices: Tuple[int, int], observation: float):
-#         self.first_moment[indices] = self.first_moment[indices]  + (observation - self.first_moment[indices]) / (self.num_samples_seen + 1)
-#         self.second_moment[indices] = self.second_moment[indices] + (observation ** 2 - self.second_moment[indices]) / (self.num_samples_seen + 1)
-
-#     def increment(self):
-#         self.num_samples_seen += 1
-
-#     def estimate(self):
-#         return {
-#             "mean": self.first_moment,
-#             "std": torch.sqrt(self.second_moment - self.first_moment ** 2),
-#         }
-    
-
-# class ExpectationEstimatorWithTrace:
-#     def __init__(self, num_chains: int, num_draws: int, observable_dim: int = 1, device="cpu"):
-#         self.num_chains = num_chains
-#         self.num_draws = num_draws
-#         self.observable_dim = observable_dim
-#         self.draws = torch.zeros((num_chains, num_draws, observable_dim), dtype=torch.float32).to(device)
-#         self.num_samples_seen = 0
-
-#     def update(self, chain: int, draw: int, observation: float):
-#         self.draws[chain, draw, :] = observation
-#         self.increment()
-
-#     def _update(self, chain: int, draw: int, indices: Tuple[int, int], observation: float):
-#         self.draws[chain, draw, indices] = observation
-
-#     def increment(self):
-#         self.num_samples_seen += 1
-    
-#     def estimate(self):
-#         return {
-#             "trace": self.draws,
-#             **{f"chain-{i}/mean": self.draws.mean(dim=1) for i in range(self.num_chains)},
-#             **{f"chain-{i}/std": self.draws.std(dim=1) for i in range(self.num_chains)},
-#             "mean": self.draws.mean().item(),
-#             "std": self.draws.std().item(),
-#             "max": self.draws.max().item(),
-#             "min": self.draws.min().item(),
-#         }
-    
-#     @property
-#     def first_moment(self):
-#         return self.draws[:self.num_samples_seen].mean()
-    
-#     @property
-#     def second_moment(self):
-#         return (self.draws[:self.num_samples_seen] ** 2).mean()
-    
-    
     
 
 def get_estimator(num_chains: int, num_draws: int, observable_dim: int = 1, device="cpu", online: bool = False, include_trace: bool = False):
