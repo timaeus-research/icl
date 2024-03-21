@@ -389,8 +389,8 @@ class SamplerConfig(BaseModel):
     init_seed: Optional[int] = None
 
     # Restricted LLC
-    include: Tuple[str] = ("*", )
-    exclude: Tuple[str] = ()
+    include: Tuple[str, ...] = ("*", )
+    exclude: Tuple[str, ...] = ()
 
     @field_validator('sampling_method')
     @classmethod
