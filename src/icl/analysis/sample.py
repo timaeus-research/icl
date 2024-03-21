@@ -3,9 +3,9 @@ import itertools
 import re
 import time
 import warnings
-from collections import Sequence
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
+from typing import (Any, Callable, Dict, List, Literal, Optional, Tuple, Type,
+                    Union)
 
 import numpy as np
 import torch
@@ -389,8 +389,8 @@ class SamplerConfig(BaseModel):
     init_seed: Optional[int] = None
 
     # Restricted LLC
-    include: Sequence[str] = ("*", )
-    exclude: Sequence[str] = ()
+    include: Tuple[str] = ("*", )
+    exclude: Tuple[str] = ()
 
     @field_validator('sampling_method')
     @classmethod
