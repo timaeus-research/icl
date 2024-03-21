@@ -28,6 +28,7 @@ from icl.monitoring import stdlogger
 from icl.regression.evals import SequenceMSELoss, SubsequenceMSELoss
 from icl.regression.train import RegressionRun
 from infra.utils.iterables import dicts_to_latex
+from infra.utils.seed import set_seed
 
 if XLA:
     import torch_xla.core.xla_model as xm
@@ -526,7 +527,7 @@ class Sampler:
         self.device = device or DEVICE
 
         if config.init_seed is not None:
-            torch.manual_seed(config.init_seed)
+            set_seed(config.init_seed)
 
         # if XLA:
         #     self.device = torch.device('cpu')  # Excuse me

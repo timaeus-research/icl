@@ -183,7 +183,9 @@ def sweep_over_time(
 def wandb_context(config=None):
     wandb.init(project="icl", entity=WANDB_ENTITY)
     config = config or dict(wandb.config)
-    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}-seed{config['task_config']['model_seed']}"
+    wandb.run.name = f"L{config['task_config']['num_layers']}H{config['task_config']['num_heads']}M{config['task_config']['num_tasks']}-s{config['task_config']['model_seed']}"
+    wandb.config['device'] = str(DEVICE)
+    
     try:
         yield config
         wandb.finish()
