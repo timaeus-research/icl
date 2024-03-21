@@ -32,6 +32,53 @@ if XLA:
 
 StepsType = Union[List[int], StepsConfig]
 
+from typing import List
+
+
+def get_restriction_name(numbers: List[int]) -> str:
+    """
+    Generates a string representation of a list of numbers, indicating any consecutive sequences of numbers.
+
+    Args:
+        numbers (List[int]): A list of integers.
+
+    Returns:
+        str: A string representation of the numbers, indicating any consecutive sequences.
+
+    Example:
+        >>> get_restriction_name([1, 2, 3, 5, 6, 8, 9])
+        '1-3_5-6_8-9'
+    """
+    
+    if not numbers:
+        return ""
+
+    result = []
+    start = prev = numbers[0]
+
+    for num in numbers[1:]:
+        if num != prev + 1:
+            if start == prev:
+                result.append(str(start))
+            elif start + 1 == prev:
+                result.append(str(start))
+                result.append(str(prev))
+            else:
+                result.append(f"{start}-{prev}")
+            start = num
+        prev = num
+
+    if start == prev:
+        result.append(str(start))
+    elif start + 1 == prev:
+        result.append(str(start))
+        result.append(str(prev))
+    else:
+        result.append(f"{start}-{prev}")
+
+    return "_".join(result)
+
+
 def sweep_over_time(
     config: RegressionConfig,
     sampler_config: dict,
@@ -107,17 +154,23 @@ def sweep_over_time(
 
         if i == 0 and "*" not in sampler.config.include or sampler.config.exclude:
             sampler.restrict_(run.model)
-            restriction = [(i, n) for i, (n, p) in enumerate(run.model.named_parameters()) if p.requires_grad]
+
+            layer_idxs = []
+            layer_names = []
+
+            for i, (n, p) in enumerate(run.model.named_parameters()):
+                if p.requires_grad:
+                    layer_idxs.append(i)
+                    layer_names.append(n)
             
             print("")
             print("Restricting sampler to:")
-            for n in restriction:
+            for n in layer_names:
                 print("\t", n)
             print("")
 
-            restricted_positions = ".".join([i for i, n in restriction])
-            wandb.run.name = wandb.run.name + f"-r{restricted_positions}"
-            wandb.config['restriction'] = [n for i, n in restriction]
+            wandb.run.name = wandb.run.name + f"-r{get_restriction_name(layer_idxs)}"
+            wandb.config['restriction'] = layer_names
 
         try:
             results = sampler.eval(run.model)
