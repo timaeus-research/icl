@@ -102,13 +102,13 @@ def process_steps(config: Union[List[int], Tuple[int], Set[int], StepsConfig]):
             result |= _results
 
         if lin_args is not None:
-            _result = int_linspace(*lin_args, return_type="set")
+            _results = int_linspace(*lin_args, return_type="set")
 
             linear_subsample = config.get("linear_subsample")
             if linear_subsample:
-                _results = set(sorted(list(_results))[::linear_subsample])
+                _results = set(sorted(list(_resultss))[::linear_subsample])
 
-            result |= _result
+            result |= _results
 
         return result
     elif isinstance(config, (list, tuple, set)):
