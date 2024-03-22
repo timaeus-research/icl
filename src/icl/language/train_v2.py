@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 
 import torch
+import yaml
 from datasets import load_dataset
 from dotenv import load_dotenv
 from transformer_lens import HookedTransformer, HookedTransformerConfig
@@ -102,6 +103,8 @@ def train(config):
     # Load the tokenizer and create the model
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
     model = HookedTransformer(config.to_model_config())
+
+    print(yaml.dump(config))
     # model = ModelWrapper(model)
 
     # Define the training arguments
