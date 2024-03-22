@@ -114,13 +114,13 @@ def train(config):
         per_device_train_batch_size=config.per_device_train_batch_size,
         per_device_eval_batch_size=config.per_device_eval_batch_size,
         eval_steps=config.eval_steps,
+        save_strategy="no",
         save_steps=config.save_steps,
         warmup_steps=config.warmup_steps,
         logging_dir="logs",
         logging_steps=config.logging_steps,
         tpu_num_cores=config.tpu_num_cores,
         tpu_metrics_debug=config.tpu_metrics_debug,
-        label_names=["tokens"],
         report_to=("wandb" if config.wandb else "none")
         # torch_compile=True
     )
