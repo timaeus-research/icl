@@ -1,18 +1,13 @@
 name: tetrahedron-3m
 method: grid
-command: ["python", "src/icl/language/train.py"]
+command: ["python", "src/icl/language/train_v2.py", "--wandb"]
 project: tetrahedron-3m
 parameters:
   run_name: 
     value: "tetrahedron-3m-{seed_greek}"
   num_steps: 
     value: 50_000
-  transformer_config: 
-    parameters:
-      n_layers:
-        value: 2 
-      seed:
-        values: [0, 1, 2, 3, 4]
+
   checkpointer_config:
     parameters:
       checkpoint_steps:
@@ -23,3 +18,47 @@ parameters:
             value: 2_000
   dataset: 
     value: "timaeus/dsir-pile-10m"
+  
+  # Model
+  n_layers:
+    value: 2
+  d_model:
+    value: 256
+  d_head:
+    value: 32
+  n_heads:
+    value: 8
+  n_ctx:
+    value: 1024
+  d_vocab:
+    value: 5000
+  tokenizer_name:
+    value: "georgeyw/TinyStories-tokenizer-5k"
+  normalization_type:
+    value: "LN"
+  attn_only:
+    value: true
+  seed:
+    values: [0, 1, 2, 3, 4]
+  positional_embedding_type:
+    value: "shortformer"
+    
+  # Training
+  num_train_epochs:
+    value: 1
+  per_device_train_batch_size:
+    value: 8
+  per_device_eval_batch_size:
+    value: 8
+  eval_steps:
+    value: 500
+  save_steps:
+    value: 1000
+  warmup_steps:
+    value: 500
+  logging_steps:
+    value: 100
+  tpu_num_cores:
+    value: 8
+  tpu_metrics_debug:
+    value: true

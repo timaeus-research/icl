@@ -39,3 +39,5 @@ def save_to_bucket(filename: Union[str, Path], data: Union[Dict, np.ndarray]):
         client.upload_fileobj(f, AWS_BUCKET_NAME, f'other/language/{filename}')
 
     os.remove(f'/tmp/{filename}')
+
+
