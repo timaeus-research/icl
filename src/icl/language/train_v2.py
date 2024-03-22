@@ -54,7 +54,9 @@ class TrainingConfig:
 
     @property
     def cores(self):
-        return self.tpu_num_cores if XLA else 1
+        if XLA:
+            return max(1, self.tpu_num_cores)
+        return 1
 
     @property
     def per_device_train_batch_size(self):
@@ -187,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_steps", type=int, default=1000)
     parser.add_argument("--warmup_steps", type=int, default=500)
     parser.add_argument("--logging_steps", type=int, default=100)
-    parser.add_argument("--tpu_num_cores", type=int, default=0)
+    parser.add_argument("--tpu_num_cores", type=int, default=8)
     parser.add_argument("--tpu_metrics_debug", action="store_true")
 
     args = parser.parse_args()
