@@ -106,7 +106,7 @@ def process_steps(config: Union[List[int], Tuple[int], Set[int], StepsConfig]):
 
             linear_subsample = config.get("linear_subsample")
             if linear_subsample:
-                _results = set(sorted(list(_resultss))[::linear_subsample])
+                _results = set(sorted(list(_results))[::linear_subsample])
 
             result |= _results
 
