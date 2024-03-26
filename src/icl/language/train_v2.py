@@ -17,6 +17,8 @@ from icl.constants import XLA
 
 if XLA:
     import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.xla_multiprocessing as xmp
+
 
 @dataclass
 class ModelArguments:
@@ -101,5 +103,8 @@ def _mp_fn(index):
 
 
 if __name__ == "__main__":
-    main()
+    if XLA:
+        xmp.spawn(_mp_fn, args=(), nprocs=8, start_method='fork')
+    else:
+        main()
 
