@@ -376,7 +376,7 @@ class SamplerConfig(BaseModel):
     eval_batch_size: Optional[int] = None 
     eval_dataset_size: int = 8192
     eval_metrics: List[Literal["likelihood-derived", "singular-fluctuation", "covariance", "hessian", "batch-loss", "weights"]] \
-        = Field(default_factory=lambda: ["likelihood-derived"])˜  # covariance and hessian are not supported for now
+        = Field(default_factory=lambda: ["likelihood-derived"])  # covariance and hessian are not supported for now
     eval_online: bool = False
     eval_loss_fn: Literal["mse", "subsequence-mse"] = "subsequence-mse"
 
@@ -499,9 +499,6 @@ class Sampler:
             print(f"Setting SGLD seed to {config.init_seed}")
             set_seed(config.init_seed)
 
-        # if XLA:
-        #     self.device = torch.device('cpu')  # Excuse me
-        
         if self.config.grad_batch_origin == "infinite-dataset":
             self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
                 self.run.config.task_config.max_examples,
@@ -700,8 +697,10 @@ class Sampler:
 
             if any(name == e for e in exclude_exact):
                 param.requires_grad = False
+
             elif any(match_template(e, name) for e in exclude_templates):
                 param.requires_grad = False
+
 
     def eval(self, model: nn.Module, seed=None):
         if "*" not in self.config.include or self.config.exclude:
