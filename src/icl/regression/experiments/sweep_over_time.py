@@ -147,7 +147,7 @@ def sweep_over_time(
         run.model.to(device)
         sampler = sampler_config.to_sampler(run)
 
-        if i == 0 and "*" not in sampler.config.include or sampler.config.exclude:
+        if i == 0 and ("*" not in sampler.config.include or sampler.config.exclude):
             sampler.restrict_(run.model)
 
             layer_idxs = []
