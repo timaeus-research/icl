@@ -85,7 +85,7 @@ def sweep_over_time(
     steps: Optional[StepsType] = None,
     use_wandb: bool = False,
     testing: bool = False
-):      
+):     
     if testing:
         warnings.warn("Testing mode enabled")
 
@@ -174,6 +174,7 @@ def sweep_over_time(
         
         except ChainHealthException as e:
             warnings.warn(f"Chain failed to converge: {e}")
+
 
 @contextmanager
 def wandb_context(config=None):
