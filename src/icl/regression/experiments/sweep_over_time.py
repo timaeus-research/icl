@@ -140,7 +140,7 @@ def sweep_over_time(
     for i, step in enumerate(tqdm(steps, desc="Iterating over checkpoints...")):
         if not testing:
             checkpoint = run.checkpointer.load_file(step)
-            run.model.load_state_dict(checkpoint['model']) 
+            run.model.load_state_dict(checkpoint['model'])
         else:
             warnings.warn("Testing mode: Skipping checkpoint loading")
 
@@ -207,6 +207,7 @@ def cmd_line_sweep_over_time(
     num_tasks: int = typer.Option(None, help="Number of tasks to train on"), 
     num_layers: int = typer.Option(None, help="Number of transformer layers"), 
     num_heads: int = typer.Option(None, help="Number of transformer heads"), 
+    model_seed: int = typer.Option(None, help="Model seed"),
     embed_size: int = typer.Option(None, help="Embedding size"), 
     gamma: float = typer.Option(None, help="Localization strength"), 
     epsilon: float = typer.Option(None, help="SGLD step size"),
@@ -219,7 +220,8 @@ def cmd_line_sweep_over_time(
     num_chains: int = typer.Option(None, help="Number of chains"), 
     steps: Optional[List[int]] = typer.Option(None, help="Step"), 
     batch_size: Optional[int] = typer.Option(None, help="Batch size"),
-    use_wandb: bool = typer.Option(True, help="Use wandb")
+    use_wandb: bool = typer.Option(True, help="Use wandb"),
+    testing: bool = typer.Option(False, help="Testing mode")
 ):
     """
     Initialise and train an InContextRegressionTransformer model, tracking
@@ -231,6 +233,7 @@ def cmd_line_sweep_over_time(
         "num_layers": num_layers, 
         "num_heads": num_heads,
         "embed_size": embed_size, 
+        "model_seed": model_seed
     }, optimizer_config={"lr": lr}))
     sampler_config = rm_none_vals(dict(
         gamma=gamma, 
@@ -246,12 +249,13 @@ def cmd_line_sweep_over_time(
     ))
     config = get_unique_config(sweep, **filters)
     config_dict = config.model_dump()
+    print(yaml.dump(config_dict))
 
     if use_wandb:
         with wandb_context(config=config_dict):
-            sweep_over_time(config_dict, sampler_config, steps=steps, use_wandb=True)
+            sweep_over_time(config_dict, sampler_config, steps=steps, use_wandb=True, testing=testing)
     else:
-        sweep_over_time(config_dict, sampler_config, steps=steps)
+        sweep_over_time(config_dict, sampler_config, steps=steps, use_wandb=False, testing=testing)
 
 
 if __name__ == "__main__":

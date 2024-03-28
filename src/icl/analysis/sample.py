@@ -155,7 +155,7 @@ def sample_single_chain_xla(
     optimizer = sampling_method(model.parameters(), **optimizer_kwargs)
 
     if seed is not None:
-        torch.manual_seed(seed)
+        set_seed(seed)
 
     num_steps = num_draws * num_steps_bw_draws + num_burnin_steps
 
@@ -186,7 +186,6 @@ def sample_single_chain_xla(
                 mean_loss = loss.mean()
 
             optimizer.zero_grad()
-
 
             mean_loss.backward()
             optimizer.step()
@@ -495,28 +494,39 @@ class Sampler:
         self.run = run
         self.device = device or DEVICE
 
+        self.g = torch.Generator()
+
         if config.init_seed is not None:
             print(f"Setting SGLD seed to {config.init_seed}")
             set_seed(config.init_seed)
+            self.g.manual_seed(config.init_seed)
 
         if self.config.grad_batch_origin == "infinite-dataset":
             self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
                 self.run.config.task_config.max_examples,
-                self.config.grad_batch_size
+                self.config.grad_batch_size,
+                generator=self.g
             ) 
             self.eval_dataset, self.eval_loader = self.run.pretrain_dist.as_dataset_and_loader(
                 self.run.config.task_config.max_examples,
                 self.config.eval_batch_size or self.config.grad_batch_size,
                 self.config.eval_dataset_size,
+                generator=self.g
             )
         else:
             self.full_dataset, self.grad_loader = self.run.pretrain_dist.as_dataset_and_loader(
                 self.run.config.task_config.max_examples,
                 self.config.grad_batch_size,
-                self.config.eval_dataset_size
+                self.config.eval_dataset_size, 
+                generator=self.g
             )
             self.eval_dataset = self.full_dataset
-            self.eval_loader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=self.config.eval_batch_size, shuffle=(self.config.eval_method == "new-minibatch"))
+            self.eval_loader = torch.utils.data.DataLoader(
+                self.eval_dataset, 
+                batch_size=self.config.eval_batch_size, 
+                shuffle=(self.config.eval_method == "new-minibatch"), 
+                generator=self.g
+            )
 
         if self.config.eval_method == "fixed-minibatch":
             warnings.warn("Fixed minibatch evals are not supported for now.")
