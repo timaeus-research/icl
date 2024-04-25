@@ -93,10 +93,22 @@ def process_steps(config: Union[List[int], Tuple[int], Set[int], StepsConfig]):
         lin_args = config.get("linear_space")
 
         if log_args is not None:
-            result |= int_logspace(*log_args, return_type="set")
+            _results = int_logspace(*log_args, return_type="set")
+
+            log_subsample = config.get("log_subsample")
+            if log_subsample:
+                _results = set(sorted(list(_results))[::log_subsample])
+
+            result |= _results
 
         if lin_args is not None:
-            result |= int_linspace(*lin_args, return_type="set")
+            _results = int_linspace(*lin_args, return_type="set")
+
+            linear_subsample = config.get("linear_subsample")
+            if linear_subsample:
+                _results = set(sorted(list(_results))[::linear_subsample])
+
+            result |= _results
 
         return result
     elif isinstance(config, (list, tuple, set)):

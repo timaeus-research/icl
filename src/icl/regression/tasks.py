@@ -99,7 +99,7 @@ class RegressionSequenceDistribution(Generic[T]):
 
         return xs, ys
 
-    def as_dataset_and_loader(self, num_examples: int, batch_size: int, dataset_size: Union[int, Literal['inf']] = 'inf', shuffle=True):
+    def as_dataset_and_loader(self, num_examples: int, batch_size: int, dataset_size: Union[int, Literal['inf']] = 'inf', shuffle=True, generator=None):
         if dataset_size == 'inf':
             if not shuffle:
                 raise ValueError("Cannot have infinite dataset without shuffling")
@@ -116,7 +116,7 @@ class RegressionSequenceDistribution(Generic[T]):
 
         xs, ys = xs.to('cpu'), ys.to('cpu')
         dataset = torch.utils.data.TensorDataset(xs, ys)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, generator=generator)
         return dataset, loader
 
     def to(self, device: str):
