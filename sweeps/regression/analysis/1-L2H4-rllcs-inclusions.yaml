@@ -1,0 +1,124 @@
+name: L2H4Minf-rllcs-inclusions
+method: grid
+command: ["python", "src/icl/regression/experiments/sweep_over_time.py", "wandb"]
+project: forms
+parameters:
+  testing: 
+    value: False
+
+  sampler_config:
+    parameters: 
+      num_chains:
+        value: 8
+      num_draws:
+        value: 100
+      num_burnin_steps:
+        value: 0
+      sampling_method:
+        value: sgld
+      grad_batch_origin:
+        value: "infinite-dataset"
+      grad_batch_size:
+        value: 1024
+      # 
+      gradient_scale:
+        value: 0.01
+      localization_scale:
+        value: 0.001
+      noise_scale:
+        value: 0.0003
+      # 
+      eval_method:
+        value: "grad-minibatch"   
+      eval_batch_size:
+        value: null
+      eval_dataset_size:
+        value: 131072
+      eval_metrics:
+        value: ["likelihood-derived", "batch-loss"]
+      eval_online:
+        value: False
+      eval_loss_fn:
+        value: "mse"
+      init_seed:
+        value: 42
+      include:
+        values:
+          - ['*']
+          # Embedding
+          - ['token_sequence_transformer.token_embedding.weight']
+          - ['token_sequence_transformer.postn_embedding.weight']
+          - ['token_sequence_transformer.token_embedding.weight', 'token_sequence_transformer.postn_embedding.weight']
+          # Unembedding
+          - ['token_sequence_transformer.unembedding.0.*']
+          - ['token_sequence_transformer.unembedding.1.*']
+          - ['token_sequence_transformer.unembedding.**']
+          # Embedding + Unembedding
+          - ['token_sequence_transformer.token_embedding.weight', 'token_sequence_transformer.postn_embedding.weight', 'token_sequence_transformer.unembedding.**']
+          # Individual LNs (-Unembedding LN)
+          - ['token_sequence_transformer.blocks.0.layer_norms.0.*']
+          - ['token_sequence_transformer.blocks.0.layer_norms.1.*']
+          - ['token_sequence_transformer.blocks.1.layer_norms.0.*']
+          - ['token_sequence_transformer.blocks.1.layer_norms.1.*']
+          # All LNs (with/without the unembedding LN)
+          - ['token_sequence_transformer.blocks.*.layer_norms.**']
+          - ['token_sequence_transformer.blocks.*.layer_norms.**', 'token_sequence_transformer.unembedding.0.*']
+          # MLPs
+          - ['token_sequence_transformer.blocks.0.compute.**']
+          - ['token_sequence_transformer.blocks.1.compute.**']
+          - ['token_sequence_transformer.blocks.*.compute.**']
+          # Attention Heads
+          - ['token_sequence_transformer.blocks.0.attention.**']
+          - ['token_sequence_transformer.blocks.1.attention.**']
+          - ['token_sequence_transformer.blocks.*.attention.**']
+          # Blocks
+          - ['token_sequence_transformer.blocks.0.**']
+          - ['token_sequence_transformer.blocks.1.**']
+
+  task_config: 
+    parameters:
+      task_size:
+        value: 4
+      max_examples:
+        value: 16
+      num_tasks:
+        value: 'inf'
+      noise_variance:
+        value: 0.125
+      embed_size:
+        value: 64
+      mlp_size:
+        value: 64
+      num_heads:
+        value: 4
+      num_layers:
+        value: 2
+      model_seed:
+        value: 0
+      pretrain_seed:
+        value: null
+      true_seed:
+        value: null
+      sampling_seed:
+        value: null
+      layer_norm:
+        value: true
+      include_output: 
+        value: true
+
+  optimizer_config:
+    parameters:
+      lr:
+        value: 0.003
+
+  eval_batch_size:
+    value: 1024 
+
+  steps:
+    parameters:
+      log_space: 
+        value: 100
+      linear_space: 
+        value: 10000
+      linear_subsample:
+        value: 50
