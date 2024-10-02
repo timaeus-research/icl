@@ -25,6 +25,8 @@ To generate figures with the provided data, open the notebooks in [`notebooks/`]
 
 ### Checkpointing
 
+Main language model checkpoints are available on [HuggingFace](https://huggingface.co/georgeyw/L2W256-3m-rr). 
+
 #### Local storage
 
 To save checkpoints locally, set the `LOCAL_ROOT` environment variable to a local directory (see `.env-template`). 
