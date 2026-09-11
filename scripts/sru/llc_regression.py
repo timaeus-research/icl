@@ -27,6 +27,45 @@ import yaml
 from train_regression import steps_spec, sweep_to_kwargs
 
 
+def run_chain_workers(a) -> None:
+    """Launch --chain-workers copies of this script, one chain each (chain ids 0..N-1, init seeds init_seed + id), then
+    merge their tables: per-chain rows are concatenated and the pooled LLC per step is the mean over chains, its std the
+    population std over chains, matching the sampler's own pooling."""
+    import subprocess
+    import sys
+    out = Path(a.out)
+    cmd_base = [sys.executable, __file__, "--sweep", a.sweep, "--seed", str(a.seed), "--root", a.root, "--max-examples", str(a.max_examples or ""),
+                "--checkpoint-steps", a.checkpoint_steps, "--chains", "1", "--draws", str(a.draws), "--burnin", str(a.burnin),
+                "--epsilon", str(a.epsilon), "--gamma", str(a.gamma), "--nbeta", str(a.nbeta), "--batch", str(a.batch),
+                "--dataset-size", str(a.dataset_size), "--init-seed", str(a.init_seed)]
+    if a.steps:
+        cmd_base += ["--steps", a.steps]
+    if a.train_steps:
+        cmd_base += ["--train-steps", str(a.train_steps)]
+    if a.init_loss_batches:
+        cmd_base += ["--init-loss-batches", str(a.init_loss_batches)]
+    if not a.max_examples:
+        i = cmd_base.index("--max-examples"); del cmd_base[i:i + 2]
+    procs = []
+    for c in range(a.chain_workers):
+        wdir = out / "chains" / f"seed{a.seed}-chain{c}"; wdir.mkdir(parents=True, exist_ok=True)
+        log = open(wdir / "stdout.log", "w")
+        procs.append((c, subprocess.Popen(cmd_base + ["--out", str(wdir), "--chain-id", str(c)], stdout=log, stderr=subprocess.STDOUT)))
+    rcs = {c: p.wait() for c, p in procs}
+    bad = {c: rc for c, rc in rcs.items() if rc != 0}
+    wide = pd.concat(pd.read_parquet(out / "chains" / f"seed{a.seed}-chain{c}" / "data" / f"llc-seed{a.seed}.parquet") for c in range(a.chain_workers) if (out / "chains" / f"seed{a.seed}-chain{c}" / "data" / f"llc-seed{a.seed}.parquet").exists())
+    pooled = wide.groupby("step").llc.agg(["mean", lambda x: x.std(ddof=0)]); pooled.columns = ["llc_pooled", "llc_pooled_std"]
+    wide = wide.drop(columns=["llc_pooled", "llc_pooled_std"]).merge(pooled, left_on="step", right_index=True)
+    (out / "data").mkdir(parents=True, exist_ok=True)
+    wide.sort_values(["step", "chain"]).to_parquet(out / "data" / f"llc-seed{a.seed}.parquet", index=False)
+    long = pd.concat(pd.read_parquet(out / "chains" / f"seed{a.seed}-chain{c}" / "data" / f"llc_long-seed{a.seed}.parquet") for c in range(a.chain_workers) if (out / "chains" / f"seed{a.seed}-chain{c}" / "data" / f"llc_long-seed{a.seed}.parquet").exists())
+    long.to_parquet(out / "data" / f"llc_long-seed{a.seed}.parquet", index=False)
+    for step, g in pooled.iterrows():
+        print(f"seed {a.seed} step {int(step)}: llc {g.llc_pooled:.2f} (sd {g.llc_pooled_std:.2f}) over {int((wide.step == step).sum())} chains", flush=True)
+    if bad:
+        raise SystemExit(f"chain workers failed: {bad}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sweep", required=True)
@@ -47,7 +86,11 @@ def main() -> None:
     ap.add_argument("--dataset-size", type=int, default=2 ** 20)
     ap.add_argument("--init-loss-batches", type=int, default=None, help="cap init-loss evaluation batches (pilots)")
     ap.add_argument("--init-seed", type=int, default=42)
+    ap.add_argument("--chain-workers", type=int, default=1, help="run the chains as this many concurrent single-chain processes")
+    ap.add_argument("--chain-id", type=int, default=None, help="(internal) this process samples one chain with this id")
     a = ap.parse_args()
+    if a.chain_workers > 1:
+        return run_chain_workers(a)
 
     os.environ.setdefault("AWS_REGRESSION_BUCKET_NAME", "")
     os.environ["LOCAL_ROOT"] = a.root
@@ -79,7 +122,7 @@ def main() -> None:
                        grad_batch_origin="eval-dataset", grad_batch_size=a.batch, epsilon=a.epsilon, gamma=a.gamma,
                        temperature=temperature, eval_method="grad-minibatch", eval_batch_size=a.batch,
                        eval_dataset_size=a.dataset_size, eval_metrics=["likelihood-derived", "batch-loss"],
-                       eval_online=False, eval_loss_fn="mse", init_seed=a.init_seed,
+                       eval_online=False, eval_loss_fn="mse", init_seed=a.init_seed + (a.chain_id or 0),
                        num_init_loss_batches=a.init_loss_batches, device=str(DEVICE), cores=1)
     out = Path(a.out)
     (out / "data").mkdir(parents=True, exist_ok=True)
@@ -99,13 +142,13 @@ def main() -> None:
         flat = flatten_and_process(results)
         for k, v in flat.items():
             if isinstance(v, (int, float, np.floating, np.integer)):
-                long_rows.append({"seed": a.seed, "step": step, "key": k, "value": float(v)})
+                long_rows.append({"seed": a.seed, "step": step, "chain_id": a.chain_id, "key": k, "value": float(v)})
         # per-chain LLC from the chain's mean mini-batch loss: nbeta (mean_loss_c - init_loss); the pooled llc/mean is the
         # same expression on the chain average, so mean over chains of the per-chain values equals llc/mean
         init = float(flat["loss/init"])
         for k, v in flat.items():
             if k.startswith("batch-loss/mean/") and k.split("/")[-1].isdigit():
-                c = int(k.split("/")[-1])
+                c = int(k.split("/")[-1]) + (a.chain_id or 0)
                 wide_rows.append({"seed": a.seed, "step": step, "chain": c, "chain_mean_loss": float(v), "llc": a.nbeta * (float(v) - init),
                                   "llc_pooled": float(flat["llc/mean"]), "llc_pooled_std": float(flat["llc/std"]), "init_loss": init,
                                   "nbeta": a.nbeta, "epsilon": a.epsilon, "gamma": a.gamma, "chains": a.chains, "draws": a.draws,

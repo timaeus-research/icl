@@ -162,7 +162,7 @@ def train(config: LanguageConfig) -> HookedTransformer:
 
     print("Finished initialising model, dataloaders, optimizer, etc.")
 
-    if not XLA:
+    if not XLA and os.environ.get("ICL_NO_COMPILE", "0") != "1":
         print("Compiling model...")
         model = torch.compile(model)
         print("Finished compiling model.")
@@ -179,7 +179,8 @@ def train(config: LanguageConfig) -> HookedTransformer:
             # if XLA: xm.mark_step()
 
             optimizer.zero_grad()
-            tokens = torch.stack(batch['tokens']).to(device)
+            # torch-formatted datasets collate to a [batch, ctx] tensor; list-formatted ones to ctx tensors of shape [batch]
+            tokens = (batch['tokens'] if torch.is_tensor(batch['tokens']) else torch.stack(batch['tokens'], dim=1)).to(device)
             logits = model(tokens)
             loss = lm_cross_entropy_loss(logits, tokens)
             loss.backward()

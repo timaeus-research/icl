@@ -155,7 +155,8 @@ class LanguageConfig(BaseModel):
         return self.logger_config is not None and self.logger_config.project is not None and self.logger_config.entity is not None
 
     def trainset_factory(self):
-        return get_tokenized_dataset(self.trainset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx, streaming=False)
+        streaming = os.environ.get("ICL_STREAMING", "0") == "1"  # stream the 42 GB token shards instead of downloading them
+        return get_tokenized_dataset(self.trainset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx, streaming=streaming)
     
     def testset_factory(self):  
         return get_tokenized_dataset(self.testset, self.transformer_config.tokenizer_name, self.transformer_config.n_ctx, streaming=False)

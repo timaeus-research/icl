@@ -8,7 +8,8 @@ import datasets
 import torch
 import tqdm
 from huggingface_hub import HfApi, create_repo, get_token
-from transformer_lens.utils import AutoTokenizer, tokenize_and_concatenate
+from transformer_lens.utils import tokenize_and_concatenate
+from transformers import AutoTokenizer
 
 from icl.constants import BIGRAMS_FILEPATH, DATA, LANGUAGE_FILEPATH
 from icl.monitoring import stdlogger
@@ -92,9 +93,10 @@ def get_tokenized_dataset(original_dataset_name, tokenizer: Union[AutoTokenizer,
         print(f"Force reprocessing is enabled, reprocessing {tokenized_dataset_name}...")
     else:
         try:
-            tokenized_dataset = datasets.load_dataset(tokenized_dataset_name, streaming=streaming, split='train')
+            # the hub repos are save_to_disk dumps (arrow shards + state.json); name the shards or the json wins the builder inference
+            tokenized_dataset = datasets.load_dataset(tokenized_dataset_name, data_files='*.arrow', streaming=streaming, split='train')
             print(f"Tokenized dataset {tokenized_dataset_name} already exists.")
-            return tokenized_dataset
+            return tokenized_dataset.with_format("torch")  # batches as [batch, ctx] tensors, as tokenize_and_concatenate returns them
         
         except FileNotFoundError:
             print(f"Tokenized dataset {tokenized_dataset_name} not found, processing...")
