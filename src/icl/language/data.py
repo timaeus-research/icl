@@ -7,7 +7,7 @@ import boto3
 import datasets
 import torch
 import tqdm
-from huggingface_hub import HfApi, HfFolder, create_repo
+from huggingface_hub import HfApi, create_repo, get_token
 from transformer_lens.utils import AutoTokenizer, tokenize_and_concatenate
 
 from icl.constants import BIGRAMS_FILEPATH, DATA, LANGUAGE_FILEPATH
@@ -54,7 +54,7 @@ def upload_dataset_to_hub(dataset, dataset_name: str, organization: str = None, 
     
     # Login to Hugging Face (make sure you've logged in via CLI)
     api = HfApi()
-    token = HfFolder.get_token()
+    token = get_token()
     assert token, "You must be logged in to Hugging Face Hub"
     
     # Create a new dataset repository on Hugging Face Hub

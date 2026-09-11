@@ -182,9 +182,11 @@ def train(config: RegressionConfig) -> InContextRegressionTransformer:
         scheduler.step()
         if XLA: xm.mark_step()
 
-        if step % 100 == 0 and step > 0 and config.is_wandb_enabled:
-            # TODO: Figure out how to make this work with Logger
-            wandb.log({"batch/loss": loss.mean().item()}, step=step)
+        if step % 100 == 0 and step > 0:
+            if config.is_wandb_enabled:
+                wandb.log({"batch/loss": loss.mean().item()}, step=step)
+            elif logger is not None:
+                logger.log({"batch/loss": loss.mean().item()}, step=step)
 
         # Log to wandb & save checkpoints according to log_steps
         if step in config.checkpointer_config.checkpoint_steps:
@@ -208,6 +210,10 @@ def train(config: RegressionConfig) -> InContextRegressionTransformer:
 
     if config.is_wandb_enabled:
         wandb.finish()
+
+    for sub in getattr(logger, "loggers", [logger]):  # flush file loggers, which buffer the last step
+        if hasattr(sub, "_commit"):
+            sub._commit()
 
     stdlogger.info("\n" + "=" * 36 + f" Finished " + "=" * 36)
     stdlogger.info("\n")

@@ -16,7 +16,6 @@ from tqdm import tqdm
 
 from icl.analysis.cov import make_transformer_cov_accumulator
 from icl.analysis.health import ChainHealthException
-from icl.analysis.hessians import batch_hessian
 from icl.analysis.sgld import SGLD
 from icl.analysis.slt import (ExpectedBatchLossEstimator,
                               LikelihoodMetricsEstimator,
@@ -668,6 +667,7 @@ class Sampler:
 
         xs, ys = self.full_dataset.tensors[0][:self.config.eval_batch_size], self.full_dataset.tensors[1][:self.config.eval_batch_size]
 
+        from icl.analysis.hessians import batch_hessian  # pyhessian is optional
         with batch_hessian(model, xs, ys) as H:
             results = {
                 "hessian/trace": H.trace(),
