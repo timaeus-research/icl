@@ -108,7 +108,8 @@ def main() -> None:
                 c = int(k.split("/")[-1])
                 wide_rows.append({"seed": a.seed, "step": step, "chain": c, "chain_mean_loss": float(v), "llc": a.nbeta * (float(v) - init),
                                   "llc_pooled": float(flat["llc/mean"]), "llc_pooled_std": float(flat["llc/std"]), "init_loss": init,
-                                  "nbeta": a.nbeta, "epsilon": a.epsilon, "gamma": a.gamma})
+                                  "nbeta": a.nbeta, "epsilon": a.epsilon, "gamma": a.gamma, "chains": a.chains, "draws": a.draws,
+                                  "burnin": a.burnin, "batch": a.batch, "dataset_size": a.dataset_size, "seconds": time.time() - t0})
         pd.DataFrame(long_rows).to_parquet(out / "data" / f"llc_long-seed{a.seed}.parquet", index=False)
         pd.DataFrame(wide_rows).to_parquet(out / "data" / f"llc-seed{a.seed}.parquet", index=False)
         print(f"[{i + 1}/{len(steps)}] seed {a.seed} step {step}: llc {flat['llc/mean']:.2f} "

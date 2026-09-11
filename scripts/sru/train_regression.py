@@ -94,6 +94,7 @@ def main() -> None:
         ev_cols = [c for c in df.columns if c not in ("batch/loss",)]
         e = df[ev_cols].dropna(subset=[c for c in ev_cols if c not in ("seed", "step")], how="all")
         evals.append(e)
+    pd.DataFrame([{"seed": int(s), **{k: v for k, v in r.items() if k != "config"}} for s, r in runs.items()]).to_parquet(out / "data" / "runs.parquet", index=False)
     pd.concat(training).sort_values(["seed", "step"]).to_parquet(out / "data" / "training.parquet", index=False)
     pd.concat(evals).sort_values(["seed", "step"]).to_parquet(out / "data" / "evals.parquet", index=False)
     print("wrote", out / "data" / "training.parquet", out / "data" / "evals.parquet")
