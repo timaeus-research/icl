@@ -193,6 +193,8 @@ def train(config: LanguageConfig) -> HookedTransformer:
 
             if (step % 100 == 0 or step < 100 or (step % 10 == 0 and step < 1000)) and config.is_wandb_enabled:
                 wandb.log({"batch/loss": loss.item()}, step=step)
+            if step % 100 == 0 and logger is not None:  # batch loss to the metric logger too (CSV when W&B is off)
+                logger.log({"batch/loss": loss.item()}, step=step)
 
             if step in config.checkpointer_config.checkpoint_steps:
                 print("Saving checkpoint at step %s", step)
@@ -214,7 +216,12 @@ def train(config: LanguageConfig) -> HookedTransformer:
                 logger.log(metrics, step=step)
 
             step += 1
+            if step >= num_steps and step not in config.checkpointer_config.checkpoint_steps and step not in config.logger_config.logging_steps:
+                break  # stop at num_steps (after its checkpoint/logging step); the original only stopped between epochs
         epoch += 1
+    for sub in getattr(logger, "loggers", [logger] if logger is not None else []):  # flush file loggers, which buffer the last step
+        if hasattr(sub, "_commit"):
+            sub._commit()
 
     if config.is_wandb_enabled:
         wandb.finish()
